@@ -1,4 +1,7 @@
 #![allow(dead_code)]
+
+mod lexer;
+
 use std::marker::PhantomData;
 
 use swim_utils::{SourceId, Span, SpannedItem};
@@ -90,74 +93,6 @@ impl<'a> SymbolInterner<'a> {
 
 pub struct Parser<'a> {
     interner: SymbolInterner<'a>,
-}
-
-use logos::Logos;
-#[derive(Debug, Logos, PartialEq)]
-#[logos(skip r"[ \t]+")]
-enum Token {
-    #[token("(")]
-    OpenParen,
-    #[token(")")]
-    CloseParen,
-    #[token("+")]
-    Plus,
-    #[token("-")]
-    Minus,
-    #[token("/")]
-    Divide,
-    #[token("*")]
-    Multiply,
-    #[regex("[_a-zA-Z][_a-zA-Z0-9]{0,30}")]
-    Identifier,
-    Eof,
-}
-
-pub type LexedSources<'a, T: miette::SourceCode> =
-    IndexMap<SourceId, (&'a T, logos::Lexer<'a, Token>)>;
-
-pub struct Lexer<'a, T: miette::SourceCode> {
-    sources: LexedSources<'a, T>,
-    source: SourceId,
-}
-
-impl<'a, T: miette::SourceCode> Lexer<'a, T> {
-    pub fn span(&self) -> Span {
-        Span::new(self.source, self.current_lexer().span().into())
-    }
-
-    pub fn advance(&mut self) -> SpannedItem<Token> {
-        let pre_advance_span = self.span();
-        let current_lexer = self.current_lexer_mut();
-
-        match current_lexer.next() {
-            None => match self.advance_lexer() {
-                Some(_) => return self.advance(),
-                None => pre_advance_span.with_item(Token::Eof),
-            },
-            Some(tok) => self
-                .span()
-                .with_item(tok.expect("TODO: handle lexer failure")),
-        }
-    }
-
-    fn current_lexer_mut(&mut self) -> &mut logos::Lexer<'a, Token> {
-        &mut self.sources.get_mut(self.source).1
-    }
-
-    fn current_lexer(&self) -> &logos::Lexer<'a, Token> {
-        &self.sources.get(self.source).1
-    }
-
-    /// advances to the next lexer, returning a reference to it if there is one
-    fn advance_lexer(&mut self) -> Option<&mut logos::Lexer<'a, Token>> {
-        let mut current_lexer = self.current_lexer();
-        if Into::<usize>::into(self.source) == self.sources.len() - 1 {
-            return None;
-        }
-        self.source = (Into::<usize>::into(self.source) + 1usize).into();
-        Some(self.current_lexer_mut())
-    }
 }
 
 /*
