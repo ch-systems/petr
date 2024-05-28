@@ -113,6 +113,7 @@ impl Formattable for FunctionDeclaration {
         ));
 
         lines.push(ctx.new_line(buf));
+        todo!("format expressions");
         FormattedLines::new(lines)
     }
 }
