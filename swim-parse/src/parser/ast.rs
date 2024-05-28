@@ -2,6 +2,12 @@ use super::{Parse, ParseError, Parser};
 use crate::{lexer::Token, SymbolKey};
 use swim_utils::{Span, SpannedItem};
 
+// NOTE:
+// for scopes, track scopes in a tree to know which scopes are parents of which ones
+// then, store all names in a mapping from scope id to name
+// use the tree to find the scopes that are "in scope" by traversing up
+// and then search those scopes
+
 #[derive(Debug)]
 pub struct AST {
     nodes: Vec<SpannedItem<AstNode>>,
@@ -59,7 +65,20 @@ pub struct FunctionDeclaration {
 #[derive(Debug)]
 pub enum Expression {
     Literal(Literal),
+    Block(Box<BlockExpr>),
     Operator(Box<OperatorExpression>),
+}
+
+#[derive(Debug)]
+pub struct BlockExpr {
+    contents: Vec<Binding>,
+    return_expr: Expression,
+}
+
+#[derive(Debug)]
+pub struct Binding {
+    name: Identifier,
+    value: Expression,
 }
 
 impl Parse for Expression {
