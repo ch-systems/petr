@@ -5,7 +5,7 @@ mod parser;
 
 use swim_utils::IndexMap;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct SymbolKey(usize);
 
 impl From<usize> for SymbolKey {
@@ -31,5 +31,9 @@ impl<'a> SymbolInterner<'a> {
             Some(k) => k,
             None => self.symbol_map.insert(v),
         }
+    }
+
+    fn get(&self, id: SymbolKey) -> &'a str {
+        self.symbol_map.get(id)
     }
 }

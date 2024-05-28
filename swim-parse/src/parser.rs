@@ -43,9 +43,9 @@ impl<'a> Parser<'a> {
     }
 
     /// consume tokens until a node is produced
-    pub fn into_result(mut self) -> (AST, Vec<SpannedItem<ParseError>>) {
+    pub fn into_result(mut self) -> (AST, Vec<SpannedItem<ParseError>>, SymbolInterner<'a>) {
         let nodes: Vec<SpannedItem<AstNode>> = self.many::<SpannedItem<AstNode>>();
-        (AST::new(nodes), self.errors)
+        (AST::new(nodes), self.errors, self.interner)
     }
 
     pub fn many<P: Parse>(&mut self) -> Vec<P> {
@@ -94,6 +94,13 @@ impl<'a> Parser<'a> {
 
     pub fn parse<P: Parse>(&mut self) -> Option<P> {
         P::parse(self)
+    }
+
+    fn one_of<const N: usize>(&mut self, toks: [Token; N]) -> Option<SpannedItem<Token>> {
+        match self.lexer.peek().item() {
+            tok if toks.contains(tok) => self.token(*tok),
+            _ => None,
+        }
     }
 }
 

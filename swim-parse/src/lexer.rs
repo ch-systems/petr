@@ -31,9 +31,11 @@ pub enum Token {
     Identifier,
     #[token("function")]
     FunctionKeyword,
-    #[token(":")]
-    Colon,
-    #[token("~")]
+    #[token("in")]
+    InKeyword,
+    #[token("∈")]
+    IsInSymbol,
+    #[token("'")]
     TyMarker,
     #[token(",")]
     Comma,
@@ -66,7 +68,8 @@ impl std::fmt::Display for Token {
             Integer => write!(f, "integer"),
             Identifier => write!(f, "identifier"),
             FunctionKeyword => write!(f, "function"),
-            Colon => write!(f, ":"),
+            InKeyword => write!(f, ":"),
+            IsInSymbol => write!(f, "∈"),
             TyMarker => write!(f, "~"),
             Comma => write!(f, ","),
             ReturnsKeyword => write!(f, "returns"),

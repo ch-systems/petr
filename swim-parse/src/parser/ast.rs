@@ -1,3 +1,5 @@
+pub(crate) mod pretty_print;
+
 use super::{Parse, ParseError, Parser};
 use crate::{lexer::Token, SymbolKey};
 use swim_utils::{Span, SpannedItem};
@@ -67,6 +69,19 @@ pub enum Expression {
     Literal(Literal),
     Block(Box<BlockExpr>),
     Operator(Box<OperatorExpression>),
+    Variable(VariableExpression),
+}
+
+#[derive(Debug)]
+pub struct VariableExpression {
+    name: Identifier,
+}
+
+impl Parse for VariableExpression {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        let id = Identifier::parse(p)?;
+        Some(VariableExpression { name: id })
+    }
 }
 
 #[derive(Debug)]
@@ -96,7 +111,10 @@ impl Parse for Expression {
                 })))
             }
             Token::Integer => Some(Expression::Literal(p.parse()?)),
-            _ => todo!(),
+            // TODO might not want to do variables this way
+            // may have to advance and peek to see if its a fn call etc
+            Token::Identifier => Some(Expression::Variable(p.parse()?)),
+            a => todo!("need to parse expr {a:?}"),
         }
     }
 }
@@ -144,7 +162,7 @@ pub struct FunctionParameter {
 impl Parse for FunctionParameter {
     fn parse(p: &mut Parser) -> Option<Self> {
         let name: Identifier = p.parse()?;
-        p.token(Token::Colon)?;
+        p.one_of([Token::InKeyword, Token::IsInSymbol])?;
         let ty: Ty = p.parse()?;
         Some(FunctionParameter { name, ty })
     }
