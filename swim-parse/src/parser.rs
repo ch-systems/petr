@@ -7,6 +7,7 @@ use crate::{
     lexer::{Lexer, Token},
     SymbolInterner,
 };
+use ast::Comment;
 use miette::Diagnostic;
 use swim_utils::SpannedItem;
 use thiserror::Error;
@@ -31,6 +32,7 @@ pub struct Parser<'a> {
     interner: SymbolInterner,
     lexer: Lexer<'a>,
     errors: Vec<SpannedItem<ParseError>>,
+    comments: Vec<SpannedItem<Comment>>,
 }
 
 impl<'a> Parser<'a> {
@@ -38,8 +40,13 @@ impl<'a> Parser<'a> {
         Self {
             interner: SymbolInterner::default(),
             lexer: Lexer::new(sources),
-            errors: Vec::new(),
+            errors: Default::default(),
+            comments: Default::default(),
         }
+    }
+
+    pub fn drain_comments(&mut self) -> Vec<SpannedItem<Comment>> {
+        self.comments.drain(..).collect()
     }
 
     /// consume tokens until a node is produced
@@ -80,6 +87,18 @@ impl<'a> Parser<'a> {
             } else {
                 return buf;
             }
+        }
+    }
+
+    pub fn advance(&mut self) -> SpannedItem<Token> {
+        match *self.lexer.peek().item() {
+            Token::Comment => {
+                if let Some(comment) = self.parse::<SpannedItem<Comment>>() {
+                    self.comments.push(comment);
+                }
+                self.advance()
+            }
+            _ => self.lexer.advance(),
         }
     }
 

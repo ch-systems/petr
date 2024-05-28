@@ -3,6 +3,13 @@
 mod lexer;
 pub mod parser;
 
+mod comments {
+    /// If a node is commentable, it will have its comments set here.
+    pub trait Commentable {
+        fn set_comments(&mut self, comments: Vec<SpannedItem<Comment>>);
+    }
+}
+
 use std::rc::Rc;
 
 use swim_utils::IndexMap;

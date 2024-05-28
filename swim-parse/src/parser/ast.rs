@@ -1,5 +1,7 @@
 pub(crate) mod pretty_print;
 
+use std::rc::Rc;
+
 use super::{Parse, ParseError, Parser};
 use crate::{lexer::Token, SymbolKey};
 use swim_utils::{Span, SpannedItem};
@@ -267,5 +269,17 @@ impl Parse for Identifier {
         let id = p.interner.insert(p.lexer.slice());
         let span = p.lexer.span();
         Some(Identifier { id, span })
+    }
+}
+
+pub struct Comment {
+    content: Rc<str>,
+}
+
+impl Parse for Comment {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        p.token(Token::Comment)?;
+        let content = Rc::from(p.lexer.slice());
+        Some(Comment { content })
     }
 }

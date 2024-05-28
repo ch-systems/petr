@@ -29,6 +29,8 @@ pub enum Token {
     Integer,
     #[regex("[_a-zA-Z][_a-zA-Z0-9]{0,30}")]
     Identifier,
+    #[regex("(\\{\\-)(.*)(\\-\\})")]
+    Comment,
     #[token("function")]
     FunctionKeyword,
     #[token("in")]
@@ -74,6 +76,7 @@ impl std::fmt::Display for Token {
             Comma => write!(f, ","),
             ReturnsKeyword => write!(f, "returns"),
             Eof => write!(f, "EOF"),
+            Comment => write!(f, "{{- comment -}}"),
         }
     }
 }
