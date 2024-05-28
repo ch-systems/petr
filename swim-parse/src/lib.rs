@@ -2,66 +2,7 @@
 
 mod lexer;
 
-use std::marker::PhantomData;
-
-use swim_utils::{SourceId, Span, SpannedItem};
-
-pub struct IndexMap<K, V> {
-    _key: PhantomData<K>,
-    entries: Vec<V>,
-}
-
-impl<K, V> IndexMap<K, V> {
-    pub fn len(&self) -> usize {
-        self.entries.len()
-    }
-}
-
-impl<K, V> Default for IndexMap<K, V>
-where
-    K: From<usize> + Into<usize>,
-{
-    fn default() -> Self {
-        Self {
-            entries: Default::default(),
-            _key: PhantomData,
-        }
-    }
-}
-
-impl<K, V> IndexMap<K, V>
-where
-    K: From<usize> + Into<usize>,
-{
-    pub fn insert(&mut self, value: V) -> K {
-        let key = self.entries.len();
-        self.entries.push(value);
-        key.into()
-    }
-
-    pub fn get(&self, k: K) -> &V {
-        &self.entries[k.into()]
-    }
-
-    fn get_mut(&mut self, k: K) -> &mut V {
-        self.entries
-            .get_mut(k.into())
-            .expect("IDs are handed out by insertion, so this should never fail")
-    }
-}
-
-impl<K, V> IndexMap<K, V>
-where
-    K: From<usize>,
-    V: PartialEq,
-{
-    pub fn contains_value(&self, value: V) -> Option<K> {
-        self.entries
-            .iter()
-            .position(|v| *v == value)
-            .map(Into::into)
-    }
-}
+use swim_utils::IndexMap;
 
 pub struct SymbolKey(usize);
 
@@ -90,79 +31,130 @@ impl<'a> SymbolInterner<'a> {
         }
     }
 }
+mod parser {
+    mod ast {
+        use swim_utils::{Span, SpannedItem};
 
-pub struct Parser<'a> {
-    interner: SymbolInterner<'a>,
-}
+        use crate::SymbolKey;
 
-/*
-pub struct Lexer<'a> {
-    interner: SymbolInterner<'a>,
-    peek: Option<Spanned<Token>>,
-    input: &'a str,
-    stream: Chars<'a>,
-    offset: usize,
-}
+        use super::{Parse, Parser};
 
-
-impl<'a> Lexer<'a> {
-    pub fn new(input: &'a str) -> Self {
-        let interner = SymbolInterner::default();
-
-        Self {
-            interner,
-            stream: input.chars(),
-            offset: 0,
-            peek: None,
-            input,
+        pub struct AST {
+            nodes: Vec<SpannedItem<AstNode>>,
         }
-    }
 
-    pub fn advance(&mut self) -> Spanned<Token> {
-        if let Some(peek) = self.peek.take() {
-            return peek;
-        }
-        let lo = self.offset;
-        let mut buf = vec![];
-        let tok = loop {
-            if let Some(tok) = self.stream.next() {
-                self.offset += 1;
-                match tok {
-                    '*' => break Token::Op(Operator::Multiply),
-                    '/' => break Token::Op(Operator::Divide),
-                    '+' => break Token::Op(Operator::Plus),
-                    '-' => break Token::Op(Operator::Minus),
-                    ')' => break Token::OpenParens,
-                    '(' => break Token::CloseParens,
-                    tok if tok.is_whitespace() => {
-                        break Token::Ident(self.interner.insert(&self.input[lo..self.offset]))
-                    }
-                    tok => buf.push(tok),
-                };
-            } else {
-                break Token::Eof;
+        impl AST {
+            pub fn new(nodes: Vec<SpannedItem<AstNode>>) -> AST {
+                Self { nodes }
             }
-        };
+        }
 
-        let span = miette::SourceSpan::new(lo, self.offset - lo);
+        pub enum AstNode {
+            FunctionDeclaration(FunctionDeclaration),
+        }
 
-        Spanned(tok, span.into())
+        impl Parse for AstNode {
+            fn parse(p: &mut Parser) -> Option<Self> {
+                todo!()
+            }
+        }
 
+        pub struct FunctionDeclaration {
+            parameters: Box<[FunctionParameter]>,
+            body: SpannedItem<Expression>,
+        }
+
+        pub enum Expression {
+            OperatorExpression(Box<OperatorExpression>),
+        }
+
+        pub struct OperatorExpression {
+            lhs: Expression,
+            rhs: Expression,
+            op: SpannedItem<Operator>,
+            span: Span,
+        }
+
+        pub struct FunctionParameter {
+            name: Ident,
+            ty: Ident,
+        }
+
+        pub enum Operator {
+            Plus,
+            Minus,
+            Star,
+            Slash,
+        }
+
+        pub struct Ident {
+            id: SymbolKey,
+            span: Span,
+        }
+    }
+    use crate::{lexer::Lexer, SymbolInterner};
+    use miette::Diagnostic;
+    use swim_utils::SpannedItem;
+    use thiserror::Error;
+
+    use self::ast::{AstNode, AST};
+
+    #[derive(Error, Debug, Diagnostic)]
+    pub enum ParseError {
+        #[error("Unmatched parenthesis")]
+        UnmatchedParenthesis,
+    }
+
+    type Result<T> = std::result::Result<T, ParseError>;
+
+    pub struct Parser<'a> {
+        interner: SymbolInterner<'a>,
+        lexer: Lexer<'a>,
+        errors: Vec<ParseError>,
+    }
+
+    impl<'a> Parser<'a> {
+        pub fn new(sources: impl IntoIterator<Item = &'a str>) -> Self {
+            Self {
+                interner: SymbolInterner::default(),
+                lexer: Lexer::new(sources),
+                errors: Vec::new(),
+            }
+        }
+
+        /// consume tokens until a node is produced
+        pub fn parse(mut self) -> (AST, Vec<ParseError>) {
+            let nodes: Vec<SpannedItem<AstNode>> = self.many::<SpannedItem<AstNode>>();
+            (AST::new(nodes), self.errors)
+        }
+
+        pub fn many<P: Parse>(&mut self) -> Vec<P> {
+            let mut buf = Vec::new();
+            loop {
+                if let Some(parsed_item) = P::parse(self) {
+                    buf.push(parsed_item);
+                } else {
+                    break;
+                }
+            }
+            buf
+        }
+    }
+
+    pub trait Parse: Sized {
+        fn parse(p: &mut Parser) -> Option<Self>;
+    }
+
+    impl<T> Parse for SpannedItem<T>
+    where
+        T: Parse,
+    {
+        fn parse(p: &mut Parser) -> Option<Self> {
+            let before_span = p.lexer.span();
+            let result = T::parse(p)?;
+            let after_span = p.lexer.span();
+
+            Some(before_span.join(after_span).with_item(result))
+        }
     }
 }
-
-pub enum Token {
-    Op(Operator),
-    OpenParens,
-    CloseParens,
-    Ident(SymbolKey),
-    Eof,
-}
-
-pub enum Operator {
-    Plus,
-    Minus,
-    Multiply,
-    Divide,
-}
-*/

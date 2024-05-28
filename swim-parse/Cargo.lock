@@ -305,6 +305,7 @@ dependencies = [
  "logos",
  "miette",
  "swim-utils",
+ "thiserror",
 ]
 
 [[package]]

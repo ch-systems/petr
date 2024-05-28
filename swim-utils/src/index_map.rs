@@ -1,0 +1,58 @@
+use std::marker::PhantomData;
+
+pub struct IndexMap<K, V> {
+    _key: PhantomData<K>,
+    entries: Vec<V>,
+}
+
+impl<K, V> IndexMap<K, V> {
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+}
+
+impl<K, V> Default for IndexMap<K, V>
+where
+    K: From<usize> + Into<usize>,
+{
+    fn default() -> Self {
+        Self {
+            entries: Default::default(),
+            _key: PhantomData,
+        }
+    }
+}
+
+impl<K, V> IndexMap<K, V>
+where
+    K: From<usize> + Into<usize>,
+{
+    pub fn insert(&mut self, value: V) -> K {
+        let key = self.entries.len();
+        self.entries.push(value);
+        key.into()
+    }
+
+    pub fn get(&self, k: K) -> &V {
+        &self.entries[k.into()]
+    }
+
+    pub fn get_mut(&mut self, k: K) -> &mut V {
+        self.entries
+            .get_mut(k.into())
+            .expect("IDs are handed out by insertion, so this should never fail")
+    }
+}
+
+impl<K, V> IndexMap<K, V>
+where
+    K: From<usize>,
+    V: PartialEq,
+{
+    pub fn contains_value(&self, value: V) -> Option<K> {
+        self.entries
+            .iter()
+            .position(|v| *v == value)
+            .map(Into::into)
+    }
+}
