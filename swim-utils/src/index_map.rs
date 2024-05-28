@@ -5,6 +5,19 @@ pub struct IndexMap<K, V> {
     entries: Vec<V>,
 }
 
+impl<K, V> Clone for IndexMap<K, V>
+where
+    K: Clone,
+    V: Clone,
+{
+    fn clone(&self) -> Self {
+        IndexMap {
+            _key: self._key,
+            entries: self.entries.clone(),
+        }
+    }
+}
+
 impl<K, V> IndexMap<K, V> {
     pub fn len(&self) -> usize {
         self.entries.len()
