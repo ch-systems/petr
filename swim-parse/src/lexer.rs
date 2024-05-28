@@ -1,11 +1,11 @@
-use swim_utils::{SourceId, Span, SpannedItem};
+use swim_utils::{SourceId, Span, Spanned, SpannedItem};
 
 use logos::Logos;
 
 use crate::IndexMap;
-#[derive(Debug, Logos, PartialEq)]
+#[derive(Debug, Logos, PartialEq, Clone, Copy)]
 #[logos(skip r"[ \t]+")]
-enum Token {
+pub enum Token {
     #[token("(")]
     OpenParen,
     #[token(")")]
@@ -26,7 +26,41 @@ enum Token {
     Integer,
     #[regex("[_a-zA-Z][_a-zA-Z0-9]{0,30}")]
     Identifier,
+    #[token("function")]
+    FunctionKeyword,
+    #[token(":")]
+    Colon,
+    #[token("~")]
+    TyMarker,
+    #[token(",")]
+    Comma,
+    #[token("returns")]
+    ReturnsKeyword,
     Eof,
+}
+
+impl std::fmt::Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use Token::*;
+        match self {
+            OpenParen => write!(f, "("),
+            CloseParen => write!(f, ")"),
+            OpenBracket => write!(f, "["),
+            CloseBracket => write!(f, "]"),
+            Plus => write!(f, "+"),
+            Minus => write!(f, "-"),
+            Divide => write!(f, "/"),
+            Multiply => write!(f, "*"),
+            Integer => write!(f, "integer"),
+            Identifier => write!(f, "identifier"),
+            FunctionKeyword => write!(f, "function"),
+            Colon => write!(f, ":"),
+            TyMarker => write!(f, "~"),
+            Comma => write!(f, ","),
+            ReturnsKeyword => write!(f, "returns"),
+            Eof => write!(f, "EOF"),
+        }
+    }
 }
 
 pub type LexedSources<'a> = IndexMap<SourceId, (&'a str, logos::Lexer<'a, Token>)>;
@@ -34,6 +68,7 @@ pub type LexedSources<'a> = IndexMap<SourceId, (&'a str, logos::Lexer<'a, Token>
 pub struct Lexer<'a> {
     sources: LexedSources<'a>,
     source: SourceId,
+    peek: Option<SpannedItem<Token>>,
 }
 
 impl<'a> Lexer<'a> {
@@ -47,14 +82,25 @@ impl<'a> Lexer<'a> {
         Self {
             sources: map,
             source: 0.into(),
+            peek: None,
         }
     }
 
     pub fn span(&self) -> Span {
+        if let Some(peek) = self.peek {
+            return peek.span();
+        };
         Span::new(self.source, self.current_lexer().span().into())
     }
 
+    pub fn slice(&self) -> &'a str {
+        self.current_lexer().slice()
+    }
+
     pub fn advance(&mut self) -> SpannedItem<Token> {
+        if let Some(peek) = self.peek.take() {
+            return peek;
+        }
         let pre_advance_span = self.span();
         let current_lexer = self.current_lexer_mut();
 
@@ -79,12 +125,21 @@ impl<'a> Lexer<'a> {
 
     /// advances to the next lexer, returning a reference to it if there is one
     fn advance_lexer(&mut self) -> Option<&mut logos::Lexer<'a, Token>> {
-        let mut current_lexer = self.current_lexer();
         if Into::<usize>::into(self.source) == self.sources.len() - 1 {
             return None;
         }
         self.source = (Into::<usize>::into(self.source) + 1usize).into();
         Some(self.current_lexer_mut())
+    }
+
+    pub(crate) fn peek(&mut self) -> SpannedItem<Token> {
+        if let Some(ref peek) = self.peek {
+            *peek
+        } else {
+            let item = self.advance();
+            self.peek = Some(item);
+            item
+        }
     }
 }
 
@@ -108,31 +163,39 @@ mod tests {
     }
     #[test]
     fn test_lexer_advance() {
-        check(vec!["I am some source code"], expect![[r#"
+        check(
+            vec!["I am some source code"],
+            expect![[r#"
             [
                 SpannedItem Identifier [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(0), length: 1 } }],
                 SpannedItem Identifier [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(2), length: 2 } }],
                 SpannedItem Identifier [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(5), length: 4 } }],
                 SpannedItem Identifier [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(10), length: 6 } }],
                 SpannedItem Identifier [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(17), length: 4 } }],
-            ]"#]])
+            ]"#]],
+        )
     }
 
     #[test]
     fn test_lexer_advance_multiple_sources() {
-        check(vec!["I am some", "Source code"], expect![[r#"
+        check(
+            vec!["I am some", "Source code"],
+            expect![[r#"
             [
                 SpannedItem Identifier [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(0), length: 1 } }],
                 SpannedItem Identifier [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(2), length: 2 } }],
                 SpannedItem Identifier [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(5), length: 4 } }],
                 SpannedItem Identifier [Span { source: SourceId(1), span: SourceSpan { offset: SourceOffset(0), length: 6 } }],
                 SpannedItem Identifier [Span { source: SourceId(1), span: SourceSpan { offset: SourceOffset(7), length: 4 } }],
-            ]"#]])
+            ]"#]],
+        )
     }
 
     #[test]
     fn test_symbols() {
-        check(vec!["((5 +-/* 2)[]"], expect![[r#"
+        check(
+            vec!["((5 +-/* 2)[]"],
+            expect![[r#"
             [
                 SpannedItem OpenParen [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(0), length: 1 } }],
                 SpannedItem OpenParen [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(1), length: 1 } }],
@@ -145,6 +208,7 @@ mod tests {
                 SpannedItem CloseParen [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(10), length: 1 } }],
                 SpannedItem OpenBracket [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(11), length: 1 } }],
                 SpannedItem CloseBracket [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(12), length: 1 } }],
-            ]"#]])
+            ]"#]],
+        )
     }
 }

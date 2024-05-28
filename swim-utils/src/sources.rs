@@ -84,4 +84,18 @@ impl Span {
             span: SourceSpan::new(first_span.offset().into(), length),
         }
     }
+
+    /// goes from the `hi` of self to the `hi` of `after_span`
+    pub fn hi_to_hi(&self, after_span: Span) -> Self {
+        assert!(
+            self.source == after_span.source,
+            "cannot join spans from different files"
+        );
+        let lo = self.span.offset() + self.span.len();
+        let hi = after_span.span.offset() + after_span.span.len();
+        Self {
+            source: self.source,
+            span: SourceSpan::new(lo.into(), hi - lo),
+        }
+    }
 }
