@@ -29,7 +29,7 @@ pub enum Token {
     Integer,
     #[regex("[_a-zA-Z][_a-zA-Z0-9]{0,30}")]
     Identifier,
-    #[regex("(\\{\\-)(.*)(\\-\\})")]
+    #[regex(r#"(\{\-)[^-}]*(\-\})"#)]
     Comment,
     #[token("function")]
     FunctionKeyword,
@@ -43,6 +43,8 @@ pub enum Token {
     Comma,
     #[token("returns")]
     ReturnsKeyword,
+    // #[token("\n")]
+    // Newline,
     Eof,
 }
 impl Token {
@@ -86,7 +88,6 @@ pub type LexedSources<'a> = IndexMap<SourceId, (&'a str, logos::Lexer<'a, Token>
 pub struct Lexer<'a> {
     sources: LexedSources<'a>,
     source: SourceId,
-    peek: Option<SpannedItem<Token>>,
 }
 
 impl<'a> Lexer<'a> {
@@ -100,14 +101,10 @@ impl<'a> Lexer<'a> {
         Self {
             sources: map,
             source: 0.into(),
-            peek: None,
         }
     }
 
     pub fn span(&self) -> Span {
-        if let Some(peek) = self.peek {
-            return peek.span();
-        };
         Span::new(self.source, self.current_lexer().span().into())
     }
 
@@ -116,9 +113,6 @@ impl<'a> Lexer<'a> {
     }
 
     pub fn advance(&mut self) -> SpannedItem<Token> {
-        if let Some(peek) = self.peek.take() {
-            return peek;
-        }
         let pre_advance_span = self.span();
         let current_lexer = self.current_lexer_mut();
 
@@ -148,15 +142,5 @@ impl<'a> Lexer<'a> {
         }
         self.source = (Into::<usize>::into(self.source) + 1usize).into();
         Some(self.current_lexer_mut())
-    }
-
-    pub(crate) fn peek(&mut self) -> SpannedItem<Token> {
-        if let Some(ref peek) = self.peek {
-            *peek
-        } else {
-            let item = self.advance();
-            self.peek = Some(item);
-            item
-        }
     }
 }

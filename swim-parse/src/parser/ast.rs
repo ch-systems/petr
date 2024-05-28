@@ -30,7 +30,7 @@ pub enum AstNode {
 
 impl Parse for AstNode {
     fn parse(p: &mut Parser) -> Option<Self> {
-        match p.lexer.peek().item() {
+        match p.peek().item() {
             Token::FunctionKeyword => Some(AstNode::FunctionDeclaration(p.parse()?)),
             Token::Eof => return None,
             a => todo!("unimplemented parse: {a:?}"),
@@ -51,7 +51,7 @@ impl Parse for FunctionDeclaration {
         p.token(Token::FunctionKeyword)?;
         let name = p.parse()?;
         p.token(Token::OpenParen)?;
-        let parameters = if *p.lexer.peek().item() == Token::CloseParen {
+        let parameters = if *p.peek().item() == Token::CloseParen {
             vec![].into_boxed_slice()
         } else {
             p.sequence::<FunctionParameter>(Token::Comma)
@@ -117,7 +117,7 @@ pub struct Binding {
 
 impl Parse for Expression {
     fn parse(p: &mut Parser) -> Option<Self> {
-        match p.lexer.peek().item() {
+        match p.peek().item() {
             item if item.is_operator() => {
                 let op: SpannedItem<Operator> = p.parse()?;
                 // parse prefix notation operator expression
@@ -145,7 +145,7 @@ pub enum Literal {
 
 impl Parse for Literal {
     fn parse(p: &mut Parser) -> Option<Self> {
-        let tok = p.lexer.advance();
+        let tok = p.advance();
         match tok.item() {
             Token::Integer => Some(Literal::Integer(
                 p.lexer
@@ -227,7 +227,7 @@ pub enum Operator {
 
 impl Parse for Operator {
     fn parse(p: &mut Parser) -> Option<Self> {
-        let tok = p.lexer.advance();
+        let tok = p.advance();
         match tok.item() {
             Token::Plus => Some(Operator::Plus),
             Token::Minus => Some(Operator::Minus),
@@ -258,7 +258,7 @@ impl Identifier {
 
 impl Parse for Identifier {
     fn parse(p: &mut Parser) -> Option<Self> {
-        let identifier = p.lexer.advance();
+        let identifier = p.advance();
         if *identifier.item() != Token::Identifier {
             p.errors.push(
                 p.lexer

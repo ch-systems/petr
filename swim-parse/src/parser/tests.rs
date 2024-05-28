@@ -57,3 +57,13 @@ fn parse_parameters_in_keyword_identical_to_symbol() {
     assert_eq!(pretty_one, pretty_two);
     assert_eq!(errs_one, errs_two)
 }
+
+#[test]
+fn commented_function() {
+    check(
+        vec![
+            r#"{- this is a comment -} function addTwoNums(a in 'A, b in 'B) returns 'B + a b    "#,
+        ],
+        expect![[]],
+    )
+}

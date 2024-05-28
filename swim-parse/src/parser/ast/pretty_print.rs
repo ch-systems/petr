@@ -1,5 +1,9 @@
 //! Pretty-print the AST for tests and ease of development.
-use crate::{parser::ast::*, SymbolInterner};
+use crate::{
+    comments::{Commentable, Commented},
+    parser::ast::*,
+    SymbolInterner,
+};
 
 pub trait PrettyPrint {
     fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String;
@@ -102,5 +106,18 @@ where
 {
     fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String {
         self.item().pretty_print(interner, indentation)
+    }
+}
+
+impl<T> PrettyPrint for Commented<T>
+where
+    T: PrettyPrint + Commentable,
+{
+    fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String {
+        let comments = self.get_comments();
+        format!(
+            "{indentation}{{-{comments}-}}\n{}",
+            self.item().pretty_print(interner, indentation)
+        )
     }
 }

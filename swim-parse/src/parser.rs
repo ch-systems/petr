@@ -33,15 +33,26 @@ pub struct Parser<'a> {
     lexer: Lexer<'a>,
     errors: Vec<SpannedItem<ParseError>>,
     comments: Vec<SpannedItem<Comment>>,
+    peek: Option<SpannedItem<Token>>,
 }
 
 impl<'a> Parser<'a> {
+    pub fn peek(&mut self) -> SpannedItem<Token> {
+        if let Some(ref peek) = self.peek {
+            *peek
+        } else {
+            let item = self.advance();
+            self.peek = Some(item);
+            item
+        }
+    }
     pub fn new(sources: impl IntoIterator<Item = &'a str>) -> Self {
         Self {
             interner: SymbolInterner::default(),
             lexer: Lexer::new(sources),
             errors: Default::default(),
             comments: Default::default(),
+            peek: None,
         }
     }
 
@@ -82,8 +93,8 @@ impl<'a> Parser<'a> {
                 Some(item) => buf.push(item),
                 None => return buf,
             }
-            if *self.lexer.peek().item() == separator {
-                self.lexer.advance();
+            if *self.peek().item() == separator {
+                self.advance();
             } else {
                 return buf;
             }
@@ -91,26 +102,26 @@ impl<'a> Parser<'a> {
     }
 
     pub fn advance(&mut self) -> SpannedItem<Token> {
-        match *self.lexer.peek().item() {
+        let next_tok = self.lexer.advance();
+        match *next_tok.item() {
             Token::Comment => {
                 if let Some(comment) = self.parse::<SpannedItem<Comment>>() {
                     self.comments.push(comment);
                 }
                 self.advance()
             }
-            _ => self.lexer.advance(),
+            _ => next_tok,
         }
     }
 
     pub fn token(&mut self, tok: Token) -> Option<SpannedItem<Token>> {
-        if *self.lexer.peek().item() == tok {
-            Some(self.lexer.advance())
+        let peeked_token = self.peek();
+        if *peeked_token.item() == tok {
+            Some(self.advance())
         } else {
-            self.errors.push(
-                self.lexer
-                    .span()
-                    .with_item(ParseError::ExpectedToken(tok, *self.lexer.peek().item())),
-            );
+            let span = self.lexer.span();
+            self.errors
+                .push(span.with_item(ParseError::ExpectedToken(tok, *peeked_token.item())));
             None
         }
     }
@@ -120,7 +131,7 @@ impl<'a> Parser<'a> {
     }
 
     fn one_of<const N: usize>(&mut self, toks: [Token; N]) -> Option<SpannedItem<Token>> {
-        match self.lexer.peek().item() {
+        match self.peek().item() {
             tok if toks.contains(tok) => self.token(*tok),
             _ => None,
         }
