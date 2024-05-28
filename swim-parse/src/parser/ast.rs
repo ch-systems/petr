@@ -1,0 +1,197 @@
+use super::{Parse, ParseError, Parser};
+use crate::{lexer::Token, SymbolKey};
+use swim_utils::{Span, SpannedItem};
+
+#[derive(Debug)]
+pub struct AST {
+    nodes: Vec<SpannedItem<AstNode>>,
+}
+
+impl AST {
+    pub fn new(nodes: Vec<SpannedItem<AstNode>>) -> AST {
+        Self { nodes }
+    }
+}
+
+#[derive(Debug)]
+pub enum AstNode {
+    FunctionDeclaration(FunctionDeclaration),
+}
+
+impl Parse for AstNode {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        let tok = p.lexer.advance();
+        match tok.item() {
+            Token::FunctionKeyword => {
+                let name = p.parse()?;
+                p.token(Token::OpenParen)?;
+                let parameters = if *p.lexer.peek().item() == Token::CloseParen {
+                    vec![].into_boxed_slice()
+                } else {
+                    p.sequence::<FunctionParameter>(Token::Comma)
+                        .into_boxed_slice()
+                };
+                p.token(Token::CloseParen)?;
+                p.token(Token::ReturnsKeyword)?;
+                let return_type = p.parse()?;
+                let body = p.parse()?;
+                Some(AstNode::FunctionDeclaration(FunctionDeclaration {
+                    name,
+                    parameters,
+                    return_type,
+                    body,
+                }))
+            }
+            Token::Eof => return None,
+            a => todo!("unimplemented parse: {a:?}"),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct FunctionDeclaration {
+    name: Identifier,
+    parameters: Box<[FunctionParameter]>,
+    return_type: Ty,
+    body: SpannedItem<Expression>,
+}
+
+#[derive(Debug)]
+pub enum Expression {
+    Literal(Literal),
+    Operator(Box<OperatorExpression>),
+}
+
+impl Parse for Expression {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        match p.lexer.peek().item() {
+            item if item.is_operator() => {
+                let op: SpannedItem<Operator> = p.parse()?;
+                // parse prefix notation operator expression
+                let lhs: SpannedItem<Expression> = p.parse()?;
+                let rhs: SpannedItem<Expression> = p.parse()?;
+                Some(Expression::Operator(Box::new(OperatorExpression {
+                    lhs,
+                    rhs,
+                    op,
+                })))
+            }
+            Token::Integer => Some(Expression::Literal(p.parse()?)),
+            _ => todo!(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum Literal {
+    Integer(i64),
+}
+
+impl Parse for Literal {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        let tok = p.lexer.advance();
+        match tok.item() {
+            Token::Integer => Some(Literal::Integer(
+                p.lexer
+                    .slice()
+                    .parse()
+                    .expect("lexer should have verified this"),
+            )),
+            _ => {
+                p.errors.push(
+                    p.lexer
+                        .span()
+                        .with_item(ParseError::ExpectedToken(Token::Integer, *tok.item())),
+                );
+                None
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct OperatorExpression {
+    lhs: SpannedItem<Expression>,
+    rhs: SpannedItem<Expression>,
+    op: SpannedItem<Operator>,
+}
+
+#[derive(Debug)]
+pub struct FunctionParameter {
+    name: Identifier,
+    ty: Ty,
+}
+
+impl Parse for FunctionParameter {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        let name: Identifier = p.parse()?;
+        p.token(Token::Colon)?;
+        let ty: Ty = p.parse()?;
+        Some(FunctionParameter { name, ty })
+    }
+}
+
+#[derive(Debug)]
+pub struct Ty {
+    ty_name: Identifier,
+}
+
+impl Parse for Ty {
+    // TODO types are not just idents,
+    // they can be more than that
+    fn parse(p: &mut Parser) -> Option<Self> {
+        p.token(Token::TyMarker)?;
+        let ident = Identifier::parse(p)?;
+        Some(Self { ty_name: ident })
+    }
+}
+
+#[derive(Debug)]
+pub enum Operator {
+    Plus,
+    Minus,
+    Star,
+    Slash,
+}
+
+impl Parse for Operator {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        let tok = p.lexer.advance();
+        match tok.item() {
+            Token::Plus => Some(Operator::Plus),
+            Token::Minus => Some(Operator::Minus),
+            Token::Star => Some(Operator::Star),
+            Token::Slash => Some(Operator::Slash),
+            _ => {
+                p.errors
+                    .push(p.lexer.span().with_item(ParseError::ExpectedOneOf(
+                        vec![Token::Plus, Token::Minus, Token::Star, Token::Slash],
+                        *tok.item(),
+                    )));
+                None
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Identifier {
+    id: SymbolKey,
+    span: Span,
+}
+
+impl Parse for Identifier {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        let identifier = p.lexer.advance();
+        if *identifier.item() != Token::Identifier {
+            p.errors.push(
+                p.lexer
+                    .span()
+                    .with_item(ParseError::ExpectedIdentifier(p.lexer.slice().to_string())),
+            );
+        }
+        let id = p.interner.insert(p.lexer.slice());
+        let span = p.lexer.span();
+        Some(Identifier { id, span })
+    }
+}
