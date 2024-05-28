@@ -48,7 +48,7 @@ impl PrettyPrint for AstNode {
 
 impl PrettyPrint for Identifier {
     fn pretty_print(&self, interner: &SymbolInterner, _: usize) -> String {
-        interner.get(self.id).into()
+        interner.get(self.id).to_string()
     }
 }
 

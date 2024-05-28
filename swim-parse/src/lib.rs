@@ -1,7 +1,9 @@
 #![allow(dead_code)]
 
 mod lexer;
-mod parser;
+pub mod parser;
+
+use std::rc::Rc;
 
 use swim_utils::IndexMap;
 
@@ -20,20 +22,21 @@ impl From<SymbolKey> for usize {
     }
 }
 
-#[derive(Default)]
-pub struct SymbolInterner<'a> {
-    symbol_map: IndexMap<SymbolKey, &'a str>,
+#[derive(Default, Debug, Clone)]
+pub struct SymbolInterner {
+    symbol_map: IndexMap<SymbolKey, Rc<str>>,
 }
 
-impl<'a> SymbolInterner<'a> {
-    pub fn insert(&mut self, v: &'a str) -> SymbolKey {
-        match self.symbol_map.contains_value(v) {
+impl SymbolInterner {
+    pub fn insert(&mut self, v: &str) -> SymbolKey {
+        let v: Rc<str> = Rc::from(v);
+        match self.symbol_map.contains_value(v.clone()) {
             Some(k) => k,
             None => self.symbol_map.insert(v),
         }
     }
 
-    fn get(&self, id: SymbolKey) -> &'a str {
-        self.symbol_map.get(id)
+    pub fn get(&self, id: SymbolKey) -> Rc<str> {
+        self.symbol_map.get(id).clone()
     }
 }

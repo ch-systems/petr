@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests;
 
-mod ast;
+pub mod ast;
 
 use crate::{
     lexer::{Lexer, Token},
@@ -28,7 +28,7 @@ pub enum ParseError {
 type Result<T> = std::result::Result<T, ParseError>;
 
 pub struct Parser<'a> {
-    interner: SymbolInterner<'a>,
+    interner: SymbolInterner,
     lexer: Lexer<'a>,
     errors: Vec<SpannedItem<ParseError>>,
 }
@@ -43,9 +43,13 @@ impl<'a> Parser<'a> {
     }
 
     /// consume tokens until a node is produced
-    pub fn into_result(mut self) -> (AST, Vec<SpannedItem<ParseError>>, SymbolInterner<'a>) {
+    pub fn into_result(mut self) -> (AST, Vec<SpannedItem<ParseError>>, SymbolInterner) {
         let nodes: Vec<SpannedItem<AstNode>> = self.many::<SpannedItem<AstNode>>();
         (AST::new(nodes), self.errors, self.interner)
+    }
+
+    pub fn interner(&self) -> &SymbolInterner {
+        &self.interner
     }
 
     pub fn many<P: Parse>(&mut self) -> Vec<P> {
@@ -101,6 +105,10 @@ impl<'a> Parser<'a> {
             tok if toks.contains(tok) => self.token(*tok),
             _ => None,
         }
+    }
+
+    pub fn errors(&self) -> &[SpannedItem<ParseError>] {
+        &self.errors
     }
 }
 

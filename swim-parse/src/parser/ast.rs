@@ -28,28 +28,8 @@ pub enum AstNode {
 
 impl Parse for AstNode {
     fn parse(p: &mut Parser) -> Option<Self> {
-        let tok = p.lexer.advance();
-        match tok.item() {
-            Token::FunctionKeyword => {
-                let name = p.parse()?;
-                p.token(Token::OpenParen)?;
-                let parameters = if *p.lexer.peek().item() == Token::CloseParen {
-                    vec![].into_boxed_slice()
-                } else {
-                    p.sequence::<FunctionParameter>(Token::Comma)
-                        .into_boxed_slice()
-                };
-                p.token(Token::CloseParen)?;
-                p.token(Token::ReturnsKeyword)?;
-                let return_type = p.parse()?;
-                let body = p.parse()?;
-                Some(AstNode::FunctionDeclaration(FunctionDeclaration {
-                    name,
-                    parameters,
-                    return_type,
-                    body,
-                }))
-            }
+        match p.lexer.peek().item() {
+            Token::FunctionKeyword => Some(AstNode::FunctionDeclaration(p.parse()?)),
             Token::Eof => return None,
             a => todo!("unimplemented parse: {a:?}"),
         }
@@ -62,6 +42,43 @@ pub struct FunctionDeclaration {
     parameters: Box<[FunctionParameter]>,
     return_type: Ty,
     body: SpannedItem<Expression>,
+}
+
+impl Parse for FunctionDeclaration {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        p.token(Token::FunctionKeyword)?;
+        let name = p.parse()?;
+        p.token(Token::OpenParen)?;
+        let parameters = if *p.lexer.peek().item() == Token::CloseParen {
+            vec![].into_boxed_slice()
+        } else {
+            p.sequence::<FunctionParameter>(Token::Comma)
+                .into_boxed_slice()
+        };
+        p.token(Token::CloseParen)?;
+        p.token(Token::ReturnsKeyword)?;
+        let return_type = p.parse()?;
+        let body = p.parse()?;
+        Some(Self {
+            name,
+            parameters,
+            return_type,
+            body,
+        })
+    }
+}
+impl FunctionDeclaration {
+    pub fn name(&self) -> Identifier {
+        self.name
+    }
+
+    pub fn parameters(&self) -> &Box<[FunctionParameter]> {
+        &self.parameters
+    }
+
+    pub fn return_type(&self) -> Ty {
+        self.return_type
+    }
 }
 
 #[derive(Debug)]
@@ -159,6 +176,15 @@ pub struct FunctionParameter {
     ty: Ty,
 }
 
+impl FunctionParameter {
+    pub fn name(&self) -> Identifier {
+        self.name
+    }
+    pub fn ty(&self) -> Ty {
+        self.ty
+    }
+}
+
 impl Parse for FunctionParameter {
     fn parse(p: &mut Parser) -> Option<Self> {
         let name: Identifier = p.parse()?;
@@ -168,9 +194,15 @@ impl Parse for FunctionParameter {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Ty {
     ty_name: Identifier,
+}
+
+impl Ty {
+    pub fn name(&self) -> Identifier {
+        self.ty_name
+    }
 }
 
 impl Parse for Ty {
@@ -211,10 +243,15 @@ impl Parse for Operator {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Identifier {
     id: SymbolKey,
     span: Span,
+}
+impl Identifier {
+    pub fn id(&self) -> SymbolKey {
+        self.id
+    }
 }
 
 impl Parse for Identifier {

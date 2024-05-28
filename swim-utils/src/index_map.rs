@@ -5,6 +5,19 @@ pub struct IndexMap<K, V> {
     entries: Vec<V>,
 }
 
+impl<K, V> std::fmt::Debug for IndexMap<K, V>
+where
+    V: std::fmt::Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        {
+            f.debug_struct("IndexMap")
+                .field("entries", &self.entries)
+                .finish()
+        }
+    }
+}
+
 impl<K, V> Clone for IndexMap<K, V>
 where
     K: Clone,
