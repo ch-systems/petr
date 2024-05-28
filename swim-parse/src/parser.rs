@@ -13,7 +13,7 @@ use thiserror::Error;
 
 use self::ast::{AstNode, AST};
 
-#[derive(Error, Debug, Diagnostic)]
+#[derive(Error, Debug, Diagnostic, PartialEq)]
 pub enum ParseError {
     #[error("Unmatched parenthesis")]
     UnmatchedParenthesis,
