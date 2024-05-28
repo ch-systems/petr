@@ -4,6 +4,7 @@ mod lexer;
 
 use swim_utils::IndexMap;
 
+#[derive(Debug)]
 pub struct SymbolKey(usize);
 
 impl From<usize> for SymbolKey {
@@ -32,13 +33,29 @@ impl<'a> SymbolInterner<'a> {
     }
 }
 mod parser {
+    #[cfg(test)]
+    mod tests {
+        use expect_test::expect;
+
+        use super::Parser;
+
+        fn check<T: AsRef<str>>(sources: Vec<T>, expected: expect_test::Expect) {
+            let parser = Parser::new(sources.iter().map(|s| s.as_ref()));
+            let (ast, errs) = parser.into_result();
+
+            expected.assert_eq(&format!("{ast:#?}\n\n{errs:#?}"));
+        }
+        #[test]
+        fn prefix_operator_expression() {
+            check(vec!["function addToFive() + 4 1"], expect![""])
+        }
+    }
     mod ast {
+        use super::{Parse, ParseError, Parser};
+        use crate::{lexer::Token, SymbolKey};
         use swim_utils::{Span, SpannedItem};
 
-        use crate::{lexer::Token, SymbolKey};
-
-        use super::{Parse, ParseError, Parser};
-
+        #[derive(Debug)]
         pub struct AST {
             nodes: Vec<SpannedItem<AstNode>>,
         }
@@ -49,6 +66,7 @@ mod parser {
             }
         }
 
+        #[derive(Debug)]
         pub enum AstNode {
             FunctionDeclaration(FunctionDeclaration),
         }
@@ -59,9 +77,11 @@ mod parser {
                 match tok.item() {
                     Token::FunctionKeyword => {
                         let name = p.parse()?;
+                        p.token(Token::OpenParen)?;
                         let parameters = p
                             .sequence::<FunctionParameter>(Token::Comma)
                             .into_boxed_slice();
+                        p.token(Token::CloseParen)?;
                         p.token(Token::ReturnsKeyword)?;
                         let return_type = p.parse()?;
                         let body = p.parse()?;
@@ -72,11 +92,12 @@ mod parser {
                             body,
                         }))
                     }
-                    _ => todo!(),
+                    a => todo!("unimplemented parse: {a:?}"),
                 }
             }
         }
 
+        #[derive(Debug)]
         pub struct FunctionDeclaration {
             name: Identifier,
             parameters: Box<[FunctionParameter]>,
@@ -84,23 +105,67 @@ mod parser {
             body: SpannedItem<Expression>,
         }
 
+        #[derive(Debug)]
         pub enum Expression {
-            OperatorExpression(Box<OperatorExpression>),
+            Literal(Literal),
+            Operator(Box<OperatorExpression>),
         }
 
         impl Parse for Expression {
             fn parse(p: &mut Parser) -> Option<Self> {
-                todo!()
+                match p.lexer.peek().item() {
+                    item if item.is_operator() => {
+                        let op: SpannedItem<Operator> = p.parse()?;
+                        // parse prefix notation operator expression
+                        let lhs: SpannedItem<Expression> = p.parse()?;
+                        let rhs: SpannedItem<Expression> = p.parse()?;
+                        Some(Expression::Operator(Box::new(OperatorExpression {
+                            lhs,
+                            rhs,
+                            op,
+                        })))
+                    }
+                    Token::Integer => Some(Expression::Literal(p.parse()?)),
+                    _ => todo!(),
+                }
             }
         }
 
-        pub struct OperatorExpression {
-            lhs: Expression,
-            rhs: Expression,
-            op: SpannedItem<Operator>,
-            span: Span,
+        #[derive(Debug)]
+        pub enum Literal {
+            Integer(i64),
         }
 
+        impl Parse for Literal {
+            fn parse(p: &mut Parser) -> Option<Self> {
+                let tok = p.lexer.advance();
+                match tok.item() {
+                    Token::Integer => Some(Literal::Integer(
+                        p.lexer
+                            .slice()
+                            .parse()
+                            .expect("lexer should have verified this"),
+                    )),
+                    _ => {
+                        p.errors.push(
+                            p.lexer
+                                .span()
+                                .with_item(ParseError::ExpectedToken(Token::Integer, *tok.item())),
+                        );
+                        None
+                    }
+                }
+            }
+        }
+
+        #[derive(Debug)]
+        pub struct OperatorExpression {
+            lhs: SpannedItem<Expression>,
+            rhs: SpannedItem<Expression>,
+            op: SpannedItem<Operator>,
+        }
+
+        #[derive(Debug)]
         pub struct FunctionParameter {
             name: Identifier,
             ty: Ty,
@@ -112,6 +177,7 @@ mod parser {
             }
         }
 
+        #[derive(Debug)]
         pub struct Ty {
             ty_name: Identifier,
         }
@@ -126,6 +192,7 @@ mod parser {
             }
         }
 
+        #[derive(Debug)]
         pub enum Operator {
             Plus,
             Minus,
@@ -133,6 +200,27 @@ mod parser {
             Slash,
         }
 
+        impl Parse for Operator {
+            fn parse(p: &mut Parser) -> Option<Self> {
+                let tok = p.lexer.advance();
+                match tok.item() {
+                    Token::Plus => Some(Operator::Plus),
+                    Token::Minus => Some(Operator::Minus),
+                    Token::Star => Some(Operator::Star),
+                    Token::Slash => Some(Operator::Slash),
+                    _ => {
+                        p.errors
+                            .push(p.lexer.span().with_item(ParseError::ExpectedOneOf(
+                                vec![Token::Plus, Token::Minus, Token::Star, Token::Slash],
+                                *tok.item(),
+                            )));
+                        None
+                    }
+                }
+            }
+        }
+
+        #[derive(Debug)]
         pub struct Identifier {
             id: SymbolKey,
             span: Span,
@@ -172,6 +260,8 @@ mod parser {
         ExpectedIdentifier(String),
         #[error("Expected token {0}, found {1}")]
         ExpectedToken(Token, Token),
+        #[error("Expected one of tokens {0:?}, found {1}")]
+        ExpectedOneOf(Vec<Token>, Token),
     }
 
     type Result<T> = std::result::Result<T, ParseError>;

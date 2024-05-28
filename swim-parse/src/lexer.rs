@@ -22,9 +22,9 @@ pub enum Token {
     #[token("-")]
     Minus,
     #[token("/")]
-    Divide,
+    Slash,
     #[token("*")]
-    Multiply,
+    Star,
     #[regex("[0-9]+")]
     Integer,
     #[regex("[_a-zA-Z][_a-zA-Z0-9]{0,30}")]
@@ -41,6 +41,15 @@ pub enum Token {
     ReturnsKeyword,
     Eof,
 }
+impl Token {
+    pub(crate) fn is_operator(&self) -> bool {
+        use Token::*;
+        match self {
+            Plus | Minus | Slash | Star => true,
+            _ => false,
+        }
+    }
+}
 
 impl std::fmt::Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -52,8 +61,8 @@ impl std::fmt::Display for Token {
             CloseBracket => write!(f, "]"),
             Plus => write!(f, "+"),
             Minus => write!(f, "-"),
-            Divide => write!(f, "/"),
-            Multiply => write!(f, "*"),
+            Slash => write!(f, "/"),
+            Star => write!(f, "*"),
             Integer => write!(f, "integer"),
             Identifier => write!(f, "identifier"),
             FunctionKeyword => write!(f, "function"),
