@@ -6,7 +6,7 @@ pub trait PrettyPrint {
 }
 
 impl PrettyPrint for AST {
-    fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String {
+    fn pretty_print(&self, interner: &SymbolInterner, _indentation: usize) -> String {
         let mut buf = String::new();
         for node in &self.nodes {
             buf.push_str(&node.pretty_print(interner, 0));
@@ -113,7 +113,7 @@ where
 }
 
 impl PrettyPrint for Comment {
-    fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String {
+    fn pretty_print(&self, _interner: &SymbolInterner, indentation: usize) -> String {
         format!("{}{{- {} -}}", "  ".repeat(indentation), self.content)
     }
 }

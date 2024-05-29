@@ -3,8 +3,7 @@
 mod lexer;
 pub mod parser;
 
-mod comments {
-    use std::rc::Rc;
+pub mod comments {
 
     use crate::parser::{ast::Comment, Parse};
 

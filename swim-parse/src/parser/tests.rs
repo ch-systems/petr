@@ -14,7 +14,7 @@ fn check<T: AsRef<str>>(sources: Vec<T>, expected: expect_test::Expect) {
         format!("\n\nErrors\n____\n{errs:#?}")
     };
 
-    expected.assert_eq(&format!("AST\n____\n{pretty_printed_ast}"));
+    expected.assert_eq(&format!("AST\n____\n{pretty_printed_ast}\n{errors_str}"));
 }
 
 #[test]

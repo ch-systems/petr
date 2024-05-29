@@ -1,4 +1,4 @@
-pub(crate) mod pretty_print;
+pub mod pretty_print;
 
 use std::rc::Rc;
 
@@ -79,6 +79,10 @@ impl FunctionDeclaration {
     pub fn return_type(&self) -> Ty {
         self.return_type
     }
+
+    pub fn body(&self) -> &Expression {
+        self.body.item()
+    }
 }
 
 #[derive(Debug)]
@@ -92,6 +96,12 @@ pub enum Expression {
 #[derive(Debug)]
 pub struct VariableExpression {
     name: Identifier,
+}
+
+impl VariableExpression {
+    pub fn name(&self) -> Identifier {
+        self.name
+    }
 }
 
 impl Parse for VariableExpression {
@@ -141,6 +151,14 @@ pub enum Literal {
     Integer(i64),
 }
 
+impl ToString for Literal {
+    fn to_string(&self) -> String {
+        match self {
+            Literal::Integer(i) => i.to_string(),
+        }
+    }
+}
+
 impl Parse for Literal {
     fn parse(p: &mut Parser) -> Option<Self> {
         let tok = p.advance();
@@ -168,6 +186,20 @@ pub struct OperatorExpression {
     lhs: SpannedItem<Expression>,
     rhs: SpannedItem<Expression>,
     op: SpannedItem<Operator>,
+}
+
+impl OperatorExpression {
+    pub fn lhs(&self) -> &SpannedItem<Expression> {
+        &self.lhs
+    }
+
+    pub fn rhs(&self) -> &SpannedItem<Expression> {
+        &self.rhs
+    }
+
+    pub fn op(&self) -> &SpannedItem<Operator> {
+        &self.op
+    }
 }
 
 #[derive(Debug)]
@@ -239,6 +271,17 @@ impl Parse for Operator {
                     )));
                 None
             }
+        }
+    }
+}
+
+impl Operator {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Operator::Plus => "+",
+            Operator::Minus => "-",
+            Operator::Star => "*",
+            Operator::Slash => "/",
         }
     }
 }

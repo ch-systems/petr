@@ -4,7 +4,8 @@ fn main() {
     println!("Hello, world!");
 }
 
-use swim_parse::{parser::ast::*, SymbolInterner};
+use pretty_print::PrettyPrint;
+use swim_parse::{comments::Commented, parser::ast::*, SymbolInterner};
 
 pub struct FormatterContext {
     interner: SymbolInterner,
@@ -62,6 +63,22 @@ impl Default for FormatterConfig {
     }
 }
 
+impl<T> Formattable for Commented<T>
+where
+    T: Formattable,
+{
+    fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
+        let comments = self.comments();
+        let mut lines = Vec::new();
+        for comment in comments {
+            lines.push(ctx.new_line(comment.pretty_print(&ctx.interner, ctx.indentation)));
+        }
+        let mut formatted_inner = self.item().format(ctx).lines;
+        lines.append(&mut formatted_inner);
+        FormattedLines::new(lines)
+    }
+}
+
 impl Formattable for FunctionDeclaration {
     fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
         let mut lines: Vec<Line> = Vec::new();
@@ -113,8 +130,45 @@ impl Formattable for FunctionDeclaration {
         ));
 
         lines.push(ctx.new_line(buf));
-        todo!("format expressions");
+        ctx.tab_in();
+        lines.append(&mut self.body().format(ctx).lines);
+        ctx.tab_out();
         FormattedLines::new(lines)
+    }
+}
+
+impl Formattable for Expression {
+    fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
+        match self {
+            Expression::Operator(op) => {
+                let mut buf = op.op().item().as_str().to_string();
+                ctx.tab_in();
+                let mut lhs = op.lhs().item().format(ctx).lines;
+                let mut rhs = op.rhs().item().format(ctx).lines;
+                ctx.tab_out();
+                if lhs.len() == 1 && rhs.len() == 1 {
+                    buf.push_str(" ");
+                    buf.push_str(&lhs[0].content);
+                    buf.push_str(&rhs[0].content);
+                    FormattedLines::new(vec![ctx.new_line(buf)])
+                } else {
+                    let mut lines = Vec::new();
+                    buf.push_str(" (");
+                    lines.push(ctx.new_line(buf));
+                    lines.append(&mut lhs);
+                    lines.append(&mut rhs);
+                    FormattedLines::new(lines)
+                }
+            }
+            Expression::Literal(lit) => {
+                FormattedLines::new(vec![ctx.new_line(format!(" {} ", lit.to_string()))])
+            }
+            Expression::Variable(var) => {
+                let ident_as_string = ctx.interner.get(var.name().id());
+                FormattedLines::new(vec![ctx.new_line(ident_as_string)])
+            }
+            Expression::Block(..) => todo!(),
+        }
     }
 }
 
@@ -152,14 +206,14 @@ trait Formattable {
 #[cfg(test)]
 mod tests {
     use expect_test::{expect, Expect};
-    use swim_parse::parser::{ast::FunctionDeclaration, Parse};
+    use swim_parse::{comments::Commented, parser::ast::FunctionDeclaration};
 
     use crate::{Formattable, FormatterConfig, FormatterContext};
 
     fn check_fn_decl(config: FormatterConfig, input: impl Into<String>, expect: Expect) {
         let input = input.into();
         let mut parser = swim_parse::parser::Parser::new(vec![input.as_ref()]);
-        let decl: FunctionDeclaration = match parser.parse() {
+        let decl: Commented<FunctionDeclaration> = match parser.parse() {
             Some(x) if parser.errors().is_empty() => x,
             _ => panic!("failed to parse: {:?}", parser.errors()),
         };
@@ -179,6 +233,7 @@ mod tests {
                   a ∈ 'int,
                   b ∈ 'int,
                 ) returns 'int
+                  +  2  3 
             "#]],
         );
     }
@@ -190,6 +245,20 @@ mod tests {
             "function foo(a in 'int, b in 'int) returns 'int + 2 3",
             expect![[r#"
                 function foo(a ∈ 'int, b ∈ 'int) returns 'int
+                  +  2  3 
+            "#]],
+        );
+    }
+
+    #[test]
+    fn commented_fn_decl() {
+        check_fn_decl(
+            FormatterConfig::default().put_fn_params_on_new_lines(false),
+            "{- this function does stuff -} function foo(a in 'int, b in 'int) returns 'int + 2 3",
+            expect![[r#"
+                {- this function does stuff -}
+                function foo(a ∈ 'int, b ∈ 'int) returns 'int
+                  +  2  3 
             "#]],
         );
     }
