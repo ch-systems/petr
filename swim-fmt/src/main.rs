@@ -4,8 +4,14 @@ fn main() {
     println!("Hello, world!");
 }
 
+use constants::{CLOSE_COMMENT_STR, OPEN_COMMENT_STR};
 use pretty_print::PrettyPrint;
 use swim_parse::{comments::Commented, parser::ast::*, SymbolInterner};
+
+pub mod constants {
+    pub const OPEN_COMMENT_STR: &str = "{- ";
+    pub const CLOSE_COMMENT_STR: &str = " -}";
+}
 
 pub struct FormatterContext {
     interner: SymbolInterner,
@@ -41,14 +47,41 @@ impl FormatterContext {
     }
 }
 
-struct FormatterConfig {
+pub struct FormatterConfig {
     put_fn_params_on_new_lines: bool,
     use_set_notation_for_types: bool,
+    // false:
+    // ```
+    // {- a -}
+    // {- b -}
+    // function ....
+    // ```
+    //
+    // true:
+    // ```
+    // {- a
+    //    b -}
+    // function ...
+    // ```
+    join_comments: bool,
 }
 impl FormatterConfig {
     pub fn put_fn_params_on_new_lines(self, arg: bool) -> FormatterConfig {
         FormatterConfig {
             put_fn_params_on_new_lines: arg,
+            ..self
+        }
+    }
+    pub fn join_comments(self, arg: bool) -> FormatterConfig {
+        FormatterConfig {
+            join_comments: arg,
+            ..self
+        }
+    }
+
+    pub fn use_set_notation_for_types(self, arg: bool) -> FormatterConfig {
+        FormatterConfig {
+            use_set_notation_for_types: arg,
             ..self
         }
     }
@@ -59,6 +92,7 @@ impl Default for FormatterConfig {
         Self {
             put_fn_params_on_new_lines: true,
             use_set_notation_for_types: true,
+            join_comments: true,
         }
     }
 }
@@ -70,8 +104,33 @@ where
     fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
         let comments = self.comments();
         let mut lines = Vec::new();
-        for comment in comments {
-            lines.push(ctx.new_line(comment.pretty_print(&ctx.interner, ctx.indentation)));
+        // if we are joining comments, join their contents
+        if ctx.config.join_comments && !comments.is_empty() {
+            let mut buf = String::from(OPEN_COMMENT_STR);
+            for c in comments.iter().take(comments.len() - 1) {
+                // if this is not the first line, add enough space to offset the open comment syntax
+                if !lines.is_empty() {
+                    buf.push_str(&" ".repeat(OPEN_COMMENT_STR.len()));
+                }
+                buf.push_str(&*c.content());
+                lines.push(ctx.new_line(buf));
+                buf = Default::default();
+            }
+            if !lines.is_empty() {
+                buf.push_str(&" ".repeat(OPEN_COMMENT_STR.len()));
+            }
+            buf.push_str(
+                &*comments
+                    .last()
+                    .expect("invariant: is_empty() checked above")
+                    .content(),
+            );
+            buf.push_str(CLOSE_COMMENT_STR);
+            lines.push(ctx.new_line(buf));
+        } else {
+            for comment in comments {
+                lines.push(ctx.new_line(comment.pretty_print(&ctx.interner, ctx.indentation)));
+            }
         }
         let mut formatted_inner = self.item().format(ctx).lines;
         lines.append(&mut formatted_inner);
@@ -161,7 +220,7 @@ impl Formattable for Expression {
                 }
             }
             Expression::Literal(lit) => {
-                FormattedLines::new(vec![ctx.new_line(format!(" {} ", lit.to_string()))])
+                FormattedLines::new(vec![ctx.new_line(format!(" {}", lit.to_string()))])
             }
             Expression::Variable(var) => {
                 let ident_as_string = ctx.interner.get(var.name().id());
@@ -233,7 +292,7 @@ mod tests {
                   a ∈ 'int,
                   b ∈ 'int,
                 ) returns 'int
-                  +  2  3 
+                  +  2 3
             "#]],
         );
     }
@@ -245,7 +304,7 @@ mod tests {
             "function foo(a in 'int, b in 'int) returns 'int + 2 3",
             expect![[r#"
                 function foo(a ∈ 'int, b ∈ 'int) returns 'int
-                  +  2  3 
+                  +  2 3
             "#]],
         );
     }
@@ -253,12 +312,64 @@ mod tests {
     #[test]
     fn commented_fn_decl() {
         check_fn_decl(
-            FormatterConfig::default().put_fn_params_on_new_lines(false),
+            FormatterConfig::default(),
             "{- this function does stuff -} function foo(a in 'int, b in 'int) returns 'int + 2 3",
             expect![[r#"
                 {- this function does stuff -}
-                function foo(a ∈ 'int, b ∈ 'int) returns 'int
-                  +  2  3 
+                function foo(
+                  a ∈ 'int,
+                  b ∈ 'int,
+                ) returns 'int
+                  +  2 3
+            "#]],
+        );
+    }
+
+    #[test]
+    fn multiple_comments_before_fn() {
+        check_fn_decl(
+            FormatterConfig::default(),
+            "{- comment one -} {- comment two -} function foo(a in 'int, b in 'int) returns 'int + 2 3",
+            expect![[r#"
+                {- comment one
+                   comment two -}
+                function foo(
+                  a ∈ 'int,
+                  b ∈ 'int,
+                ) returns 'int
+                  +  2 3
+            "#]],
+        );
+    }
+    #[test]
+    fn multiple_comments_before_fn_no_join() {
+        check_fn_decl(
+            FormatterConfig::default().join_comments(false),
+            "{- comment one -} {- comment two -} function foo(a in 'int, b in 'int) returns 'int + 2 3",
+            expect![[r#"
+                {- comment one -}
+                {- comment two -}
+                function foo(
+                  a ∈ 'int,
+                  b ∈ 'int,
+                ) returns 'int
+                  +  2 3
+            "#]],
+        );
+    }
+
+    #[test]
+    fn extract_comments_from_within_decl() {
+        check_fn_decl(
+            FormatterConfig::default(),
+            "function {- this comment should get moved to a more normal location -} foo(a in 'int, b in 'int) returns 'int + 2 3",
+            expect![[r#"
+                {- this comment should get moved to a more normal location -}
+                function foo(
+                  a ∈ 'int,
+                  b ∈ 'int,
+                ) returns 'int
+                  +  2 3
             "#]],
         );
     }

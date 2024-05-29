@@ -317,8 +317,14 @@ impl Parse for Identifier {
 pub struct Comment {
     content: Rc<str>,
 }
+
 impl Comment {
-    pub(crate) fn content(&self) -> Rc<str> {
+    pub fn new(item: impl AsRef<str>) -> Self {
+        Self {
+            content: Rc::from(item.as_ref()),
+        }
+    }
+    pub fn content(&self) -> Rc<str> {
         self.content.clone()
     }
 }
