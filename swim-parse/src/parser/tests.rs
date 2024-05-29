@@ -3,9 +3,9 @@ use expect_test::expect;
 
 use super::Parser;
 
-fn check<T: AsRef<str>>(sources: Vec<T>, expected: expect_test::Expect) {
-    let parser = Parser::new(sources.iter().map(|s| s.as_ref()));
-    let (ast, errs, interner) = parser.into_result();
+fn check<T: Into<String>>(sources: Vec<T>, expected: expect_test::Expect) {
+    let parser = Parser::new(sources.into_iter().map(|s| ("test", s)));
+    let (ast, errs, interner, _source_map) = parser.into_result();
 
     let pretty_printed_ast = ast.pretty_print(&interner, 0);
     let errors_str = if errs.is_empty() {
@@ -44,15 +44,17 @@ fn parse_parameters() {
 
 #[test]
 fn parse_parameters_in_keyword_identical_to_symbol() {
-    let parser_one = Parser::new(vec![
+    let parser_one = Parser::new(vec![(
+        "test",
         "function addTwoNums(a ∈ 'Integer, b ∈ 'Integer) returns 'Integer + a b",
-    ]);
-    let parser_two = Parser::new(vec![
+    )]);
+    let parser_two = Parser::new(vec![(
+        "test",
         "function addTwoNums(a in 'Integer, b in 'Integer) returns 'Integer + a b",
-    ]);
-    let (ast_one, errs_one, interner_one) = parser_one.into_result();
+    )]);
+    let (ast_one, errs_one, interner_one, _) = parser_one.into_result();
 
-    let (ast_two, errs_two, interner_two) = parser_two.into_result();
+    let (ast_two, errs_two, interner_two, _) = parser_two.into_result();
 
     let pretty_one = ast_one.pretty_print(&interner_one, 0);
     let pretty_two = ast_two.pretty_print(&interner_two, 0);

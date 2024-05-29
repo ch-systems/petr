@@ -45,8 +45,8 @@ pub enum Token {
     Comma,
     #[token("returns")]
     ReturnsKeyword,
-    // #[token("\n")]
-    // Newline,
+    #[token("\n")]
+    Newline,
     Eof,
 }
 impl Token {
@@ -76,29 +76,30 @@ impl std::fmt::Display for Token {
             FunctionKeyword => write!(f, "function"),
             InKeyword => write!(f, ":"),
             IsInSymbol => write!(f, "∈"),
-            TyMarker => write!(f, "~"),
+            TyMarker => write!(f, "'"),
             Comma => write!(f, ","),
             ReturnsKeyword => write!(f, "returns"),
             Eof => write!(f, "EOF"),
             Comment => write!(f, "{{- comment -}}"),
+            Newline => write!(f, "newline"),
         }
     }
 }
 
-pub type LexedSources<'a> = IndexMap<SourceId, (&'a str, logos::Lexer<'a, Token>)>;
+pub type LexedSources = IndexMap<SourceId, logos::Lexer<'static, Token>>;
 
-pub struct Lexer<'a> {
-    sources: LexedSources<'a>,
+pub struct Lexer {
+    sources: LexedSources,
     source: SourceId,
 }
 
-impl<'a> Lexer<'a> {
-    pub fn new(sources: impl IntoIterator<Item = &'a str>) -> Self {
+impl Lexer {
+    pub fn new(sources: impl IntoIterator<Item = &'static str>) -> Self {
         let mut map: IndexMap<_, _> = Default::default();
         let sources = sources.into_iter();
         for source in sources {
             let lexer = Token::lexer(source);
-            map.insert((source, lexer));
+            map.insert(lexer);
         }
         Self {
             sources: map,
@@ -110,7 +111,7 @@ impl<'a> Lexer<'a> {
         Span::new(self.source, self.current_lexer().span().into())
     }
 
-    pub fn slice(&self) -> &'a str {
+    pub fn slice(&self) -> &str {
         self.current_lexer().slice()
     }
 
@@ -129,16 +130,16 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn current_lexer_mut(&mut self) -> &mut logos::Lexer<'a, Token> {
-        &mut self.sources.get_mut(self.source).1
+    fn current_lexer_mut(&mut self) -> &mut logos::Lexer<'static, Token> {
+        self.sources.get_mut(self.source)
     }
 
-    fn current_lexer(&self) -> &logos::Lexer<'a, Token> {
-        &self.sources.get(self.source).1
+    fn current_lexer(&self) -> &logos::Lexer<'static, Token> {
+        &self.sources.get(self.source)
     }
 
     /// advances to the next lexer, returning a reference to it if there is one
-    fn advance_lexer(&mut self) -> Option<&mut logos::Lexer<'a, Token>> {
+    fn advance_lexer(&mut self) -> Option<&mut logos::Lexer<'static, Token>> {
         if Into::<usize>::into(self.source) == self.sources.len() - 1 {
             return None;
         }

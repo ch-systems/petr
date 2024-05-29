@@ -3,7 +3,7 @@ pub mod pretty_print;
 use std::rc::Rc;
 
 use super::{Parse, ParseError, Parser};
-use crate::{comments::Commented, lexer::Token, SymbolKey};
+use crate::{comments::Commented, parser::Token, SymbolKey};
 use swim_utils::{Span, SpannedItem};
 
 // NOTE:

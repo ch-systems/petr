@@ -68,6 +68,12 @@ where
             .get_mut(k.into())
             .expect("IDs are handed out by insertion, so this should never fail")
     }
+    pub fn into_iter(self) -> impl Iterator<Item = (K, V)> {
+        self.entries
+            .into_iter()
+            .enumerate()
+            .map(|(i, v)| (i.into(), v))
+    }
 }
 
 impl<K, V> IndexMap<K, V>

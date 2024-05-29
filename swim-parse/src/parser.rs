@@ -2,14 +2,14 @@
 mod tests;
 
 pub mod ast;
+mod lexer;
+use lexer::Lexer;
+pub use lexer::Token;
 
-use crate::{
-    lexer::{Lexer, Token},
-    SymbolInterner,
-};
+use crate::SymbolInterner;
 use ast::Comment;
 use miette::Diagnostic;
-use swim_utils::SpannedItem;
+use swim_utils::{IndexMap, SourceId, SpannedItem};
 use thiserror::Error;
 
 use self::ast::{AstNode, AST};
@@ -28,15 +28,17 @@ pub enum ParseError {
 
 type Result<T> = std::result::Result<T, ParseError>;
 
-pub struct Parser<'a> {
+pub struct Parser {
     interner: SymbolInterner,
-    lexer: Lexer<'a>,
+    lexer: Lexer,
     errors: Vec<SpannedItem<ParseError>>,
     comments: Vec<SpannedItem<Comment>>,
     peek: Option<SpannedItem<Token>>,
+    // the tuple is the file name and content
+    source_map: IndexMap<SourceId, (&'static str, &'static str)>,
 }
 
-impl<'a> Parser<'a> {
+impl Parser {
     pub fn peek(&mut self) -> SpannedItem<Token> {
         if let Some(ref peek) = self.peek {
             *peek
@@ -46,13 +48,31 @@ impl<'a> Parser<'a> {
             item
         }
     }
-    pub fn new(sources: impl IntoIterator<Item = &'a str>) -> Self {
+    pub fn new<'a>(sources: impl IntoIterator<Item = (impl Into<String>, impl Into<String>)>) -> Self {
+        // TODO we hold two copies of the source for now: one in source_maps, and one outside the parser
+        // for the lexer to hold on to and not have to do self-referential pointers.
+        let sources = sources
+            .into_iter()
+            .map(|(name, source)| -> (&'static str, &'static str) {
+                let name = name.into();
+                let source = source.into();
+                (Box::leak(name.into_boxed_str()), Box::leak(source.into_boxed_str()))
+            })
+            .collect::<Vec<_>>();
+        let sources_for_lexer = sources.iter().map(|(_, source)| *source);
         Self {
             interner: SymbolInterner::default(),
-            lexer: Lexer::new(sources),
+            lexer: Lexer::new(sources_for_lexer),
             errors: Default::default(),
             comments: Default::default(),
             peek: None,
+            source_map: {
+                let mut source_map = IndexMap::default();
+                for (name, source) in sources.into_iter() {
+                    source_map.insert((name.into(), source));
+                }
+                source_map
+            },
         }
     }
 
@@ -64,9 +84,17 @@ impl<'a> Parser<'a> {
     }
 
     /// consume tokens until a node is produced
-    pub fn into_result(mut self) -> (AST, Vec<SpannedItem<ParseError>>, SymbolInterner) {
+    pub fn into_result(
+        mut self,
+    ) -> (
+        AST,
+        Vec<SpannedItem<ParseError>>,
+        SymbolInterner,
+        IndexMap<SourceId, (&'static str, &'static str)>,
+    ) {
         let nodes: Vec<SpannedItem<AstNode>> = self.many::<SpannedItem<AstNode>>();
-        (AST::new(nodes), self.errors, self.interner)
+        // drop the lexers from the source map
+        (AST::new(nodes), self.errors, self.interner, self.source_map)
     }
 
     pub fn interner(&self) -> &SymbolInterner {
@@ -110,6 +138,7 @@ impl<'a> Parser<'a> {
         }
         let next_tok = self.lexer.advance();
         match *next_tok.item() {
+            Token::Newline => self.advance(),
             Token::Comment => {
                 if let Some(comment) = self.parse::<SpannedItem<Comment>>() {
                     self.comments.push(comment);

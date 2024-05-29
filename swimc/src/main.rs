@@ -14,10 +14,10 @@ fn main() {
 
     let mut buf = Vec::with_capacity(cli.files.len());
     for file in cli.files {
-        let source = fs::read_to_string(file).expect("Failed to read file");
-        buf.push(source);
+        let source = fs::read_to_string(&file).expect("Failed to read file");
+        buf.push((file, source));
     }
-    let parser = Parser::new(buf.iter().map(|x| x.as_str()));
+    let parser = Parser::new(buf);
     let (ast, errs, interner, source_map) = parser.into_result();
     match errs {
         errs if !errs.is_empty() => {

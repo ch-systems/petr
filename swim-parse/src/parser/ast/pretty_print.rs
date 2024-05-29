@@ -1,4 +1,6 @@
 //! Pretty-print the AST for tests and ease of development.
+use miette::Diagnostic;
+
 use crate::{comments::Commented, parser::ast::*, SymbolInterner};
 
 pub trait PrettyPrint {

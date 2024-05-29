@@ -8,7 +8,7 @@ use crate::{
 
 fn check_fn_decl(config: FormatterConfig, input: impl Into<String>, expect: Expect) {
     let input = input.into();
-    let mut parser = swim_parse::parser::Parser::new(vec![input.as_ref()]);
+    let mut parser = swim_parse::parser::Parser::new(vec![("test", input)]);
     let decl: Commented<FunctionDeclaration> = match parser.parse() {
         Some(x) if parser.errors().is_empty() => x,
         _ => panic!("failed to parse: {:?}", parser.errors()),
