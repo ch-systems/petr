@@ -1,3 +1,9 @@
+pub mod config;
+pub mod constants;
+pub mod ctx;
+#[cfg(test)]
+mod tests;
+
 use std::rc::Rc;
 
 fn main() {
@@ -5,97 +11,9 @@ fn main() {
 }
 
 use constants::{CLOSE_COMMENT_STR, OPEN_COMMENT_STR};
+use ctx::FormatterContext;
 use pretty_print::PrettyPrint;
-use swim_parse::{comments::Commented, parser::ast::*, SymbolInterner};
-
-pub mod constants {
-    pub const OPEN_COMMENT_STR: &str = "{- ";
-    pub const CLOSE_COMMENT_STR: &str = " -}";
-}
-
-pub struct FormatterContext {
-    interner: SymbolInterner,
-    config: FormatterConfig,
-    indentation: usize,
-}
-
-impl FormatterContext {
-    pub fn from_interner(interner: SymbolInterner) -> Self {
-        Self {
-            interner,
-            config: Default::default(),
-            indentation: 0,
-        }
-    }
-    pub fn new_line(&self, content: impl AsRef<str>) -> Line {
-        Line {
-            content: Rc::from(content.as_ref()),
-            indentation: self.indentation,
-        }
-    }
-
-    pub fn tab_in(&mut self) {
-        self.indentation += 1;
-    }
-
-    pub fn tab_out(&mut self) {
-        self.indentation -= 1;
-    }
-
-    pub fn with_config(self, config: FormatterConfig) -> FormatterContext {
-        FormatterContext { config, ..self }
-    }
-}
-
-pub struct FormatterConfig {
-    put_fn_params_on_new_lines: bool,
-    use_set_notation_for_types: bool,
-    // false:
-    // ```
-    // {- a -}
-    // {- b -}
-    // function ....
-    // ```
-    //
-    // true:
-    // ```
-    // {- a
-    //    b -}
-    // function ...
-    // ```
-    join_comments: bool,
-}
-impl FormatterConfig {
-    pub fn put_fn_params_on_new_lines(self, arg: bool) -> FormatterConfig {
-        FormatterConfig {
-            put_fn_params_on_new_lines: arg,
-            ..self
-        }
-    }
-    pub fn join_comments(self, arg: bool) -> FormatterConfig {
-        FormatterConfig {
-            join_comments: arg,
-            ..self
-        }
-    }
-
-    pub fn use_set_notation_for_types(self, arg: bool) -> FormatterConfig {
-        FormatterConfig {
-            use_set_notation_for_types: arg,
-            ..self
-        }
-    }
-}
-
-impl Default for FormatterConfig {
-    fn default() -> Self {
-        Self {
-            put_fn_params_on_new_lines: true,
-            use_set_notation_for_types: true,
-            join_comments: true,
-        }
-    }
-}
+use swim_parse::{comments::Commented, parser::ast::*};
 
 impl<T> Formattable for Commented<T>
 where
@@ -105,7 +23,7 @@ where
         let comments = self.comments();
         let mut lines = Vec::new();
         // if we are joining comments, join their contents
-        if ctx.config.join_comments && !comments.is_empty() {
+        if ctx.config.join_comments() && !comments.is_empty() {
             let mut buf = String::from(OPEN_COMMENT_STR);
             for c in comments.iter().take(comments.len() - 1) {
                 // if this is not the first line, add enough space to offset the open comment syntax
@@ -129,7 +47,7 @@ where
             lines.push(ctx.new_line(buf));
         } else {
             for comment in comments {
-                lines.push(ctx.new_line(comment.pretty_print(&ctx.interner, ctx.indentation)));
+                lines.push(ctx.new_line(comment.pretty_print(&ctx.interner, ctx.indentation())));
             }
         }
         let mut formatted_inner = self.item().format(ctx).lines;
@@ -146,11 +64,11 @@ impl Formattable for FunctionDeclaration {
         buf.push_str(&*ctx.interner.get(self.name().id()));
 
         buf.push_str("(");
-        if ctx.config.put_fn_params_on_new_lines {
+        if ctx.config.put_fn_params_on_new_lines() {
             lines.push(ctx.new_line(buf));
             buf = Default::default();
         }
-        let ty_in = if ctx.config.use_set_notation_for_types {
+        let ty_in = if ctx.config.use_set_notation_for_types() {
             "∈"
         } else {
             "in"
@@ -164,11 +82,11 @@ impl Formattable for FunctionDeclaration {
             buf.push_str(&*ctx.interner.get(param.name().id()));
             buf.push_str(&format!(" {ty_in} '"));
             buf.push_str(&*ctx.interner.get(param.ty().name().id()));
-            if !is_last || ctx.config.put_fn_params_on_new_lines {
+            if !is_last || ctx.config.put_fn_params_on_new_lines() {
                 buf.push_str(",");
             }
 
-            if ctx.config.put_fn_params_on_new_lines {
+            if ctx.config.put_fn_params_on_new_lines() {
                 lines.push(ctx.new_line(buf));
                 buf = Default::default();
             } else {
@@ -260,117 +178,4 @@ pub struct Line {
 
 trait Formattable {
     fn format(&self, ctx: &mut FormatterContext) -> FormattedLines;
-}
-
-#[cfg(test)]
-mod tests {
-    use expect_test::{expect, Expect};
-    use swim_parse::{comments::Commented, parser::ast::FunctionDeclaration};
-
-    use crate::{Formattable, FormatterConfig, FormatterContext};
-
-    fn check_fn_decl(config: FormatterConfig, input: impl Into<String>, expect: Expect) {
-        let input = input.into();
-        let mut parser = swim_parse::parser::Parser::new(vec![input.as_ref()]);
-        let decl: Commented<FunctionDeclaration> = match parser.parse() {
-            Some(x) if parser.errors().is_empty() => x,
-            _ => panic!("failed to parse: {:?}", parser.errors()),
-        };
-        let mut ctx =
-            FormatterContext::from_interner(parser.interner().clone()).with_config(config);
-        let result = decl.format(&mut ctx).render();
-        expect.assert_eq(&result);
-    }
-
-    #[test]
-    fn basic_func_decl() {
-        check_fn_decl(
-            Default::default(),
-            "function foo(a in 'int, b in 'int) returns 'int + 2 3",
-            expect![[r#"
-                function foo(
-                  a ∈ 'int,
-                  b ∈ 'int,
-                ) returns 'int
-                  +  2 3
-            "#]],
-        );
-    }
-
-    #[test]
-    fn func_decl_params_same_line() {
-        check_fn_decl(
-            FormatterConfig::default().put_fn_params_on_new_lines(false),
-            "function foo(a in 'int, b in 'int) returns 'int + 2 3",
-            expect![[r#"
-                function foo(a ∈ 'int, b ∈ 'int) returns 'int
-                  +  2 3
-            "#]],
-        );
-    }
-
-    #[test]
-    fn commented_fn_decl() {
-        check_fn_decl(
-            FormatterConfig::default(),
-            "{- this function does stuff -} function foo(a in 'int, b in 'int) returns 'int + 2 3",
-            expect![[r#"
-                {- this function does stuff -}
-                function foo(
-                  a ∈ 'int,
-                  b ∈ 'int,
-                ) returns 'int
-                  +  2 3
-            "#]],
-        );
-    }
-
-    #[test]
-    fn multiple_comments_before_fn() {
-        check_fn_decl(
-            FormatterConfig::default(),
-            "{- comment one -} {- comment two -} function foo(a in 'int, b in 'int) returns 'int + 2 3",
-            expect![[r#"
-                {- comment one
-                   comment two -}
-                function foo(
-                  a ∈ 'int,
-                  b ∈ 'int,
-                ) returns 'int
-                  +  2 3
-            "#]],
-        );
-    }
-    #[test]
-    fn multiple_comments_before_fn_no_join() {
-        check_fn_decl(
-            FormatterConfig::default().join_comments(false),
-            "{- comment one -} {- comment two -} function foo(a in 'int, b in 'int) returns 'int + 2 3",
-            expect![[r#"
-                {- comment one -}
-                {- comment two -}
-                function foo(
-                  a ∈ 'int,
-                  b ∈ 'int,
-                ) returns 'int
-                  +  2 3
-            "#]],
-        );
-    }
-
-    #[test]
-    fn extract_comments_from_within_decl() {
-        check_fn_decl(
-            FormatterConfig::default(),
-            "function {- this comment should get moved to a more normal location -} foo(a in 'int, b in 'int) returns 'int + 2 3",
-            expect![[r#"
-                {- this comment should get moved to a more normal location -}
-                function foo(
-                  a ∈ 'int,
-                  b ∈ 'int,
-                ) returns 'int
-                  +  2 3
-            "#]],
-        );
-    }
 }
