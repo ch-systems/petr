@@ -7,33 +7,28 @@ mod comments {
     use std::rc::Rc;
 
     use crate::parser::{ast::Comment, Parse};
-    use swim_utils::SpannedItem;
 
-    /// If a node is commentable, it will have its comments set here.
-    pub trait Commentable {
-        fn set_comments(self, comments: Vec<SpannedItem<Comment>>) -> Self;
-        fn get_comments(&self) -> Rc<str>;
-    }
+    // TODO:
+    // make Commented a struct with a comment field
+    // impl Spanned for Commented<SpannedItem<T>> and Commentable for SpannedItem<Commented<T>>
+    // impl Spanned for most AST nodes
 
-    pub struct Commented<T>(T);
+    pub struct Commented<T>(T, Vec<Comment>);
 
     impl<T> Parse for Commented<T>
     where
-        T: Parse + Commentable,
+        T: Parse,
     {
         fn parse(p: &mut crate::parser::Parser) -> Option<Self> {
-            p.parse()
-                .map(|item: T| item.set_comments(p.drain_comments()))
-                .map(Commented)
+            let item: T = p.parse()?;
+            let comments = p.drain_comments();
+            Some(Commented(item, comments))
         }
     }
 
-    impl<T> Commented<T>
-    where
-        T: Commentable,
-    {
-        pub fn get_comments(&self) -> Rc<str> {
-            self.0.get_comments()
+    impl<T> Commented<T> {
+        pub fn comments(&self) -> &[Comment] {
+            &self.1[..]
         }
     }
 

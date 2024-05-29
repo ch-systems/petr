@@ -56,8 +56,11 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn drain_comments(&mut self) -> Vec<SpannedItem<Comment>> {
-        self.comments.drain(..).collect()
+    pub fn drain_comments(&mut self) -> Vec<Comment> {
+        self.comments
+            .drain(..)
+            .map(|spanned_item| spanned_item.into_item())
+            .collect()
     }
 
     /// consume tokens until a node is produced
@@ -102,6 +105,9 @@ impl<'a> Parser<'a> {
     }
 
     pub fn advance(&mut self) -> SpannedItem<Token> {
+        if let Some(tok) = self.peek.take() {
+            return tok;
+        }
         let next_tok = self.lexer.advance();
         match *next_tok.item() {
             Token::Comment => {

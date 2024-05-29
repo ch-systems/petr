@@ -8,8 +8,13 @@ fn check<T: AsRef<str>>(sources: Vec<T>, expected: expect_test::Expect) {
     let (ast, errs, interner) = parser.into_result();
 
     let pretty_printed_ast = ast.pretty_print(&interner, 0);
+    let errors_str = if errs.is_empty() {
+        String::new()
+    } else {
+        format!("\n\nErrors\n____\n{errs:#?}")
+    };
 
-    expected.assert_eq(&format!("{pretty_printed_ast}\n\n{errs:#?}"));
+    expected.assert_eq(&format!("AST\n____\n{pretty_printed_ast}"));
 }
 
 #[test]
@@ -18,9 +23,8 @@ fn prefix_operator_expression() {
         vec!["function addToFive() returns 'Integer + 4 1"],
         expect![[r#"
             AST
-              Func addToFive() -> 'Integer +(4 1)
-
-            []"#]],
+            ____
+            Func addToFive() -> 'Integer +(4 1)"#]],
     )
 }
 
@@ -30,12 +34,11 @@ fn parse_parameters() {
         vec!["function addTwoNums(a ∈ 'Integer, b ∈ 'Integer) returns 'Integer + a b"],
         expect![[r#"
             AST
-              Func addTwoNums(
-                  a ∈ 'Integer,
-                  b ∈ 'Integer
-              ) -> 'Integer +(var(a) var(b))
-
-            []"#]],
+            ____
+            Func addTwoNums(
+              a ∈ 'Integer,
+              b ∈ 'Integer
+            ) -> 'Integer +(var(a) var(b))"#]],
     )
 }
 
@@ -64,6 +67,31 @@ fn commented_function() {
         vec![
             r#"{- this is a comment -} function addTwoNums(a in 'A, b in 'B) returns 'B + a b    "#,
         ],
-        expect![[]],
+        expect![[r#"
+            AST
+            ____
+            {- this is a comment -}
+            Func addTwoNums(
+              a ∈ 'A,
+              b ∈ 'B
+            ) -> 'B +(var(a) var(b))"#]],
+    )
+}
+
+#[test]
+fn multi_commented_function() {
+    check(
+        vec![
+            r#" {- comment one -} {- comment two -} function addTwoNums(a in 'A, b in 'B) returns 'B + a b    "#,
+        ],
+        expect![[r#"
+            AST
+            ____
+            {- comment one -}
+            {- comment two -}
+            Func addTwoNums(
+              a ∈ 'A,
+              b ∈ 'B
+            ) -> 'B +(var(a) var(b))"#]],
     )
 }

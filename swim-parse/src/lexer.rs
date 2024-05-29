@@ -1,7 +1,9 @@
+//! TODO this should be a submodule of parser, to prevent its api from being used directly.
+//! Parser's `.advance()` method should be used
 #[cfg(test)]
 mod tests;
 
-use swim_utils::{SourceId, Span, Spanned, SpannedItem};
+use swim_utils::{SourceId, Span, SpannedItem};
 
 use logos::Logos;
 
@@ -112,7 +114,7 @@ impl<'a> Lexer<'a> {
         self.current_lexer().slice()
     }
 
-    pub fn advance(&mut self) -> SpannedItem<Token> {
+    pub(crate) fn advance(&mut self) -> SpannedItem<Token> {
         let pre_advance_span = self.span();
         let current_lexer = self.current_lexer_mut();
 

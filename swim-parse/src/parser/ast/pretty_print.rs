@@ -1,9 +1,5 @@
 //! Pretty-print the AST for tests and ease of development.
-use crate::{
-    comments::{Commentable, Commented},
-    parser::ast::*,
-    SymbolInterner,
-};
+use crate::{comments::Commented, parser::ast::*, SymbolInterner};
 
 pub trait PrettyPrint {
     fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String;
@@ -12,9 +8,8 @@ pub trait PrettyPrint {
 impl PrettyPrint for AST {
     fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String {
         let mut buf = String::new();
-        buf.push_str("AST\n");
         for node in &self.nodes {
-            buf.push_str(&node.pretty_print(interner, 1));
+            buf.push_str(&node.pretty_print(interner, 0));
         }
         buf
     }
@@ -23,24 +18,7 @@ impl PrettyPrint for AST {
 impl PrettyPrint for AstNode {
     fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String {
         let mut string = match self {
-            AstNode::FunctionDeclaration(FunctionDeclaration {
-                name,
-                parameters,
-                return_type,
-                body,
-            }) => format!(
-                "Func {}({}{}{}) -> {} {}",
-                name.pretty_print(interner, 0),
-                if parameters.is_empty() { "" } else { "\n" },
-                parameters
-                    .iter()
-                    .map(|param| param.pretty_print(interner, indentation + 1))
-                    .collect::<Vec<_>>()
-                    .join(",\n"),
-                if parameters.is_empty() { "" } else { "\n" },
-                return_type.pretty_print(interner, indentation),
-                body.pretty_print(interner, indentation)
-            ),
+            AstNode::FunctionDeclaration(node) => node.pretty_print(interner, indentation),
         };
         let indentation_str = "  ".repeat(indentation);
         string = format!("{indentation_str}{string}");
@@ -111,13 +89,56 @@ where
 
 impl<T> PrettyPrint for Commented<T>
 where
-    T: PrettyPrint + Commentable,
+    T: PrettyPrint,
 {
     fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String {
-        let comments = self.get_comments();
+        let comments = self.comments();
         format!(
-            "{indentation}{{-{comments}-}}\n{}",
+            "{}{}",
+            if comments.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    "{}\n",
+                    comments
+                        .iter()
+                        .map(|comment| comment.pretty_print(interner, indentation))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                )
+            },
             self.item().pretty_print(interner, indentation)
+        )
+    }
+}
+
+impl PrettyPrint for Comment {
+    fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String {
+        format!("{}{{- {} -}}", "  ".repeat(indentation), self.content)
+    }
+}
+
+impl PrettyPrint for FunctionDeclaration {
+    fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String {
+        let FunctionDeclaration {
+            name,
+            parameters,
+            return_type,
+            body,
+        } = self;
+        format!(
+            "{}Func {}({}{}{}) -> {} {}",
+            "  ".repeat(indentation),
+            name.pretty_print(interner, 0),
+            if parameters.is_empty() { "" } else { "\n" },
+            parameters
+                .iter()
+                .map(|param| param.pretty_print(interner, indentation + 1))
+                .collect::<Vec<_>>()
+                .join(",\n"),
+            if parameters.is_empty() { "" } else { "\n" },
+            return_type.pretty_print(interner, indentation),
+            body.pretty_print(interner, indentation)
         )
     }
 }

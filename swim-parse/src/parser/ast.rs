@@ -3,7 +3,7 @@ pub(crate) mod pretty_print;
 use std::rc::Rc;
 
 use super::{Parse, ParseError, Parser};
-use crate::{lexer::Token, SymbolKey};
+use crate::{comments::Commented, lexer::Token, SymbolKey};
 use swim_utils::{Span, SpannedItem};
 
 // NOTE:
@@ -12,7 +12,6 @@ use swim_utils::{Span, SpannedItem};
 // use the tree to find the scopes that are "in scope" by traversing up
 // and then search those scopes
 
-#[derive(Debug)]
 pub struct AST {
     nodes: Vec<SpannedItem<AstNode>>,
 }
@@ -23,9 +22,8 @@ impl AST {
     }
 }
 
-#[derive(Debug)]
 pub enum AstNode {
-    FunctionDeclaration(FunctionDeclaration),
+    FunctionDeclaration(Commented<FunctionDeclaration>),
 }
 
 impl Parse for AstNode {
@@ -272,14 +270,23 @@ impl Parse for Identifier {
     }
 }
 
+#[derive(Debug)]
 pub struct Comment {
     content: Rc<str>,
+}
+impl Comment {
+    pub(crate) fn content(&self) -> Rc<str> {
+        self.content.clone()
+    }
 }
 
 impl Parse for Comment {
     fn parse(p: &mut Parser) -> Option<Self> {
-        p.token(Token::Comment)?;
-        let content = Rc::from(p.lexer.slice());
+        // because it matched in the lexer, we know the first two and last two chars
+        // are {- and -}, so we slice those out.
+        let slice = p.lexer.slice();
+        let content = &slice[2..slice.len() - 2];
+        let content = Rc::from(content.trim());
         Some(Comment { content })
     }
 }

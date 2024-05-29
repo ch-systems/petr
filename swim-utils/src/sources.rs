@@ -17,6 +17,9 @@ impl<T> SpannedItem<T> {
     pub fn item(&self) -> &T {
         &self.0
     }
+    pub fn into_item(self) -> T {
+        self.0
+    }
 }
 
 impl<T> Copy for SpannedItem<T> where T: Copy {}
