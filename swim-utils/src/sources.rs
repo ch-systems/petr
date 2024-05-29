@@ -1,5 +1,5 @@
 use error_printing::SourcedItem;
-use miette::{Diagnostic, LabeledSpan,  SourceSpan};
+use miette::{Diagnostic, LabeledSpan, SourceSpan};
 
 #[derive(PartialEq, Eq, Clone)]
 pub struct SpannedItem<T>(T, Span);
@@ -284,12 +284,14 @@ pub mod error_printing {
     {
     }
 
-    pub fn render<'b, T>(sources: &'b IndexMap<SourceId, (&'static str, &'static str)>, err: SpannedItem<T>)
-    where
+    pub fn render<'b, T>(
+        sources: &'b IndexMap<SourceId, (&'static str, &'static str)>,
+        err: SpannedItem<T>,
+    ) where
         T: miette::Diagnostic + Send + Sync + 'static,
     {
         let span = err.span();
-        let (name, source)= sources.get(span.source());
+        let (name, source) = sources.get(span.source());
         let sourced_item = err.with_source(*name, *source);
         eprintln!("{:?}", Report::new(sourced_item));
     }

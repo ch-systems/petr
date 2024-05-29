@@ -2,7 +2,7 @@ pub mod pretty_print;
 
 use std::rc::Rc;
 
-use super::{Parse, ParseError, Parser};
+use super::{Parse, ParseError, ParseErrorKind, Parser};
 use crate::{comments::Commented, parser::Token, SymbolKey};
 use swim_utils::{Span, SpannedItem};
 
@@ -46,25 +46,30 @@ pub struct FunctionDeclaration {
 
 impl Parse for FunctionDeclaration {
     fn parse(p: &mut Parser) -> Option<Self> {
-        p.token(Token::FunctionKeyword)?;
-        let name = p.parse()?;
-        p.token(Token::OpenParen)?;
-        let parameters = if *p.peek().item() == Token::CloseParen {
-            vec![].into_boxed_slice()
-        } else {
-            p.sequence::<FunctionParameter>(Token::Comma)
-                .into_boxed_slice()
-        };
-        p.token(Token::CloseParen)?;
-        p.token(Token::ReturnsKeyword)?;
-        let return_type = p.parse()?;
-        let body = p.parse()?;
-        Some(Self {
-            name,
-            parameters,
-            return_type,
-            body,
-        })
+        p.with_help(
+            "encountered while parsing function declaration",
+            |p| -> Option<Self> {
+                p.token(Token::FunctionKeyword)?;
+                let name = p.parse()?;
+                p.token(Token::OpenParen)?;
+                let parameters = if *p.peek().item() == Token::CloseParen {
+                    vec![].into_boxed_slice()
+                } else {
+                    p.sequence::<FunctionParameter>(Token::Comma)?
+                        .into_boxed_slice()
+                };
+                p.token(Token::CloseParen)?;
+                p.token(Token::ReturnsKeyword)?;
+                let return_type = p.parse()?;
+                let body = p.parse()?;
+                Some(Self {
+                    name,
+                    parameters,
+                    return_type,
+                    body,
+                })
+            },
+        )
     }
 }
 impl FunctionDeclaration {
@@ -170,11 +175,9 @@ impl Parse for Literal {
                     .expect("lexer should have verified this"),
             )),
             _ => {
-                p.errors.push(
-                    p.lexer
-                        .span()
-                        .with_item(ParseError::ExpectedToken(Token::Integer, *tok.item())),
-                );
+                p.errors.push(p.lexer.span().with_item(
+                    ParseErrorKind::ExpectedToken(Token::Integer, *tok.item()).into_err(),
+                ));
                 None
             }
         }
@@ -219,10 +222,15 @@ impl FunctionParameter {
 
 impl Parse for FunctionParameter {
     fn parse(p: &mut Parser) -> Option<Self> {
-        let name: Identifier = p.parse()?;
-        p.one_of([Token::InKeyword, Token::IsInSymbol])?;
-        let ty: Ty = p.parse()?;
-        Some(FunctionParameter { name, ty })
+        p.with_help(
+            "encountered while parsing function parameter",
+            |p| -> Option<Self> {
+                let name: Identifier = p.parse()?;
+                p.one_of([Token::InKeyword, Token::IsInSymbol])?;
+                let ty: Ty = p.parse()?;
+                Some(FunctionParameter { name, ty })
+            },
+        )
     }
 }
 
@@ -264,11 +272,15 @@ impl Parse for Operator {
             Token::Star => Some(Operator::Star),
             Token::Slash => Some(Operator::Slash),
             _ => {
-                p.errors
-                    .push(p.lexer.span().with_item(ParseError::ExpectedOneOf(
-                        vec![Token::Plus, Token::Minus, Token::Star, Token::Slash],
-                        *tok.item(),
-                    )));
+                p.errors.push(
+                    p.lexer.span().with_item(
+                        ParseErrorKind::ExpectedOneOf(
+                            vec![Token::Plus, Token::Minus, Token::Star, Token::Slash],
+                            *tok.item(),
+                        )
+                        .into_err(),
+                    ),
+                );
                 None
             }
         }
@@ -301,11 +313,9 @@ impl Parse for Identifier {
     fn parse(p: &mut Parser) -> Option<Self> {
         let identifier = p.advance();
         if *identifier.item() != Token::Identifier {
-            p.errors.push(
-                p.lexer
-                    .span()
-                    .with_item(ParseError::ExpectedIdentifier(p.lexer.slice().to_string())),
-            );
+            p.errors.push(p.lexer.span().with_item(
+                ParseErrorKind::ExpectedIdentifier(p.lexer.slice().to_string()).into_err(),
+            ));
         }
         let id = p.interner.insert(p.lexer.slice());
         let span = p.lexer.span();

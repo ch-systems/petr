@@ -14,16 +14,95 @@ use thiserror::Error;
 
 use self::ast::{AstNode, AST};
 
+#[derive(Error, Debug, PartialEq)]
+pub struct ParseError {
+    kind: ParseErrorKind,
+    help: Option<String>,
+}
+
+impl From<ParseErrorKind> for ParseError {
+    fn from(kind: ParseErrorKind) -> Self {
+        Self { kind, help: None }
+    }
+}
+
+impl ParseError {
+    pub fn with_help(mut self, help: Option<impl Into<String>>) -> Self {
+        self.help = help.map(Into::into);
+        self
+    }
+}
+
+impl Diagnostic for ParseError {
+    fn help<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
+        self.help
+            .as_ref()
+            .map(|x| -> Box<dyn std::fmt::Display> { Box::new(x) })
+    }
+
+    fn code<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
+        self.kind.code()
+    }
+
+    fn severity(&self) -> Option<miette::Severity> {
+        self.kind.severity()
+    }
+
+    fn url<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
+        self.kind.url()
+    }
+
+    fn source_code(&self) -> Option<&dyn miette::SourceCode> {
+        self.kind.source_code()
+    }
+
+    fn labels(&self) -> Option<Box<dyn Iterator<Item = miette::LabeledSpan> + '_>> {
+        self.kind.labels()
+    }
+
+    fn related<'a>(&'a self) -> Option<Box<dyn Iterator<Item = &'a dyn Diagnostic> + 'a>> {
+        self.kind.related()
+    }
+
+    fn diagnostic_source(&self) -> Option<&dyn Diagnostic> {
+        self.kind.diagnostic_source()
+    }
+}
+
+impl std::fmt::Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.kind)
+    }
+}
+
 #[derive(Error, Debug, Diagnostic, PartialEq)]
-pub enum ParseError {
+pub enum ParseErrorKind {
     #[error("Unmatched parenthesis")]
     UnmatchedParenthesis,
     #[error("Expected identifier, found {0}")]
     ExpectedIdentifier(String),
     #[error("Expected token {0}, found {1}")]
     ExpectedToken(Token, Token),
-    #[error("Expected one of tokens {0:?}, found {1}")]
+    #[error("Expected one of tokens {}, found {1}", format_toks(.0))]
     ExpectedOneOf(Vec<Token>, Token),
+}
+impl ParseErrorKind {
+    pub fn into_err(self) -> ParseError {
+        self.into()
+    }
+}
+
+fn format_toks(toks: &[Token]) -> String {
+    let mut buf = toks
+        .iter()
+        .take(toks.len() - 1)
+        .map(|t| format!("{}", t))
+        .collect::<Vec<_>>()
+        .join(", ");
+    if toks.len() > 1 {
+        buf.push_str(&format!(" or {}", toks.last().unwrap()));
+    }
+    buf
 }
 
 type Result<T> = std::result::Result<T, ParseError>;
@@ -36,6 +115,7 @@ pub struct Parser {
     peek: Option<SpannedItem<Token>>,
     // the tuple is the file name and content
     source_map: IndexMap<SourceId, (&'static str, &'static str)>,
+    help: Vec<String>,
 }
 
 impl Parser {
@@ -48,7 +128,9 @@ impl Parser {
             item
         }
     }
-    pub fn new<'a>(sources: impl IntoIterator<Item = (impl Into<String>, impl Into<String>)>) -> Self {
+    pub fn new<'a>(
+        sources: impl IntoIterator<Item = (impl Into<String>, impl Into<String>)>,
+    ) -> Self {
         // TODO we hold two copies of the source for now: one in source_maps, and one outside the parser
         // for the lexer to hold on to and not have to do self-referential pointers.
         let sources = sources
@@ -56,7 +138,10 @@ impl Parser {
             .map(|(name, source)| -> (&'static str, &'static str) {
                 let name = name.into();
                 let source = source.into();
-                (Box::leak(name.into_boxed_str()), Box::leak(source.into_boxed_str()))
+                (
+                    Box::leak(name.into_boxed_str()),
+                    Box::leak(source.into_boxed_str()),
+                )
             })
             .collect::<Vec<_>>();
         let sources_for_lexer = sources.iter().map(|(_, source)| *source);
@@ -73,6 +158,7 @@ impl Parser {
                 }
                 source_map
             },
+            help: Default::default(),
         }
     }
 
@@ -115,20 +201,25 @@ impl Parser {
 
     /// parses a sequence separated by `separator`
     /// e.g. if separator is `Token::Comma`, can parse `a, b, c, d`
-    /// NOTE: this parses one or more items.
-    pub fn sequence<P: Parse>(&mut self, separator: Token) -> Vec<P> {
+    /// NOTE: this parses one or more items. Will reject zero items.
+    pub fn sequence<P: Parse>(&mut self, separator: Token) -> Option<Vec<P>> {
         let mut buf = vec![];
         loop {
             let item = P::parse(self);
             match item {
                 Some(item) => buf.push(item),
-                None => return buf,
+                None => {
+                    if buf.is_empty() {
+                        return None;
+                    } else {
+                        return Some(buf);
+                    }
+                }
             }
-            if *self.peek().item() == separator {
+            while *self.peek().item() == separator {
                 self.advance();
-            } else {
-                return buf;
             }
+            return Some(buf);
         }
     }
 
@@ -155,8 +246,13 @@ impl Parser {
             Some(self.advance())
         } else {
             let span = self.lexer.span();
-            self.errors
-                .push(span.with_item(ParseError::ExpectedToken(tok, *peeked_token.item())));
+            self.errors.push(
+                span.with_item(
+                    ParseErrorKind::ExpectedToken(tok, *peeked_token.item())
+                        .into_err()
+                        .with_help(self.help.last()),
+                ),
+            );
             None
         }
     }
@@ -168,12 +264,50 @@ impl Parser {
     fn one_of<const N: usize>(&mut self, toks: [Token; N]) -> Option<SpannedItem<Token>> {
         match self.peek().item() {
             tok if toks.contains(tok) => self.token(*tok),
-            _ => None,
+            tok => {
+                let span = self.lexer.span();
+                if N == 1 {
+                    self.errors.push(
+                        span.with_item(
+                            ParseErrorKind::ExpectedToken(toks[0], *tok)
+                                .into_err()
+                                .with_help(self.help.last()),
+                        ),
+                    );
+                } else {
+                    self.errors.push(
+                        span.with_item(
+                            ParseErrorKind::ExpectedOneOf(toks.to_vec(), *tok)
+                                .into_err()
+                                .with_help(self.help.last()),
+                        ),
+                    );
+                }
+                None
+            }
         }
     }
 
     pub fn errors(&self) -> &[SpannedItem<ParseError>] {
         &self.errors
+    }
+
+    pub fn with_help<F, T>(&mut self, help_text: impl Into<String>, f: F) -> T
+    where
+        F: Fn(&mut Parser) -> T,
+    {
+        self.push_help(help_text);
+        let res = f(self);
+        self.pop_help();
+        res
+    }
+
+    fn push_help(&mut self, arg: impl Into<String>) {
+        self.help.push(arg.into())
+    }
+
+    fn pop_help(&mut self) {
+        let _ = self.help.pop();
     }
 }
 
