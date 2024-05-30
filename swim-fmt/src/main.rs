@@ -51,6 +51,9 @@ where
                 lines.push(ctx.new_line(comment.pretty_print(&ctx.interner, ctx.indentation())));
             }
         }
+        for _ in 0..ctx.config.newlines_between_comment_and_item() {
+            lines.push(ctx.new_line(""));
+        }
         let mut formatted_inner = self.item().format(ctx).lines;
         lines.append(&mut formatted_inner);
         FormattedLines::new(lines)

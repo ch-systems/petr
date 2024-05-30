@@ -186,3 +186,68 @@ fn multiple_functions_more_newlines_between_functions() {
         "#]],
     );
 }
+
+#[test]
+fn multiple_functions_newlines_between_comment_and_item() {
+    check(
+        FCB::default().newlines_between_comment_and_item(1).build(),
+        r#"
+
+        function {- this function is called foo -} foo(a in 'int, b in 'int) returns 'int + 2 3
+
+        {- bar should look like this -}
+        function{- this function is called bar -} bar(a in 'int, b in 'int) returns 'int + 2 3"#,
+        expect![[r#"
+            {- this function is called foo -}
+
+            function foo(
+              a ∈ 'int,
+              b ∈ 'int,
+            ) returns 'int
+              +  2 3
+
+            {- bar should look like this
+               this function is called bar -}
+
+            function bar(
+              a ∈ 'int,
+              b ∈ 'int,
+            ) returns 'int
+              +  2 3
+        "#]],
+    );
+}
+
+#[test]
+fn multiple_functions_newlines_between_comment_and_item_unjoined() {
+    check(
+        FCB::default()
+            .newlines_between_comment_and_item(1)
+            .join_comments(false)
+            .build(),
+        r#"
+
+        function {- this function is called foo -} foo(a in 'int, b in 'int) returns 'int + 2 3
+
+        {- bar should look like this -}
+        function{- this function is called bar -} bar(a in 'int, b in 'int) returns 'int + 2 3"#,
+        expect![[r#"
+            {- this function is called foo -}
+
+            function foo(
+              a ∈ 'int,
+              b ∈ 'int,
+            ) returns 'int
+              +  2 3
+
+            {- bar should look like this -}
+            {- this function is called bar -}
+
+            function bar(
+              a ∈ 'int,
+              b ∈ 'int,
+            ) returns 'int
+              +  2 3
+        "#]],
+    );
+}
