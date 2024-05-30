@@ -14,6 +14,7 @@ use constants::{CLOSE_COMMENT_STR, OPEN_COMMENT_STR};
 use ctx::FormatterContext;
 use pretty_print::PrettyPrint;
 use swim_parse::{comments::Commented, parser::ast::*};
+use swim_utils::SpannedItem;
 
 impl<T> Formattable for Commented<T>
 where
@@ -146,6 +147,35 @@ impl Formattable for Expression {
             }
             Expression::Block(..) => todo!(),
         }
+    }
+}
+
+impl Formattable for AST {
+    fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
+        let mut lines = Vec::new();
+        for (ix, item) in self.nodes().into_iter().enumerate() {
+            lines.append(&mut item.format(ctx).lines);
+            if ix != self.nodes().len() - 1 {
+                for _ in 0..ctx.config.newlines_between_items() {
+                    lines.push(ctx.new_line(""));
+                }
+            }
+        }
+        FormattedLines::new(lines)
+    }
+}
+
+impl Formattable for AstNode {
+    fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
+        match self {
+            AstNode::FunctionDeclaration(fd) => fd.format(ctx),
+        }
+    }
+}
+
+impl<T: Formattable> Formattable for SpannedItem<T> {
+    fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
+        self.item().format(ctx)
     }
 }
 

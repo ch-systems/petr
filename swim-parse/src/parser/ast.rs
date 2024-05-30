@@ -22,6 +22,12 @@ impl AST {
     }
 }
 
+impl AST {
+    pub fn nodes(&self) -> &Vec<SpannedItem<AstNode>> {
+        &self.nodes
+    }
+}
+
 pub enum AstNode {
     FunctionDeclaration(Commented<FunctionDeclaration>),
 }

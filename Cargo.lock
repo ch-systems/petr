@@ -487,6 +487,7 @@ version = "0.1.0"
 dependencies = [
  "expect-test",
  "swim-parse",
+ "swim-utils",
 ]
 
 [[package]]
