@@ -175,7 +175,7 @@ impl Parse for Literal {
                     .expect("lexer should have verified this"),
             )),
             _ => {
-                p.errors.push(p.lexer.span().with_item(
+                p.push_error(p.lexer.span().with_item(
                     ParseErrorKind::ExpectedToken(Token::Integer, *tok.item()).into_err(),
                 ));
                 None
@@ -272,7 +272,7 @@ impl Parse for Operator {
             Token::Star => Some(Operator::Star),
             Token::Slash => Some(Operator::Slash),
             _ => {
-                p.errors.push(
+                p.push_error(
                     p.lexer.span().with_item(
                         ParseErrorKind::ExpectedOneOf(
                             vec![Token::Plus, Token::Minus, Token::Star, Token::Slash],
@@ -313,7 +313,7 @@ impl Parse for Identifier {
     fn parse(p: &mut Parser) -> Option<Self> {
         let identifier = p.advance();
         if *identifier.item() != Token::Identifier {
-            p.errors.push(p.lexer.span().with_item(
+            p.push_error(p.lexer.span().with_item(
                 ParseErrorKind::ExpectedIdentifier(p.lexer.slice().to_string()).into_err(),
             ));
         }

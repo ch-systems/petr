@@ -119,6 +119,10 @@ pub struct Parser {
 }
 
 impl Parser {
+    pub fn push_error(&mut self, err: SpannedItem<ParseError>) {
+        self.errors.push(err);
+    }
+
     pub fn peek(&mut self) -> SpannedItem<Token> {
         if let Some(ref peek) = self.peek {
             *peek
@@ -209,16 +213,18 @@ impl Parser {
             match item {
                 Some(item) => buf.push(item),
                 None => {
-                    if buf.is_empty() {
-                        return None;
-                    } else {
-                        return Some(buf);
-                    }
+                    break;
                 }
             }
-            while *self.peek().item() == separator {
+            if *self.peek().item() == separator {
                 self.advance();
+            } else {
+                break;
             }
+        }
+        if buf.is_empty() {
+            return None;
+        } else {
             return Some(buf);
         }
     }
@@ -246,7 +252,7 @@ impl Parser {
             Some(self.advance())
         } else {
             let span = self.lexer.span();
-            self.errors.push(
+            self.push_error(
                 span.with_item(
                     ParseErrorKind::ExpectedToken(tok, *peeked_token.item())
                         .into_err()
@@ -267,7 +273,7 @@ impl Parser {
             tok => {
                 let span = self.lexer.span();
                 if N == 1 {
-                    self.errors.push(
+                    self.push_error(
                         span.with_item(
                             ParseErrorKind::ExpectedToken(toks[0], *tok)
                                 .into_err()
@@ -275,7 +281,7 @@ impl Parser {
                         ),
                     );
                 } else {
-                    self.errors.push(
+                    self.push_error(
                         span.with_item(
                             ParseErrorKind::ExpectedOneOf(toks.to_vec(), *tok)
                                 .into_err()

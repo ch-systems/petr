@@ -24,7 +24,8 @@ fn prefix_operator_expression() {
         expect![[r#"
             AST
             ____
-            Func addToFive() -> 'Integer +(4 1)"#]],
+            Func addToFive() -> 'Integer +(4 1)
+        "#]],
     )
 }
 
@@ -38,7 +39,8 @@ fn parse_parameters() {
             Func addTwoNums(
               a ∈ 'Integer,
               b ∈ 'Integer
-            ) -> 'Integer +(var(a) var(b))"#]],
+            ) -> 'Integer +(var(a) var(b))
+        "#]],
     )
 }
 
@@ -76,7 +78,8 @@ fn commented_function() {
             Func addTwoNums(
               a ∈ 'A,
               b ∈ 'B
-            ) -> 'B +(var(a) var(b))"#]],
+            ) -> 'B +(var(a) var(b))
+        "#]],
     )
 }
 
@@ -94,6 +97,7 @@ fn multi_commented_function() {
             Func addTwoNums(
               a ∈ 'A,
               b ∈ 'B
-            ) -> 'B +(var(a) var(b))"#]],
+            ) -> 'B +(var(a) var(b))
+        "#]],
     )
 }
