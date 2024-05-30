@@ -6,6 +6,9 @@ mod tests;
 
 use std::rc::Rc;
 
+// potential improvements to the formatter:
+// don't use Strings in the Lines struct, use a Vec<String> and join, separated by single spaces
+
 fn main() {
     println!("Hello, world!");
 }
@@ -72,33 +75,21 @@ impl Formattable for FunctionDeclaration {
             lines.push(ctx.new_line(buf));
             buf = Default::default();
         }
-        let ty_in = if ctx.config.use_set_notation_for_types() {
-            "∈"
-        } else {
-            "in"
-        };
-
         // parameter contents are indented by one
         ctx.tab_in();
 
         for (ix, param) in self.parameters().iter().enumerate() {
             let is_last = ix == self.parameters().len() - 1;
-            buf.push_str(&*ctx.interner.get(param.name().id()));
-            buf.push_str(&format!(" {ty_in} '"));
-            buf.push_str(&*ctx.interner.get(param.ty().name().id()));
+            let mut params = (param).format(ctx).lines;
             if !is_last || ctx.config.put_fn_params_on_new_lines() {
-                buf.push_str(",");
-            }
-
-            if ctx.config.put_fn_params_on_new_lines() {
-                lines.push(ctx.new_line(buf));
-                buf = Default::default();
-            } else {
-                // if we wanted to have "max length of params", we could
-                // check that here
-                if !is_last {
-                    buf.push_str(" ");
+                if let Some(ref mut last_param) = params.last_mut() {
+                    last_param.content = Rc::from(format!("{},", last_param.content).as_str());
                 }
+            }
+            if ctx.config.put_fn_params_on_new_lines() {
+                lines.append(&mut params);
+            } else {
+                buf.push_str(&params[0].content);
             }
         }
 
@@ -118,6 +109,29 @@ impl Formattable for FunctionDeclaration {
     }
 }
 
+impl Formattable for FunctionParameter {
+    fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
+        let mut lines: Vec<Line> = Vec::new();
+        let mut buf = String::new();
+        buf.push_str(&*ctx.interner.get(self.name().id()));
+
+        let ty_in = if ctx.config.use_set_notation_for_types() {
+            "∈"
+        } else {
+            "in"
+        };
+
+        buf.push_str(&format!(" {ty_in} '"));
+        buf.push_str(&*ctx.interner.get(self.ty().name().id()));
+
+        if ctx.config.put_fn_params_on_new_lines() {
+            lines.push(ctx.new_line(buf));
+            buf = Default::default();
+        }
+        FormattedLines::new(lines)
+    }
+}
+
 impl Formattable for Expression {
     fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
         match self {
@@ -128,7 +142,6 @@ impl Formattable for Expression {
                 let mut rhs = op.rhs().item().format(ctx).lines;
                 ctx.tab_out();
                 if lhs.len() == 1 && rhs.len() == 1 {
-                    buf.push_str(" ");
                     buf.push_str(&lhs[0].content);
                     buf.push_str(&rhs[0].content);
                     FormattedLines::new(vec![ctx.new_line(buf)])

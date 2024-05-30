@@ -42,10 +42,9 @@ impl Parse for AstNode {
     }
 }
 
-#[derive(Debug)]
 pub struct FunctionDeclaration {
     name: Identifier,
-    parameters: Box<[FunctionParameter]>,
+    parameters: Box<[Commented<FunctionParameter>]>,
     return_type: Ty,
     body: SpannedItem<Expression>,
 }
@@ -61,7 +60,7 @@ impl Parse for FunctionDeclaration {
                 let parameters = if *p.peek().item() == Token::CloseParen {
                     vec![].into_boxed_slice()
                 } else {
-                    p.sequence::<FunctionParameter>(Token::Comma)?
+                    p.sequence::<Commented<FunctionParameter>>(Token::Comma)?
                         .into_boxed_slice()
                 };
                 p.token(Token::CloseParen)?;
@@ -83,7 +82,7 @@ impl FunctionDeclaration {
         self.name
     }
 
-    pub fn parameters(&self) -> &Box<[FunctionParameter]> {
+    pub fn parameters(&self) -> &Box<[Commented<FunctionParameter>]> {
         &self.parameters
     }
 
@@ -96,7 +95,6 @@ impl FunctionDeclaration {
     }
 }
 
-#[derive(Debug)]
 pub enum Expression {
     Literal(Literal),
     Block(Box<BlockExpr>),
@@ -104,7 +102,6 @@ pub enum Expression {
     Variable(VariableExpression),
 }
 
-#[derive(Debug)]
 pub struct VariableExpression {
     name: Identifier,
 }
@@ -122,13 +119,11 @@ impl Parse for VariableExpression {
     }
 }
 
-#[derive(Debug)]
 pub struct BlockExpr {
     contents: Vec<Binding>,
     return_expr: Expression,
 }
 
-#[derive(Debug)]
 pub struct Binding {
     name: Identifier,
     value: Expression,
@@ -157,7 +152,6 @@ impl Parse for Expression {
     }
 }
 
-#[derive(Debug)]
 pub enum Literal {
     Integer(i64),
 }
@@ -190,7 +184,6 @@ impl Parse for Literal {
     }
 }
 
-#[derive(Debug)]
 pub struct OperatorExpression {
     lhs: SpannedItem<Expression>,
     rhs: SpannedItem<Expression>,
@@ -211,7 +204,6 @@ impl OperatorExpression {
     }
 }
 
-#[derive(Debug)]
 pub struct FunctionParameter {
     name: Identifier,
     ty: Ty,
@@ -240,7 +232,7 @@ impl Parse for FunctionParameter {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Ty {
     ty_name: Identifier,
 }
@@ -261,7 +253,6 @@ impl Parse for Ty {
     }
 }
 
-#[derive(Debug)]
 pub enum Operator {
     Plus,
     Minus,
@@ -304,7 +295,7 @@ impl Operator {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Identifier {
     id: SymbolKey,
     span: Span,
@@ -329,7 +320,6 @@ impl Parse for Identifier {
     }
 }
 
-#[derive(Debug)]
 pub struct Comment {
     content: Rc<str>,
 }
