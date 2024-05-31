@@ -1,8 +1,3 @@
-use std::{fs::File, io::Write};
-
-use cranelift::codegen::ir::{UserExternalNameRef, UserFuncName};
-use cranelift::codegen::{CompiledCode, MachBufferFinalized};
-
 fn main() {
     println!("Hello, world!");
 }
@@ -10,9 +5,8 @@ fn main() {
 #[test]
 fn new_ir() -> Result<(), Box<dyn std::error::Error>> {
     use cranelift::codegen::{
-        ir::{AbiParam, Function, Signature},
-        isa,
-        settings::{self, Configurable},
+        ir::AbiParam,
+        settings::{self},
     };
     use cranelift::frontend::{FunctionBuilder, FunctionBuilderContext};
     use cranelift::prelude::*;

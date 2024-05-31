@@ -26,7 +26,7 @@ impl PrettyPrint for AstNode {
         let indentation_str = "  ".repeat(indentation);
         string = format!("{indentation_str}{string}");
         let indentation_str = format!("\n{indentation_str}");
-        string = string.replace("\n", &indentation_str);
+        string = string.replace('\n', &indentation_str);
         string
     }
 }

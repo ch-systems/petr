@@ -130,7 +130,7 @@ impl Lexer {
 
         match current_lexer.next() {
             None => match self.advance_lexer() {
-                Some(_) => return self.advance(),
+                Some(_) => self.advance(),
                 None => pre_advance_span.with_item(Token::Eof),
             },
             Some(tok) => self
@@ -144,7 +144,7 @@ impl Lexer {
     }
 
     fn current_lexer(&self) -> &logos::Lexer<'static, Token> {
-        &self.sources.get(self.source)
+        self.sources.get(self.source)
     }
 
     /// advances to the next lexer, returning a reference to it if there is one

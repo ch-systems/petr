@@ -2,7 +2,7 @@
 
 use std::rc::Rc;
 
-use crate::{IndexMap, Span};
+use crate::IndexMap;
 
 #[derive(Clone, Copy)]
 pub struct Identifier {

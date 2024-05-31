@@ -34,7 +34,7 @@ where
                 if !lines.is_empty() {
                     buf.push_str(&" ".repeat(OPEN_COMMENT_STR.len()));
                 }
-                buf.push_str(&*c.content);
+                buf.push_str(&c.content);
                 lines.push(ctx.new_line(buf));
                 buf = Default::default();
             }
@@ -42,7 +42,7 @@ where
                 buf.push_str(&" ".repeat(OPEN_COMMENT_STR.len()));
             }
             buf.push_str(
-                &*comments
+                &comments
                     .last()
                     .expect("invariant: is_empty() checked above")
                     .content,
@@ -68,9 +68,9 @@ impl Formattable for FunctionDeclaration {
         let mut lines: Vec<Line> = Vec::new();
         let mut buf: String = "function ".into();
 
-        buf.push_str(&*ctx.interner.get(self.name.id));
+        buf.push_str(&ctx.interner.get(self.name.id));
 
-        buf.push_str("(");
+        buf.push('(');
         if ctx.config.put_fn_params_on_new_lines() {
             lines.push(ctx.new_line(buf));
             buf = Default::default();
@@ -83,7 +83,7 @@ impl Formattable for FunctionDeclaration {
 
                 // if this is not the last parameter OR we are putting parameters on new lines, add a comma
                 if !is_last || ctx.config.put_fn_params_on_new_lines() {
-                    param.push_str(",");
+                    param.push(',');
                 }
                 // if we are putting params on a new line, push a new line
                 if ctx.config.put_fn_params_on_new_lines() {
@@ -111,7 +111,7 @@ impl Formattable for FunctionDeclaration {
 impl Formattable for FunctionParameter {
     fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
         let mut buf = String::new();
-        buf.push_str(&*ctx.interner.get(self.name.id));
+        buf.push_str(&ctx.interner.get(self.name.id));
 
         let ty_in = if ctx.config.use_set_notation_for_types() {
             "∈"
@@ -120,7 +120,7 @@ impl Formattable for FunctionParameter {
         };
 
         buf.push_str(&format!(" {ty_in} '"));
-        buf.push_str(&*ctx.interner.get(self.ty.ty_name.id));
+        buf.push_str(&ctx.interner.get(self.ty.ty_name.id));
 
         FormattedLines::new(vec![ctx.new_line(buf)])
     }
@@ -189,8 +189,8 @@ impl Formattable for TypeDeclaration {
     fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
         let mut lines = Vec::new();
         let mut buf = "type ".to_string();
-        buf.push_str(&*ctx.interner.get(self.name.id));
-        let mut variants = self.variants.into_iter();
+        buf.push_str(&ctx.interner.get(self.name.id));
+        let mut variants = self.variants.iter();
         if let Some(first_variant) = variants.next() {
             buf.push_str(" = ");
             let first_variant = first_variant.format(ctx).into_single_line().content;
@@ -211,7 +211,7 @@ impl Formattable for TypeDeclaration {
         }
         ctx.indent_by(len_to_eq, |ctx| {
             // format variants 2..n
-            for variant in variants.into_iter() {
+            for variant in variants {
                 if ctx.config.put_variants_on_new_lines() && !buf.is_empty() {
                     lines.push(ctx.new_line(buf));
                     buf = Default::default();
@@ -274,7 +274,7 @@ impl FormattedLines {
             // don't print indentation if the line is empty
             // it would just be trailing whitespace
             if content.trim().is_empty() {
-                buf.push_str("\n");
+                buf.push('\n');
                 continue;
             }
 
@@ -289,8 +289,8 @@ impl FormattedLines {
     }
 
     /// Forces a multi-line `FormattedLines` into a single line.
-    fn into_single_line(&self) -> Line {
-        let Some(indentation) = self.lines.get(0).map(|x| x.indentation) else {
+    fn into_single_line(self) -> Line {
+        let Some(indentation) = self.lines.first().map(|x| x.indentation) else {
             return Line {
                 indentation: 0,
                 content: Rc::from(""),
@@ -298,9 +298,9 @@ impl FormattedLines {
         };
         let content = self
             .lines
-            .iter()
-            .map(|line| line.content.as_ref())
-            .collect::<Vec<&str>>()
+            .into_iter()
+            .map(|line| line.content)
+            .collect::<Vec<_>>()
             .join(" ");
         Line {
             indentation,

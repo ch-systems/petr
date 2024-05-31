@@ -188,7 +188,7 @@ impl Parser {
             source_map: {
                 let mut source_map = IndexMap::default();
                 for (name, source) in sources.into_iter() {
-                    source_map.insert((name.into(), source));
+                    source_map.insert((name, source));
                 }
                 source_map
             },
@@ -253,9 +253,9 @@ impl Parser {
             }
         }
         if buf.is_empty() {
-            return None;
+            None
         } else {
-            return Some(buf);
+            Some(buf)
         }
     }
 

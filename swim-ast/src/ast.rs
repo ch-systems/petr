@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::comments::Commented;
-use swim_utils::{Identifier, Span, SpannedItem};
+use swim_utils::{Identifier, SpannedItem};
 
 // NOTE:
 // for scopes, track scopes in a tree to know which scopes are parents of which ones
