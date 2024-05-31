@@ -272,6 +272,14 @@ impl FormattedLines {
             content,
         } in &self.lines
         {
+            // don't print indentation if the line is empty
+            // it would just be trailing whitespace
+            if content.trim().is_empty() {
+                buf.push_str("\n");
+                continue;
+            }
+
+            // the line has non-whitespace content, so we indent and print it
             buf.push_str(&format!(
                 "{}{}\n",
                 INDENTATION_CHARACTER.repeat(*indentation),

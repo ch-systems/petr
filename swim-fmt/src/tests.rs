@@ -309,9 +309,9 @@ fn ty_decl_one_variant() {
         Default::default(),
         "type foo = a",
         expect![[r#"
-        type foo = a
-         
-    "#]],
+            type foo = a
+
+        "#]],
     );
 }
 
