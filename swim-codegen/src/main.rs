@@ -40,7 +40,7 @@ fn new_ir() -> Result<(), Box<dyn std::error::Error>> {
     func_sig
         .returns
         .push(AbiParam::new(cranelift::codegen::ir::types::I32));
-    let func_id = module.declare_function("_main", Linkage::Export, &func_sig)?;
+    let func_id = module.declare_function("main", Linkage::Export, &func_sig)?;
 
     // Define the function
     let mut context = module.make_context();
@@ -72,7 +72,28 @@ fn new_ir() -> Result<(), Box<dyn std::error::Error>> {
     let obj = product.object;
 
     let mut file = File::create("output.o")?;
+
     file.write_all(&obj.write().unwrap())?;
+
+    // make the file executable
+    use std::process::Command;
+
+    // Link the object file using clang
+    Command::new("clang")
+        .arg("output.o")
+        .arg("-o")
+        .arg("output")
+        .status()?;
+
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+
+    // Set the output file to be executable
+    let mut perms = fs::metadata("output")?.permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions("output", perms)?;
+    // Make the output file executable
+
     Ok(())
 }
 

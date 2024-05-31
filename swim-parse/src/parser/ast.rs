@@ -30,6 +30,13 @@ impl AST {
 
 pub enum AstNode {
     FunctionDeclaration(Commented<FunctionDeclaration>),
+    TypeDeclaration(Commented<TypeDeclaration>),
+}
+
+impl Parse for TypeDeclaration {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        let ty_keyword = p.token(Token::Ty);
+    }
 }
 
 impl Parse for AstNode {
