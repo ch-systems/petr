@@ -1,66 +1,13 @@
-pub mod pretty_print;
-
 use std::rc::Rc;
 
-use super::{Parse, ParseError, ParseErrorKind, Parser};
-use crate::{comments::Commented, parser::Token, SymbolKey};
-use swim_utils::{Span, SpannedItem};
+// using this crate's Parser, parse an AST.
+use swim_ast::*;
+use swim_utils::{Identifier, SpannedItem};
 
-// NOTE:
-// for scopes, track scopes in a tree to know which scopes are parents of which ones
-// then, store all names in a mapping from scope id to name
-// use the tree to find the scopes that are "in scope" by traversing up
-// and then search those scopes
-
-pub struct AST {
-    nodes: Vec<SpannedItem<AstNode>>,
-}
-
-impl AST {
-    pub fn new(nodes: Vec<SpannedItem<AstNode>>) -> AST {
-        Self { nodes }
-    }
-}
-
-impl AST {
-    pub fn nodes(&self) -> &Vec<SpannedItem<AstNode>> {
-        &self.nodes
-    }
-}
-
-pub enum AstNode {
-    FunctionDeclaration(Commented<FunctionDeclaration>),
-    TypeDeclaration(Commented<TypeDeclaration>),
-}
-
-pub struct TypeDeclaration {
-    name: Identifier,
-    variants: Box<[TypeVariant]>,
-}
-impl TypeDeclaration {
-    pub fn variants(&self) -> &[TypeVariant] {
-        &self.variants
-    }
-    pub fn name(&self) -> Identifier {
-        self.name
-    }
-}
-
-pub struct TypeVariant {
-    name: Identifier,
-    fields: Box<[Ty]>,
-}
-
-impl TypeVariant {
-    pub fn name(&self) -> Identifier {
-        self.name
-    }
-
-    pub fn fields(&self) -> &[Ty] {
-        &self.fields
-    }
-}
-
+use crate::{
+    parser::{Parse, ParseErrorKind, Token},
+    Parser,
+};
 impl Parse for TypeDeclaration {
     fn parse(p: &mut Parser) -> Option<Self> {
         p.with_help(
@@ -128,14 +75,6 @@ impl Parse for AstNode {
         }
     }
 }
-
-pub struct FunctionDeclaration {
-    name: Identifier,
-    parameters: Box<[FunctionParameter]>,
-    return_type: Ty,
-    body: SpannedItem<Expression>,
-}
-
 impl Parse for FunctionDeclaration {
     fn parse(p: &mut Parser) -> Option<Self> {
         p.with_help(
@@ -163,58 +102,106 @@ impl Parse for FunctionDeclaration {
         )
     }
 }
-impl FunctionDeclaration {
-    pub fn name(&self) -> Identifier {
-        self.name
-    }
-
-    pub fn parameters(&self) -> &Box<[FunctionParameter]> {
-        &self.parameters
-    }
-
-    pub fn return_type(&self) -> Ty {
-        self.return_type
-    }
-
-    pub fn body(&self) -> &Expression {
-        self.body.item()
-    }
-}
-
-pub enum Expression {
-    Literal(Literal),
-    Block(Box<BlockExpr>),
-    Operator(Box<OperatorExpression>),
-    Variable(VariableExpression),
-}
-
-pub struct VariableExpression {
-    name: Identifier,
-}
-
-impl VariableExpression {
-    pub fn name(&self) -> Identifier {
-        self.name
-    }
-}
-
 impl Parse for VariableExpression {
     fn parse(p: &mut Parser) -> Option<Self> {
         let id = Identifier::parse(p)?;
         Some(VariableExpression { name: id })
     }
 }
-
-pub struct BlockExpr {
-    contents: Vec<Binding>,
-    return_expr: Expression,
+impl Parse for Literal {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        let tok = p.advance();
+        match tok.item() {
+            Token::Integer => Some(Literal::Integer(
+                p.slice().parse().expect("lexer should have verified this"),
+            )),
+            _ => {
+                p.push_error(
+                    p.span()
+                        .with_item(ParseErrorKind::ExpectedToken(Token::Integer, *tok.item())),
+                );
+                None
+            }
+        }
+    }
+}
+impl Parse for FunctionParameter {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        p.with_help(
+            "encountered while parsing function parameter",
+            |p| -> Option<Self> {
+                let name: Identifier = p.parse()?;
+                p.one_of([Token::InKeyword, Token::IsInSymbol])?;
+                let ty: Ty = p.parse()?;
+                Some(FunctionParameter { name, ty })
+            },
+        )
+    }
+}
+impl Parse for Ty {
+    // TODO types are not just idents,
+    // they can be more than that
+    fn parse(p: &mut Parser) -> Option<Self> {
+        p.with_help("while parsing type", |p| -> Option<Self> {
+            p.token(Token::TyMarker)?;
+            let ident = Identifier::parse(p)?;
+            Some(Self { ty_name: ident })
+        })
+    }
+}
+impl Parse for Operator {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        let tok = p.advance();
+        match tok.item() {
+            Token::Plus => Some(Operator::Plus),
+            Token::Minus => Some(Operator::Minus),
+            Token::Star => Some(Operator::Star),
+            Token::Slash => Some(Operator::Slash),
+            _ => {
+                p.push_error(p.span().with_item(ParseErrorKind::ExpectedOneOf(
+                    vec![Token::Plus, Token::Minus, Token::Star, Token::Slash],
+                    *tok.item(),
+                )));
+                None
+            }
+        }
+    }
+}
+impl Parse for Identifier {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        let identifier = p.advance();
+        if *identifier.item() != Token::Identifier {
+            p.push_error(
+                p.span()
+                    .with_item(ParseErrorKind::ExpectedIdentifier(p.slice().to_string())),
+            );
+        }
+        let slice = Rc::from(p.slice());
+        let id = p.intern(slice);
+        Some(Identifier { id })
+    }
+}
+impl Parse for Comment {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        // because it matched in the lexer, we know the first two and last two chars
+        // are {- and -}, so we slice those out.
+        let slice = p.slice();
+        let content = &slice[2..slice.len() - 2];
+        let content = Rc::from(content.trim());
+        Some(Comment::new(content))
+    }
 }
 
-pub struct Binding {
-    name: Identifier,
-    value: Expression,
+impl<T> Parse for Commented<T>
+where
+    T: Parse,
+{
+    fn parse(p: &mut crate::parser::Parser) -> Option<Self> {
+        let item: T = p.parse()?;
+        let comments = p.drain_comments();
+        Some(Commented::new(item, comments))
+    }
 }
-
 impl Parse for Expression {
     fn parse(p: &mut Parser) -> Option<Self> {
         match p.peek().item() {
@@ -235,198 +222,5 @@ impl Parse for Expression {
             Token::Identifier => Some(Expression::Variable(p.parse()?)),
             a => todo!("need to parse expr {a:?}"),
         }
-    }
-}
-
-pub enum Literal {
-    Integer(i64),
-}
-
-impl ToString for Literal {
-    fn to_string(&self) -> String {
-        match self {
-            Literal::Integer(i) => i.to_string(),
-        }
-    }
-}
-
-impl Parse for Literal {
-    fn parse(p: &mut Parser) -> Option<Self> {
-        let tok = p.advance();
-        match tok.item() {
-            Token::Integer => Some(Literal::Integer(
-                p.lexer
-                    .slice()
-                    .parse()
-                    .expect("lexer should have verified this"),
-            )),
-            _ => {
-                p.push_error(
-                    p.lexer
-                        .span()
-                        .with_item(ParseErrorKind::ExpectedToken(Token::Integer, *tok.item())),
-                );
-                None
-            }
-        }
-    }
-}
-
-pub struct OperatorExpression {
-    lhs: SpannedItem<Expression>,
-    rhs: SpannedItem<Expression>,
-    op: SpannedItem<Operator>,
-}
-
-impl OperatorExpression {
-    pub fn lhs(&self) -> &SpannedItem<Expression> {
-        &self.lhs
-    }
-
-    pub fn rhs(&self) -> &SpannedItem<Expression> {
-        &self.rhs
-    }
-
-    pub fn op(&self) -> &SpannedItem<Operator> {
-        &self.op
-    }
-}
-
-pub struct FunctionParameter {
-    name: Identifier,
-    ty: Ty,
-}
-
-impl FunctionParameter {
-    pub fn name(&self) -> Identifier {
-        self.name
-    }
-    pub fn ty(&self) -> Ty {
-        self.ty
-    }
-}
-
-impl Parse for FunctionParameter {
-    fn parse(p: &mut Parser) -> Option<Self> {
-        p.with_help(
-            "encountered while parsing function parameter",
-            |p| -> Option<Self> {
-                let name: Identifier = p.parse()?;
-                p.one_of([Token::InKeyword, Token::IsInSymbol])?;
-                let ty: Ty = p.parse()?;
-                Some(FunctionParameter { name, ty })
-            },
-        )
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct Ty {
-    ty_name: Identifier,
-}
-
-impl Ty {
-    pub fn name(&self) -> Identifier {
-        self.ty_name
-    }
-}
-
-impl Parse for Ty {
-    // TODO types are not just idents,
-    // they can be more than that
-    fn parse(p: &mut Parser) -> Option<Self> {
-        p.with_help("while parsing type", |p| -> Option<Self> {
-            p.token(Token::TyMarker)?;
-            let ident = Identifier::parse(p)?;
-            Some(Self { ty_name: ident })
-        })
-    }
-}
-
-pub enum Operator {
-    Plus,
-    Minus,
-    Star,
-    Slash,
-}
-
-impl Parse for Operator {
-    fn parse(p: &mut Parser) -> Option<Self> {
-        let tok = p.advance();
-        match tok.item() {
-            Token::Plus => Some(Operator::Plus),
-            Token::Minus => Some(Operator::Minus),
-            Token::Star => Some(Operator::Star),
-            Token::Slash => Some(Operator::Slash),
-            _ => {
-                p.push_error(p.lexer.span().with_item(ParseErrorKind::ExpectedOneOf(
-                    vec![Token::Plus, Token::Minus, Token::Star, Token::Slash],
-                    *tok.item(),
-                )));
-                None
-            }
-        }
-    }
-}
-
-impl Operator {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Operator::Plus => "+",
-            Operator::Minus => "-",
-            Operator::Star => "*",
-            Operator::Slash => "/",
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct Identifier {
-    id: SymbolKey,
-    span: Span,
-}
-impl Identifier {
-    pub fn id(&self) -> SymbolKey {
-        self.id
-    }
-}
-
-impl Parse for Identifier {
-    fn parse(p: &mut Parser) -> Option<Self> {
-        let identifier = p.advance();
-        if *identifier.item() != Token::Identifier {
-            p.push_error(p.lexer.span().with_item(ParseErrorKind::ExpectedIdentifier(
-                p.lexer.slice().to_string(),
-            )));
-        }
-        let id = p.interner.insert(p.lexer.slice());
-        let span = p.lexer.span();
-        Some(Identifier { id, span })
-    }
-}
-
-pub struct Comment {
-    content: Rc<str>,
-}
-
-impl Comment {
-    pub fn new(item: impl AsRef<str>) -> Self {
-        Self {
-            content: Rc::from(item.as_ref()),
-        }
-    }
-    pub fn content(&self) -> Rc<str> {
-        self.content.clone()
-    }
-}
-
-impl Parse for Comment {
-    fn parse(p: &mut Parser) -> Option<Self> {
-        // because it matched in the lexer, we know the first two and last two chars
-        // are {- and -}, so we slice those out.
-        let slice = p.lexer.slice();
-        let content = &slice[2..slice.len() - 2];
-        let content = Rc::from(content.trim());
-        Some(Comment { content })
     }
 }

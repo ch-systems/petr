@@ -1,10 +1,11 @@
 use std::rc::Rc;
 
+use swim_utils::SymbolInterner;
+
 use crate::{
     config::{FormatterConfig, FormatterConfigBuilder},
     Line,
 };
-use swim_parse::SymbolInterner;
 
 pub struct FormatterContext {
     pub interner: SymbolInterner,

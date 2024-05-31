@@ -1,4 +1,4 @@
-use crate::parser::ast::pretty_print::*;
+use crate::pretty_print::*;
 use expect_test::expect;
 
 use super::Parser;

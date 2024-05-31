@@ -765,6 +765,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b7401a30af6cb5818bb64852270bb722533397edcfc7344954a38f420819ece2"
 
 [[package]]
+name = "swim-ast"
+version = "0.1.0"
+dependencies = [
+ "swim-utils",
+]
+
+[[package]]
 name = "swim-codegen"
 version = "0.1.0"
 dependencies = [
@@ -780,6 +787,7 @@ name = "swim-fmt"
 version = "0.1.0"
 dependencies = [
  "expect-test",
+ "swim-ast",
  "swim-parse",
  "swim-utils",
 ]
@@ -792,6 +800,7 @@ dependencies = [
  "logos",
  "miette",
  "ouroboros",
+ "swim-ast",
  "swim-utils",
  "thiserror",
 ]

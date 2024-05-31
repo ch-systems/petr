@@ -15,8 +15,8 @@ fn main() {
 
 use constants::{CLOSE_COMMENT_STR, INDENTATION_CHARACTER, OPEN_COMMENT_STR};
 use ctx::FormatterContext;
-use pretty_print::PrettyPrint;
-use swim_parse::{comments::Commented, parser::ast::*};
+use swim_ast::*;
+use swim_parse::pretty_print::PrettyPrint;
 use swim_utils::SpannedItem;
 
 impl<T> Formattable for Commented<T>
@@ -34,7 +34,7 @@ where
                 if !lines.is_empty() {
                     buf.push_str(&" ".repeat(OPEN_COMMENT_STR.len()));
                 }
-                buf.push_str(&*c.content());
+                buf.push_str(&*c.content);
                 lines.push(ctx.new_line(buf));
                 buf = Default::default();
             }
@@ -45,7 +45,7 @@ where
                 &*comments
                     .last()
                     .expect("invariant: is_empty() checked above")
-                    .content(),
+                    .content,
             );
             buf.push_str(CLOSE_COMMENT_STR);
             lines.push(ctx.new_line(buf));
@@ -68,7 +68,7 @@ impl Formattable for FunctionDeclaration {
         let mut lines: Vec<Line> = Vec::new();
         let mut buf: String = "function ".into();
 
-        buf.push_str(&*ctx.interner.get(self.name().id()));
+        buf.push_str(&*ctx.interner.get(self.name.id));
 
         buf.push_str("(");
         if ctx.config.put_fn_params_on_new_lines() {
@@ -77,9 +77,9 @@ impl Formattable for FunctionDeclaration {
         }
         // parameter contents are indented by one
         ctx.indented(|ctx| {
-            for (ix, param) in self.parameters().iter().enumerate() {
+            for (ix, param) in self.parameters.iter().enumerate() {
                 let mut param = (param).format(ctx).into_single_line().content.to_string();
-                let is_last = ix == self.parameters().len() - 1;
+                let is_last = ix == self.parameters.len() - 1;
 
                 // if this is not the last parameter OR we are putting parameters on new lines, add a comma
                 if !is_last || ctx.config.put_fn_params_on_new_lines() {
@@ -97,12 +97,12 @@ impl Formattable for FunctionDeclaration {
 
         buf.push_str(&format!(
             "'{}",
-            ctx.interner.get(self.return_type().name().id())
+            ctx.interner.get(self.return_type.ty_name.id)
         ));
 
         lines.push(ctx.new_line(buf));
         ctx.indented(|ctx| {
-            lines.append(&mut self.body().format(ctx).lines);
+            lines.append(&mut self.body.format(ctx).lines);
         });
         FormattedLines::new(lines)
     }
@@ -111,7 +111,7 @@ impl Formattable for FunctionDeclaration {
 impl Formattable for FunctionParameter {
     fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
         let mut buf = String::new();
-        buf.push_str(&*ctx.interner.get(self.name().id()));
+        buf.push_str(&*ctx.interner.get(self.name.id));
 
         let ty_in = if ctx.config.use_set_notation_for_types() {
             "∈"
@@ -120,7 +120,7 @@ impl Formattable for FunctionParameter {
         };
 
         buf.push_str(&format!(" {ty_in} '"));
-        buf.push_str(&*ctx.interner.get(self.ty().name().id()));
+        buf.push_str(&*ctx.interner.get(self.ty.ty_name.id));
 
         FormattedLines::new(vec![ctx.new_line(buf)])
     }
@@ -130,10 +130,10 @@ impl Formattable for Expression {
     fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
         match self {
             Expression::Operator(op) => {
-                let mut buf = op.op().item().as_str().to_string();
+                let mut buf = op.op.item().as_str().to_string();
                 let (mut lhs, mut rhs) = ctx.indented(|ctx| {
-                    let lhs = op.lhs().item().format(ctx).lines;
-                    let rhs = op.rhs().item().format(ctx).lines;
+                    let lhs = op.lhs.item().format(ctx).lines;
+                    let rhs = op.rhs.item().format(ctx).lines;
                     (lhs, rhs)
                 });
                 if lhs.len() == 1 && rhs.len() == 1 {
@@ -153,7 +153,7 @@ impl Formattable for Expression {
                 FormattedLines::new(vec![ctx.new_line(format!(" {}", lit.to_string()))])
             }
             Expression::Variable(var) => {
-                let ident_as_string = ctx.interner.get(var.name().id());
+                let ident_as_string = ctx.interner.get(var.name.id);
                 FormattedLines::new(vec![ctx.new_line(ident_as_string)])
             }
             Expression::Block(..) => todo!(),
@@ -164,9 +164,9 @@ impl Formattable for Expression {
 impl Formattable for AST {
     fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
         let mut lines = Vec::new();
-        for (ix, item) in self.nodes().into_iter().enumerate() {
+        for (ix, item) in self.nodes.iter().enumerate() {
             lines.append(&mut item.format(ctx).lines);
-            if ix != self.nodes().len() - 1 {
+            if ix != self.nodes.len() - 1 {
                 for _ in 0..ctx.config.newlines_between_items() {
                     lines.push(ctx.new_line(""));
                 }
@@ -189,8 +189,8 @@ impl Formattable for TypeDeclaration {
     fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
         let mut lines = Vec::new();
         let mut buf = "type ".to_string();
-        buf.push_str(&*ctx.interner.get(self.name().id()));
-        let mut variants = self.variants().into_iter();
+        buf.push_str(&*ctx.interner.get(self.name.id));
+        let mut variants = self.variants.into_iter();
         if let Some(first_variant) = variants.next() {
             buf.push_str(" = ");
             let first_variant = first_variant.format(ctx).into_single_line().content;
@@ -231,16 +231,15 @@ impl Formattable for TypeDeclaration {
 
 impl Formattable for TypeVariant {
     fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
-        let name = ctx.interner.get(self.name().id());
+        let name = ctx.interner.get(self.name.id);
         let mut buf = name.to_string();
-        let fields = self.fields();
-        if !fields.is_empty() {
+        if !self.fields.is_empty() {
             buf.push(' ');
         }
-        let mut fields_buf = Vec::with_capacity(fields.len());
-        for field in fields {
+        let mut fields_buf = Vec::with_capacity(self.fields.len());
+        for field in &*self.fields {
             // TODO use impl Format for 'Ty here
-            fields_buf.push(format!("'{}", ctx.interner.get(field.name().id())));
+            fields_buf.push(format!("'{}", ctx.interner.get(field.ty_name.id)));
         }
         buf.push_str(&fields_buf.join(" "));
         FormattedLines::new(vec![ctx.new_line(buf)])

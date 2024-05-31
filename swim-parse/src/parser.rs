@@ -1,18 +1,19 @@
 #[cfg(test)]
 mod tests;
 
-pub mod ast;
 mod lexer;
+use std::rc::Rc;
+
 use lexer::Lexer;
 pub use lexer::Token;
 
-use crate::SymbolInterner;
-use ast::Comment;
 use miette::Diagnostic;
-use swim_utils::{IndexMap, SourceId, SpannedItem};
+use swim_ast::Comment;
+use swim_utils::{IndexMap, SourceId, Span, SpannedItem};
+use swim_utils::{SymbolInterner, SymbolKey};
 use thiserror::Error;
 
-use self::ast::{AstNode, AST};
+use swim_ast::{AstNode, AST};
 
 #[derive(Error, Debug, PartialEq)]
 pub struct ParseError {
@@ -138,6 +139,18 @@ impl Parser {
         }
         let err = err.map(|err| err.into_err().with_help(Some(help_text.join("\n"))));
         self.errors.push(err);
+    }
+
+    pub fn slice(&self) -> &str {
+        self.lexer.slice()
+    }
+
+    pub fn intern(&mut self, internee: Rc<str>) -> SymbolKey {
+        self.interner.insert(internee)
+    }
+
+    pub fn span(&self) -> Span {
+        self.lexer.span()
     }
 
     pub fn peek(&mut self) -> SpannedItem<Token> {
@@ -280,7 +293,7 @@ impl Parser {
         P::parse(self)
     }
 
-    fn one_of<const N: usize>(&mut self, toks: [Token; N]) -> Option<SpannedItem<Token>> {
+    pub fn one_of<const N: usize>(&mut self, toks: [Token; N]) -> Option<SpannedItem<Token>> {
         match self.peek().item() {
             tok if toks.contains(tok) => self.token(*tok),
             tok => {

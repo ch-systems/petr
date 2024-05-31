@@ -1,8 +1,5 @@
 use expect_test::{expect, Expect};
-use swim_parse::{
-    comments::Commented,
-    parser::ast::{FunctionDeclaration, AST},
-};
+use swim_ast::{Commented, FunctionDeclaration, AST};
 
 use crate::{
     config::{FormatterConfig, FormatterConfigBuilder as FCB},
@@ -11,8 +8,8 @@ use crate::{
 
 fn check(config: FormatterConfig, input: impl Into<String>, expect: Expect) {
     let input = input.into();
-    let mut parser = swim_parse::parser::Parser::new(vec![("test", input)]);
-    let (ast, errs, interner, source_map) = parser.into_result();
+    let mut parser = swim_parse::Parser::new(vec![("test", input)]);
+    let (ast, errs, interner, _source_map) = parser.into_result();
     if !errs.is_empty() {
         panic!("parse errors: {:#?}", errs);
     }
@@ -322,7 +319,7 @@ fn ty_decl_one_variant_fields() {
         "type foo = a 'int 'string",
         expect![[r#"
             type foo = a 'int 'string
-         
+
         "#]],
     );
 }

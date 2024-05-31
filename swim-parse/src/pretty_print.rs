@@ -1,7 +1,7 @@
 //! Pretty-print the AST for tests and ease of development.
-use miette::Diagnostic;
 
-use crate::{comments::Commented, parser::ast::*, SymbolInterner};
+use swim_ast::*;
+use swim_utils::{Identifier, SpannedItem, SymbolInterner};
 
 pub trait PrettyPrint {
     fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String;
@@ -49,12 +49,11 @@ impl PrettyPrint for TypeDeclaration {
 
 impl PrettyPrint for TypeVariant {
     fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String {
-        let TypeVariant { name, fields } = self;
         format!(
             "{}{}({})",
             "  ".repeat(indentation),
-            name.pretty_print(interner, 0),
-            fields
+            self.name.pretty_print(interner, 0),
+            self.fields
                 .iter()
                 .map(|field| field.pretty_print(interner, 0))
                 .collect::<Vec<_>>()
