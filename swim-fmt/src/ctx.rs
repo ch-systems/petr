@@ -27,12 +27,25 @@ impl FormatterContext {
         }
     }
 
-    pub fn tab_in(&mut self) {
-        self.indentation += 2;
+    /// indent by the default tab size
+    pub fn indented<F, T>(&mut self, f: F) -> T
+    where
+        F: FnOnce(&mut Self) -> T,
+    {
+        self.indentation += self.config.tab_size();
+        let res = f(self);
+        self.indentation -= self.config.tab_size();
+        res
     }
 
-    pub fn tab_out(&mut self) {
-        self.indentation -= 2;
+    pub fn indent_by<F, T>(&mut self, indentation: usize, f: F) -> T
+    where
+        F: FnOnce(&mut Self) -> T,
+    {
+        self.indentation += indentation;
+        let res = f(self);
+        self.indentation -= indentation;
+        res
     }
 
     pub fn with_config(self, config: FormatterConfig) -> FormatterContext {

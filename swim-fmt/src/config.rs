@@ -5,6 +5,7 @@ pub struct FormatterConfig {
     newlines_between_items: usize,
     newlines_between_comment_and_item: usize,
     put_variants_on_new_lines: bool,
+    tab_size: usize,
 }
 
 impl FormatterConfig {
@@ -31,6 +32,10 @@ impl FormatterConfig {
     pub fn put_variants_on_new_lines(&self) -> bool {
         self.put_variants_on_new_lines
     }
+
+    pub fn tab_size(&self) -> usize {
+        self.tab_size
+    }
 }
 
 impl Default for FormatterConfig {
@@ -46,6 +51,7 @@ pub struct FormatterConfigBuilder {
     newlines_between_items: usize,
     newlines_between_comment_and_item: usize,
     put_variants_on_new_lines: bool,
+    tab_size: usize,
 }
 
 impl FormatterConfigBuilder {
@@ -94,6 +100,10 @@ impl FormatterConfigBuilder {
         }
     }
 
+    pub fn tab_size(self, tab_size: usize) -> Self {
+        Self { tab_size, ..self }
+    }
+
     pub fn build(self) -> FormatterConfig {
         FormatterConfig {
             put_fn_params_on_new_lines: self.put_fn_params_on_new_lines,
@@ -102,6 +112,7 @@ impl FormatterConfigBuilder {
             newlines_between_items: self.newlines_between_items,
             newlines_between_comment_and_item: self.newlines_between_comment_and_item,
             put_variants_on_new_lines: self.put_variants_on_new_lines,
+            tab_size: self.tab_size,
         }
     }
 }
@@ -115,6 +126,7 @@ impl Default for FormatterConfigBuilder {
             newlines_between_items: 1,
             newlines_between_comment_and_item: 0,
             put_variants_on_new_lines: true,
+            tab_size: 2,
         }
     }
 }

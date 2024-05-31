@@ -76,25 +76,23 @@ impl Formattable for FunctionDeclaration {
             buf = Default::default();
         }
         // parameter contents are indented by one
-        ctx.tab_in();
+        ctx.indented(|ctx| {
+            for (ix, param) in self.parameters().iter().enumerate() {
+                let mut param = (param).format(ctx).into_single_line().content.to_string();
+                let is_last = ix == self.parameters().len() - 1;
 
-        for (ix, param) in self.parameters().iter().enumerate() {
-            let mut param = (param).format(ctx).into_single_line().content.to_string();
-            let is_last = ix == self.parameters().len() - 1;
-
-            // if this is not the last parameter OR we are putting parameters on new lines, add a comma
-            if !is_last || ctx.config.put_fn_params_on_new_lines() {
-                param.push_str(",");
+                // if this is not the last parameter OR we are putting parameters on new lines, add a comma
+                if !is_last || ctx.config.put_fn_params_on_new_lines() {
+                    param.push_str(",");
+                }
+                // if we are putting params on a new line, push a new line
+                if ctx.config.put_fn_params_on_new_lines() {
+                    lines.push(ctx.new_line(param));
+                } else {
+                    buf.push_str(&format!("{param} "));
+                }
             }
-            // if we are putting params on a new line, push a new line
-            if ctx.config.put_fn_params_on_new_lines() {
-                lines.push(ctx.new_line(param));
-            } else {
-                buf.push_str(&format!("{param} "));
-            }
-        }
-
-        ctx.tab_out();
+        });
         buf.push_str(") returns ");
 
         buf.push_str(&format!(
@@ -103,9 +101,9 @@ impl Formattable for FunctionDeclaration {
         ));
 
         lines.push(ctx.new_line(buf));
-        ctx.tab_in();
-        lines.append(&mut self.body().format(ctx).lines);
-        ctx.tab_out();
+        ctx.indented(|ctx| {
+            lines.append(&mut self.body().format(ctx).lines);
+        });
         FormattedLines::new(lines)
     }
 }
@@ -133,10 +131,11 @@ impl Formattable for Expression {
         match self {
             Expression::Operator(op) => {
                 let mut buf = op.op().item().as_str().to_string();
-                ctx.tab_in();
-                let mut lhs = op.lhs().item().format(ctx).lines;
-                let mut rhs = op.rhs().item().format(ctx).lines;
-                ctx.tab_out();
+                let (mut lhs, mut rhs) = ctx.indented(|ctx| {
+                    let lhs = op.lhs().item().format(ctx).lines;
+                    let rhs = op.rhs().item().format(ctx).lines;
+                    (lhs, rhs)
+                });
                 if lhs.len() == 1 && rhs.len() == 1 {
                     buf.push_str(&lhs[0].content);
                     buf.push_str(&rhs[0].content);
@@ -202,22 +201,25 @@ impl Formattable for TypeDeclaration {
             buf.push(';');
             return FormattedLines::new(vec![ctx.new_line(buf)]);
         }
-        // format variants 2..n
-        for (ix, variant) in variants.into_iter().enumerate() {
-            let is_first = ix == 0;
-            if ctx.config.put_variants_on_new_lines() {
-                lines.push(ctx.new_line(buf));
-                if is_first {
-                    ctx.tab_in();
+        let len_to_eq = buf.find('=').expect("invariant");
+        let mut first_line = ctx.new_line(buf);
+        lines.push(first_line);
+        // TODO figure this one out
+        buf = Default::default();
+        ctx.indent_by(len_to_eq, |ctx| {
+            // format variants 2..n
+            for (ix, variant) in variants.into_iter().enumerate() {
+                let is_first = ix == 0;
+                if ctx.config.put_variants_on_new_lines() {
+                    lines.push(ctx.new_line(buf));
+                    buf = Default::default();
                 }
-                buf = Default::default();
+                buf.push_str("| ");
+                let variant = variant.format(ctx).into_single_line().content;
+                buf.push_str(&variant);
             }
-            buf.push_str("| ");
-            let variant = variant.format(ctx).into_single_line().content;
-            buf.push_str(&variant);
-        }
-        lines.push(ctx.new_line(buf));
-        ctx.tab_out();
+            lines.push(ctx.new_line(buf));
+        });
         FormattedLines::new(lines)
     }
 }
