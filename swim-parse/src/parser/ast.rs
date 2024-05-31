@@ -50,6 +50,15 @@ pub struct TypeVariant {
     name: Identifier,
     fields: Box<[Ty]>,
 }
+impl TypeVariant {
+    pub fn name(&self) -> Identifier {
+        self.name
+    }
+
+    pub fn fields(&self) -> &[Ty] {
+        &self.fields
+    }
+}
 
 impl Parse for TypeDeclaration {
     fn parse(p: &mut Parser) -> Option<Self> {
@@ -60,8 +69,6 @@ impl Parse for TypeDeclaration {
                 let name = p.parse()?;
                 p.token(Token::Equals)?;
                 let variants = p.sequence::<TypeVariant>(Token::Pipe)?;
-                // TBD: how to end type decls? maybe semicolon?
-                p.token(Token::Comma)?;
                 Some(Self {
                     name,
                     variants: variants.into_boxed_slice(),
@@ -79,13 +86,12 @@ impl Parse for TypeVariant {
                 let mut buf = vec![];
                 loop {
                     let name = p.parse()?;
-                    if *p.peek().item() == Token::Pipe {
+                    if *p.peek().item() != Token::Identifier {
                         return Some(Self {
                             name,
                             fields: buf.into_boxed_slice(),
                         });
                     }
-                    p.token(Token::Pipe)?;
                     let field: Ty = p.parse()?;
                     buf.push(field);
                 }
@@ -98,6 +104,7 @@ impl Parse for AstNode {
     fn parse(p: &mut Parser) -> Option<Self> {
         match p.peek().item() {
             Token::FunctionKeyword => Some(AstNode::FunctionDeclaration(p.parse()?)),
+            Token::TypeKeyword => Some(AstNode::TypeDeclaration(p.parse()?)),
             Token::Eof => return None,
             a => todo!("unimplemented parse: {a:?}"),
         }

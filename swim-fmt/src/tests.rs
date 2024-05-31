@@ -13,6 +13,9 @@ fn check(config: FormatterConfig, input: impl Into<String>, expect: Expect) {
     let input = input.into();
     let mut parser = swim_parse::parser::Parser::new(vec![("test", input)]);
     let (ast, errs, interner, source_map) = parser.into_result();
+    if !errs.is_empty() {
+        panic!("parse errors: {:#?}", errs);
+    }
     let mut ctx = FormatterContext::from_interner(interner).with_config(config);
     let result = ast.format(&mut ctx).render();
     expect.assert_eq(&result);
@@ -254,5 +257,33 @@ fn multiple_functions_newlines_between_comment_and_item_unjoined() {
 
 #[test]
 fn ty_decl() {
-    check(Default::default(), "type foo = a | b;", expect![[r#""#]]);
+    check(Default::default(), "type foo  = a | b", expect![[r#""#]]);
+}
+
+#[test]
+fn ty_decl_no_variants() {
+    check(Default::default(), "type foo", expect![[r#""#]]);
+}
+
+#[test]
+fn ty_decl_one_variant() {
+    check(Default::default(), "type foo = a", expect![[r#""#]]);
+}
+
+#[test]
+fn ty_decl_one_variant_fields() {
+    check(
+        Default::default(),
+        "type foo = a 'int 'string",
+        expect![[r#""#]],
+    );
+}
+
+#[test]
+fn ty_decl_multi_variant_fields() {
+    check(
+        Default::default(),
+        "type foo = a 'int 'string | b 'bool 'bool",
+        expect![[r#""#]],
+    );
 }

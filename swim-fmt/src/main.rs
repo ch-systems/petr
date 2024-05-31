@@ -187,6 +187,7 @@ impl Formattable for AstNode {
 }
 
 impl Formattable for TypeDeclaration {
+    // TODO calculate offset to equals sign, align pipes there
     fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
         let mut lines = Vec::new();
         let mut buf = "type ".to_string();
@@ -201,11 +202,14 @@ impl Formattable for TypeDeclaration {
             buf.push(';');
             return FormattedLines::new(vec![ctx.new_line(buf)]);
         }
-        ctx.tab_in();
         // format variants 2..n
-        for variant in variants {
+        for (ix, variant) in variants.into_iter().enumerate() {
+            let is_first = ix == 0;
             if ctx.config.put_variants_on_new_lines() {
                 lines.push(ctx.new_line(buf));
+                if is_first {
+                    ctx.tab_in();
+                }
                 buf = Default::default();
             }
             buf.push_str("| ");
@@ -220,7 +224,16 @@ impl Formattable for TypeDeclaration {
 
 impl Formattable for TypeVariant {
     fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
-        todo!()
+        let name = ctx.interner.get(self.name().id());
+        let fields = self.fields().into_iter();
+        let mut buf = name.to_string();
+        buf.push(' ');
+        for field in fields {
+            // TODO use impl Format for 'Ty here
+            buf.push_str(&format!("'{}", ctx.interner.get(field.name().id())));
+            buf.push(' ');
+        }
+        FormattedLines::new(vec![ctx.new_line(buf)])
     }
 }
 
@@ -232,6 +245,7 @@ impl<T: Formattable> Formattable for SpannedItem<T> {
 
 // TODO: methods like "continue on current line" are going to be useful
 // this can also hold line length context
+// Instead of pushing/appending, we should be using custom joins with "continues from previous line" logic
 pub struct FormattedLines {
     lines: Vec<Line>,
 }
