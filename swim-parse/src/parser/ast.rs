@@ -50,6 +50,7 @@ pub struct TypeVariant {
     name: Identifier,
     fields: Box<[Ty]>,
 }
+
 impl TypeVariant {
     pub fn name(&self) -> Identifier {
         self.name
@@ -67,6 +68,13 @@ impl Parse for TypeDeclaration {
             |p| -> Option<Self> {
                 p.token(Token::TypeKeyword)?;
                 let name = p.parse()?;
+                if *p.peek().item() != Token::Equals {
+                    // if there's no equals, then this is a type with no variants
+                    return Some(Self {
+                        name,
+                        variants: vec![].into_boxed_slice(),
+                    });
+                }
                 p.token(Token::Equals)?;
                 let variants = p.sequence::<TypeVariant>(Token::Pipe)?;
                 Some(Self {
@@ -84,17 +92,20 @@ impl Parse for TypeVariant {
             "encountered while parsing type variant",
             |p| -> Option<Self> {
                 let mut buf = vec![];
+                let name = p.parse()?;
                 loop {
-                    let name = p.parse()?;
-                    if *p.peek().item() != Token::Identifier {
-                        return Some(Self {
-                            name,
-                            fields: buf.into_boxed_slice(),
-                        });
+                    let peek = *p.peek().item();
+                    if peek == Token::TyMarker {
+                        let field: Ty = p.parse()?;
+                        buf.push(field);
+                    } else {
+                        break;
                     }
-                    let field: Ty = p.parse()?;
-                    buf.push(field);
                 }
+                Some(Self {
+                    name,
+                    fields: buf.into_boxed_slice(),
+                })
             },
         )
     }
@@ -105,8 +116,15 @@ impl Parse for AstNode {
         match p.peek().item() {
             Token::FunctionKeyword => Some(AstNode::FunctionDeclaration(p.parse()?)),
             Token::TypeKeyword => Some(AstNode::TypeDeclaration(p.parse()?)),
-            Token::Eof => return None,
-            a => todo!("unimplemented parse: {a:?}"),
+            Token::Eof => None,
+            a => {
+                let span = p.peek().span();
+                p.push_error(span.with_item(ParseErrorKind::ExpectedOneOf(
+                    vec![Token::FunctionKeyword, Token::TypeKeyword, Token::Eof],
+                    *a,
+                )));
+                None
+            }
         }
     }
 }
@@ -243,9 +261,11 @@ impl Parse for Literal {
                     .expect("lexer should have verified this"),
             )),
             _ => {
-                p.push_error(p.lexer.span().with_item(
-                    ParseErrorKind::ExpectedToken(Token::Integer, *tok.item()).into_err(),
-                ));
+                p.push_error(
+                    p.lexer
+                        .span()
+                        .with_item(ParseErrorKind::ExpectedToken(Token::Integer, *tok.item())),
+                );
                 None
             }
         }
@@ -315,9 +335,11 @@ impl Parse for Ty {
     // TODO types are not just idents,
     // they can be more than that
     fn parse(p: &mut Parser) -> Option<Self> {
-        p.token(Token::TyMarker)?;
-        let ident = Identifier::parse(p)?;
-        Some(Self { ty_name: ident })
+        p.with_help("while parsing type", |p| -> Option<Self> {
+            p.token(Token::TyMarker)?;
+            let ident = Identifier::parse(p)?;
+            Some(Self { ty_name: ident })
+        })
     }
 }
 
@@ -337,15 +359,10 @@ impl Parse for Operator {
             Token::Star => Some(Operator::Star),
             Token::Slash => Some(Operator::Slash),
             _ => {
-                p.push_error(
-                    p.lexer.span().with_item(
-                        ParseErrorKind::ExpectedOneOf(
-                            vec![Token::Plus, Token::Minus, Token::Star, Token::Slash],
-                            *tok.item(),
-                        )
-                        .into_err(),
-                    ),
-                );
+                p.push_error(p.lexer.span().with_item(ParseErrorKind::ExpectedOneOf(
+                    vec![Token::Plus, Token::Minus, Token::Star, Token::Slash],
+                    *tok.item(),
+                )));
                 None
             }
         }
@@ -378,9 +395,9 @@ impl Parse for Identifier {
     fn parse(p: &mut Parser) -> Option<Self> {
         let identifier = p.advance();
         if *identifier.item() != Token::Identifier {
-            p.push_error(p.lexer.span().with_item(
-                ParseErrorKind::ExpectedIdentifier(p.lexer.slice().to_string()).into_err(),
-            ));
+            p.push_error(p.lexer.span().with_item(ParseErrorKind::ExpectedIdentifier(
+                p.lexer.slice().to_string(),
+            )));
         }
         let id = p.interner.insert(p.lexer.slice());
         let span = p.lexer.span();

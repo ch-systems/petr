@@ -186,7 +186,6 @@ impl Formattable for AstNode {
 }
 
 impl Formattable for TypeDeclaration {
-    // TODO calculate offset to equals sign, align pipes there
     fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
         let mut lines = Vec::new();
         let mut buf = "type ".to_string();
@@ -201,18 +200,24 @@ impl Formattable for TypeDeclaration {
             buf.push(';');
             return FormattedLines::new(vec![ctx.new_line(buf)]);
         }
-        let len_to_eq = buf.find('=').expect("invariant");
-        let mut first_line = ctx.new_line(buf);
-        lines.push(first_line);
-        // TODO figure this one out
-        buf = Default::default();
+        let len_to_eq = if ctx.config.put_variants_on_new_lines() {
+            buf.find('=').expect("invariant")
+        } else {
+            0
+        };
+        if ctx.config.put_variants_on_new_lines() {
+            lines.push(ctx.new_line(buf));
+            buf = Default::default();
+        }
         ctx.indent_by(len_to_eq, |ctx| {
             // format variants 2..n
-            for (ix, variant) in variants.into_iter().enumerate() {
-                let is_first = ix == 0;
-                if ctx.config.put_variants_on_new_lines() {
+            for variant in variants.into_iter() {
+                if ctx.config.put_variants_on_new_lines() && !buf.is_empty() {
                     lines.push(ctx.new_line(buf));
                     buf = Default::default();
+                }
+                if !ctx.config.put_variants_on_new_lines() {
+                    buf.push(' ');
                 }
                 buf.push_str("| ");
                 let variant = variant.format(ctx).into_single_line().content;
@@ -227,14 +232,17 @@ impl Formattable for TypeDeclaration {
 impl Formattable for TypeVariant {
     fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
         let name = ctx.interner.get(self.name().id());
-        let fields = self.fields().into_iter();
         let mut buf = name.to_string();
-        buf.push(' ');
-        for field in fields {
-            // TODO use impl Format for 'Ty here
-            buf.push_str(&format!("'{}", ctx.interner.get(field.name().id())));
+        let fields = self.fields();
+        if !fields.is_empty() {
             buf.push(' ');
         }
+        let mut fields_buf = Vec::with_capacity(fields.len());
+        for field in fields {
+            // TODO use impl Format for 'Ty here
+            fields_buf.push(format!("'{}", ctx.interner.get(field.name().id())));
+        }
+        buf.push_str(&fields_buf.join(" "));
         FormattedLines::new(vec![ctx.new_line(buf)])
     }
 }

@@ -42,7 +42,7 @@ impl PrettyPrint for TypeDeclaration {
                 .iter()
                 .map(|field| field.pretty_print(interner, indentation + 1))
                 .collect::<Vec<_>>()
-                .join("|\n"),
+                .join(" |\n"),
         )
     }
 }

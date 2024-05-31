@@ -18,12 +18,16 @@ impl<T> SpannedItem<T> {
     fn with_source(
         self,
         name: impl Into<String>,
-        source: impl Into<String>,
+        source: &'static str,
     ) -> SourcedItem<SpannedItem<T>>
     where
         T: Diagnostic,
     {
         SourcedItem::new(name, source, self)
+    }
+
+    pub fn map<B>(self, f: impl Fn(T) -> B) -> SpannedItem<B> {
+        SpannedItem(f(self.0), self.1)
     }
 }
 
@@ -218,19 +222,17 @@ pub mod error_printing {
     where
         T: Diagnostic + std::error::Error + std::fmt::Debug,
     {
-        name: String,
-        source: String,
+        source: miette::NamedSource<&'static str>,
         item: T,
     }
     impl<T: Diagnostic> SourcedItem<T> {
         pub(crate) fn new(
             name: impl Into<String>,
-            source: impl Into<String>,
+            source: &'static str,
             item: SpannedItem<T>,
         ) -> SourcedItem<SpannedItem<T>> {
             SourcedItem {
-                name: name.into(),
-                source: source.into(),
+                source: miette::NamedSource::new(name.into(), source),
                 item,
             }
         }

@@ -83,7 +83,7 @@ pub enum ParseErrorKind {
     ExpectedIdentifier(String),
     #[error("Expected token {0}, found {1}")]
     ExpectedToken(Token, Token),
-    #[error("Expected one of tokens {}, found {1}", format_toks(.0))]
+    #[error("Expected one of tokens {}; found {1}", format_toks(.0))]
     ExpectedOneOf(Vec<Token>, Token),
 }
 impl ParseErrorKind {
@@ -99,8 +99,10 @@ fn format_toks(toks: &[Token]) -> String {
         .map(|t| format!("{}", t))
         .collect::<Vec<_>>()
         .join(", ");
-    if toks.len() > 1 {
+    if toks.len() == 2 {
         buf.push_str(&format!(" or {}", toks.last().unwrap()));
+    } else if toks.len() > 2 {
+        buf.push_str(&format!(", or {}", toks.last().unwrap()));
     }
     buf
 }
@@ -119,7 +121,22 @@ pub struct Parser {
 }
 
 impl Parser {
-    pub fn push_error(&mut self, err: SpannedItem<ParseError>) {
+    pub fn push_error(&mut self, err: SpannedItem<ParseErrorKind>) {
+        if self.help.is_empty() {
+            return self.errors.push(err.map(|err| err.into_err()));
+        }
+        let mut help_text = Vec::with_capacity(self.help.len());
+        let mut indentation = 0;
+        for help in &self.help {
+            let text = format!(
+                "{}{}{help}",
+                "  ".repeat(indentation),
+                if indentation == 0 { "" } else { "↪ " }
+            );
+            help_text.push(text);
+            indentation += 1;
+        }
+        let err = err.map(|err| err.into_err().with_help(Some(help_text.join("\n"))));
         self.errors.push(err);
     }
 
@@ -253,11 +270,7 @@ impl Parser {
         } else {
             let span = self.lexer.span();
             self.push_error(
-                span.with_item(
-                    ParseErrorKind::ExpectedToken(tok, *peeked_token.item())
-                        .into_err()
-                        .with_help(self.help.last()),
-                ),
+                span.with_item(ParseErrorKind::ExpectedToken(tok, *peeked_token.item())),
             );
             None
         }
@@ -273,20 +286,10 @@ impl Parser {
             tok => {
                 let span = self.lexer.span();
                 if N == 1 {
-                    self.push_error(
-                        span.with_item(
-                            ParseErrorKind::ExpectedToken(toks[0], *tok)
-                                .into_err()
-                                .with_help(self.help.last()),
-                        ),
-                    );
+                    self.push_error(span.with_item(ParseErrorKind::ExpectedToken(toks[0], *tok)));
                 } else {
                     self.push_error(
-                        span.with_item(
-                            ParseErrorKind::ExpectedOneOf(toks.to_vec(), *tok)
-                                .into_err()
-                                .with_help(self.help.last()),
-                        ),
+                        span.with_item(ParseErrorKind::ExpectedOneOf(toks.to_vec(), *tok)),
                     );
                 }
                 None

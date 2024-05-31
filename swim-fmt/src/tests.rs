@@ -256,18 +256,63 @@ fn multiple_functions_newlines_between_comment_and_item_unjoined() {
 }
 
 #[test]
-fn ty_decl() {
-    check(Default::default(), "type foo  = a | b", expect![[r#""#]]);
+fn ty_decl_basic() {
+    check(
+        Default::default(),
+        "type foo  = a | b",
+        expect![[r#"
+        type foo = a
+                 | b
+    "#]],
+    );
+}
+
+#[test]
+fn ty_decl_basic_more_variants() {
+    check(
+        Default::default(),
+        "type foo  = a | b | c | d | e",
+        expect![[r#"
+            type foo = a
+                     | b
+                     | c
+                     | d
+                     | e
+        "#]],
+    );
+}
+#[test]
+fn ty_decl_basic_same_line() {
+    check(
+        FCB::default().put_variants_on_new_lines(false).build(),
+        "type foo  = a | b | c | d | e",
+        expect![[r#"
+            type foo = a | b | c | d | e
+        "#]],
+    );
 }
 
 #[test]
 fn ty_decl_no_variants() {
-    check(Default::default(), "type foo", expect![[r#""#]]);
+    check(
+        Default::default(),
+        "type foo",
+        expect![[r#"
+        type foo;
+    "#]],
+    );
 }
 
 #[test]
 fn ty_decl_one_variant() {
-    check(Default::default(), "type foo = a", expect![[r#""#]]);
+    check(
+        Default::default(),
+        "type foo = a",
+        expect![[r#"
+        type foo = a
+         
+    "#]],
+    );
 }
 
 #[test]
@@ -275,7 +320,10 @@ fn ty_decl_one_variant_fields() {
     check(
         Default::default(),
         "type foo = a 'int 'string",
-        expect![[r#""#]],
+        expect![[r#"
+            type foo = a 'int 'string
+         
+        "#]],
     );
 }
 
@@ -284,6 +332,9 @@ fn ty_decl_multi_variant_fields() {
     check(
         Default::default(),
         "type foo = a 'int 'string | b 'bool 'bool",
-        expect![[r#""#]],
+        expect![[r#"
+            type foo = a 'int 'string
+                     | b 'bool 'bool
+        "#]],
     );
 }
