@@ -24,12 +24,12 @@ fn basic_func_decl() {
         Default::default(),
         "function foo(a in 'int, b in 'int) returns 'int + 2 3",
         expect![[r#"
-                function foo(
-                  a ∈ 'int,
-                  b ∈ 'int,
-                ) returns 'int
-                  +  2 3
-            "#]],
+            function foo(
+              a ∈ 'int,
+              b ∈ 'int,
+            ) returns 'int
+              + 2 3
+        "#]],
     );
 }
 
@@ -39,9 +39,9 @@ fn func_decl_params_same_line() {
         FCB::default().put_fn_params_on_new_lines(false).build(),
         "function foo(a in 'int, b in 'int) returns 'int + 2 3",
         expect![[r#"
-                function foo(a ∈ 'int, b ∈ 'int) returns 'int
-                  +  2 3
-            "#]],
+            function foo(a ∈ 'int, b ∈ 'int ) returns 'int
+              + 2 3
+        "#]],
     );
 }
 
@@ -51,13 +51,13 @@ fn commented_fn_decl() {
         Default::default(),
         "{- this function does stuff -} function foo(a in 'int, b in 'int) returns 'int + 2 3",
         expect![[r#"
-                {- this function does stuff -}
-                function foo(
-                  a ∈ 'int,
-                  b ∈ 'int,
-                ) returns 'int
-                  +  2 3
-            "#]],
+            {- this function does stuff -}
+            function foo(
+              a ∈ 'int,
+              b ∈ 'int,
+            ) returns 'int
+              + 2 3
+        "#]],
     );
 }
 
@@ -67,14 +67,14 @@ fn multiple_comments_before_fn() {
         Default::default(),
         "{- comment one -} {- comment two -} function foo(a in 'int, b in 'int) returns 'int + 2 3",
         expect![[r#"
-                {- comment one
-                   comment two -}
-                function foo(
-                  a ∈ 'int,
-                  b ∈ 'int,
-                ) returns 'int
-                  +  2 3
-            "#]],
+            {- comment one
+               comment two -}
+            function foo(
+              a ∈ 'int,
+              b ∈ 'int,
+            ) returns 'int
+              + 2 3
+        "#]],
     );
 }
 #[test]
@@ -83,14 +83,14 @@ fn multiple_comments_before_fn_no_join() {
         FCB::default().join_comments(false).build(),
         "{- comment one -} {- comment two -} function foo(a in 'int, b in 'int) returns 'int + 2 3",
         expect![[r#"
-                {- comment one -}
-                {- comment two -}
-                function foo(
-                  a ∈ 'int,
-                  b ∈ 'int,
-                ) returns 'int
-                  +  2 3
-            "#]],
+            {- comment one -}
+            {- comment two -}
+            function foo(
+              a ∈ 'int,
+              b ∈ 'int,
+            ) returns 'int
+              + 2 3
+        "#]],
     );
 }
 
@@ -100,13 +100,13 @@ fn extract_comments_from_within_decl() {
         FormatterConfig::default(),
         "function {- this comment should get moved to a more normal location -} foo(a in 'int, b in 'int) returns 'int + 2 3",
         expect![[r#"
-                {- this comment should get moved to a more normal location -}
-                function foo(
-                  a ∈ 'int,
-                  b ∈ 'int,
-                ) returns 'int
-                  +  2 3
-            "#]],
+            {- this comment should get moved to a more normal location -}
+            function foo(
+              a ∈ 'int,
+              b ∈ 'int,
+            ) returns 'int
+              + 2 3
+        "#]],
     );
 }
 
@@ -121,13 +121,13 @@ fn multiple_functions() {
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
-              +  2 3
+              + 2 3
 
             function bar(
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
-              +  2 3
+              + 2 3
         "#]],
     );
 }
@@ -147,14 +147,14 @@ fn multiple_functions_with_comments() {
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
-              +  2 3
+              + 2 3
 
             {- this function is called bar -}
             function bar(
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
-              +  2 3
+              + 2 3
         "#]],
     );
 }
@@ -174,7 +174,7 @@ fn multiple_functions_more_newlines_between_functions() {
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
-              +  2 3
+              + 2 3
 
 
             {- this function is called bar -}
@@ -182,7 +182,7 @@ fn multiple_functions_more_newlines_between_functions() {
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
-              +  2 3
+              + 2 3
         "#]],
     );
 }
@@ -204,7 +204,7 @@ fn multiple_functions_newlines_between_comment_and_item() {
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
-              +  2 3
+              + 2 3
 
             {- bar should look like this
                this function is called bar -}
@@ -213,7 +213,7 @@ fn multiple_functions_newlines_between_comment_and_item() {
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
-              +  2 3
+              + 2 3
         "#]],
     );
 }
@@ -238,7 +238,7 @@ fn multiple_functions_newlines_between_comment_and_item_unjoined() {
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
-              +  2 3
+              + 2 3
 
             {- bar should look like this -}
             {- this function is called bar -}
@@ -247,7 +247,12 @@ fn multiple_functions_newlines_between_comment_and_item_unjoined() {
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
-              +  2 3
+              + 2 3
         "#]],
     );
+}
+
+#[test]
+fn ty_decl() {
+    check(Default::default(), "type foo = a | b;", expect![[r#""#]]);
 }

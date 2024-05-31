@@ -4,6 +4,7 @@ pub struct FormatterConfig {
     join_comments: bool,
     newlines_between_items: usize,
     newlines_between_comment_and_item: usize,
+    put_variants_on_new_lines: bool,
 }
 
 impl FormatterConfig {
@@ -26,6 +27,10 @@ impl FormatterConfig {
     pub fn newlines_between_comment_and_item(&self) -> usize {
         self.newlines_between_comment_and_item
     }
+
+    pub fn put_variants_on_new_lines(&self) -> bool {
+        self.put_variants_on_new_lines
+    }
 }
 
 impl Default for FormatterConfig {
@@ -40,6 +45,7 @@ pub struct FormatterConfigBuilder {
     join_comments: bool,
     newlines_between_items: usize,
     newlines_between_comment_and_item: usize,
+    put_variants_on_new_lines: bool,
 }
 
 impl FormatterConfigBuilder {
@@ -81,6 +87,13 @@ impl FormatterConfigBuilder {
         }
     }
 
+    pub fn put_variants_on_new_lines(self, put_variants_on_new_lines: bool) -> Self {
+        Self {
+            put_variants_on_new_lines,
+            ..self
+        }
+    }
+
     pub fn build(self) -> FormatterConfig {
         FormatterConfig {
             put_fn_params_on_new_lines: self.put_fn_params_on_new_lines,
@@ -88,6 +101,7 @@ impl FormatterConfigBuilder {
             join_comments: self.join_comments,
             newlines_between_items: self.newlines_between_items,
             newlines_between_comment_and_item: self.newlines_between_comment_and_item,
+            put_variants_on_new_lines: self.put_variants_on_new_lines,
         }
     }
 }
@@ -100,6 +114,7 @@ impl Default for FormatterConfigBuilder {
             join_comments: true,
             newlines_between_items: 1,
             newlines_between_comment_and_item: 0,
+            put_variants_on_new_lines: true,
         }
     }
 }

@@ -21,12 +21,45 @@ impl PrettyPrint for AstNode {
     fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String {
         let mut string = match self {
             AstNode::FunctionDeclaration(node) => node.pretty_print(interner, indentation),
+            AstNode::TypeDeclaration(ty) => ty.pretty_print(interner, indentation),
         };
         let indentation_str = "  ".repeat(indentation);
         string = format!("{indentation_str}{string}");
         let indentation_str = format!("\n{indentation_str}");
         string = string.replace("\n", &indentation_str);
         string
+    }
+}
+
+impl PrettyPrint for TypeDeclaration {
+    fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String {
+        let TypeDeclaration { name, variants } = self;
+        format!(
+            "{}type {} =\n{}",
+            "  ".repeat(indentation),
+            name.pretty_print(interner, 0),
+            variants
+                .iter()
+                .map(|field| field.pretty_print(interner, indentation + 1))
+                .collect::<Vec<_>>()
+                .join("|\n"),
+        )
+    }
+}
+
+impl PrettyPrint for TypeVariant {
+    fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String {
+        let TypeVariant { name, fields } = self;
+        format!(
+            "{}{}({})",
+            "  ".repeat(indentation),
+            name.pretty_print(interner, 0),
+            fields
+                .iter()
+                .map(|field| field.pretty_print(interner, 0))
+                .collect::<Vec<_>>()
+                .join(" ")
+        )
     }
 }
 

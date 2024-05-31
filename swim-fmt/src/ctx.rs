@@ -28,11 +28,11 @@ impl FormatterContext {
     }
 
     pub fn tab_in(&mut self) {
-        self.indentation += 1;
+        self.indentation += 2;
     }
 
     pub fn tab_out(&mut self) {
-        self.indentation -= 1;
+        self.indentation -= 2;
     }
 
     pub fn with_config(self, config: FormatterConfig) -> FormatterContext {

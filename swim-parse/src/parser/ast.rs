@@ -33,9 +33,64 @@ pub enum AstNode {
     TypeDeclaration(Commented<TypeDeclaration>),
 }
 
+pub struct TypeDeclaration {
+    name: Identifier,
+    variants: Box<[TypeVariant]>,
+}
+impl TypeDeclaration {
+    pub fn variants(&self) -> &[TypeVariant] {
+        &self.variants
+    }
+    pub fn name(&self) -> Identifier {
+        self.name
+    }
+}
+
+pub struct TypeVariant {
+    name: Identifier,
+    fields: Box<[Ty]>,
+}
+
 impl Parse for TypeDeclaration {
     fn parse(p: &mut Parser) -> Option<Self> {
-        let ty_keyword = p.token(Token::Ty);
+        p.with_help(
+            "encountered while parsing type declaration",
+            |p| -> Option<Self> {
+                p.token(Token::TypeKeyword)?;
+                let name = p.parse()?;
+                p.token(Token::Equals)?;
+                let variants = p.sequence::<TypeVariant>(Token::Pipe)?;
+                // TBD: how to end type decls? maybe semicolon?
+                p.token(Token::Comma)?;
+                Some(Self {
+                    name,
+                    variants: variants.into_boxed_slice(),
+                })
+            },
+        )
+    }
+}
+
+impl Parse for TypeVariant {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        p.with_help(
+            "encountered while parsing type variant",
+            |p| -> Option<Self> {
+                let mut buf = vec![];
+                loop {
+                    let name = p.parse()?;
+                    if *p.peek().item() == Token::Pipe {
+                        return Some(Self {
+                            name,
+                            fields: buf.into_boxed_slice(),
+                        });
+                    }
+                    p.token(Token::Pipe)?;
+                    let field: Ty = p.parse()?;
+                    buf.push(field);
+                }
+            },
+        )
     }
 }
 
@@ -51,7 +106,7 @@ impl Parse for AstNode {
 
 pub struct FunctionDeclaration {
     name: Identifier,
-    parameters: Box<[Commented<FunctionParameter>]>,
+    parameters: Box<[FunctionParameter]>,
     return_type: Ty,
     body: SpannedItem<Expression>,
 }
@@ -67,8 +122,7 @@ impl Parse for FunctionDeclaration {
                 let parameters = if *p.peek().item() == Token::CloseParen {
                     vec![].into_boxed_slice()
                 } else {
-                    p.sequence::<Commented<FunctionParameter>>(Token::Comma)?
-                        .into_boxed_slice()
+                    p.sequence(Token::Comma)?.into_boxed_slice()
                 };
                 p.token(Token::CloseParen)?;
                 p.token(Token::ReturnsKeyword)?;
@@ -89,7 +143,7 @@ impl FunctionDeclaration {
         self.name
     }
 
-    pub fn parameters(&self) -> &Box<[Commented<FunctionParameter>]> {
+    pub fn parameters(&self) -> &Box<[FunctionParameter]> {
         &self.parameters
     }
 

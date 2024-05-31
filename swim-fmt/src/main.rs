@@ -13,7 +13,7 @@ fn main() {
     println!("Hello, world!");
 }
 
-use constants::{CLOSE_COMMENT_STR, OPEN_COMMENT_STR};
+use constants::{CLOSE_COMMENT_STR, INDENTATION_CHARACTER, OPEN_COMMENT_STR};
 use ctx::FormatterContext;
 use pretty_print::PrettyPrint;
 use swim_parse::{comments::Commented, parser::ast::*};
@@ -79,17 +79,18 @@ impl Formattable for FunctionDeclaration {
         ctx.tab_in();
 
         for (ix, param) in self.parameters().iter().enumerate() {
+            let mut param = (param).format(ctx).into_single_line().content.to_string();
             let is_last = ix == self.parameters().len() - 1;
-            let mut params = (param).format(ctx).lines;
+
+            // if this is not the last parameter OR we are putting parameters on new lines, add a comma
             if !is_last || ctx.config.put_fn_params_on_new_lines() {
-                if let Some(ref mut last_param) = params.last_mut() {
-                    last_param.content = Rc::from(format!("{},", last_param.content).as_str());
-                }
+                param.push_str(",");
             }
+            // if we are putting params on a new line, push a new line
             if ctx.config.put_fn_params_on_new_lines() {
-                lines.append(&mut params);
+                lines.push(ctx.new_line(param));
             } else {
-                buf.push_str(&params[0].content);
+                buf.push_str(&format!("{param} "));
             }
         }
 
@@ -111,7 +112,6 @@ impl Formattable for FunctionDeclaration {
 
 impl Formattable for FunctionParameter {
     fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
-        let mut lines: Vec<Line> = Vec::new();
         let mut buf = String::new();
         buf.push_str(&*ctx.interner.get(self.name().id()));
 
@@ -124,11 +124,7 @@ impl Formattable for FunctionParameter {
         buf.push_str(&format!(" {ty_in} '"));
         buf.push_str(&*ctx.interner.get(self.ty().name().id()));
 
-        if ctx.config.put_fn_params_on_new_lines() {
-            lines.push(ctx.new_line(buf));
-            buf = Default::default();
-        }
-        FormattedLines::new(lines)
+        FormattedLines::new(vec![ctx.new_line(buf)])
     }
 }
 
@@ -185,7 +181,46 @@ impl Formattable for AstNode {
     fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
         match self {
             AstNode::FunctionDeclaration(fd) => fd.format(ctx),
+            AstNode::TypeDeclaration(ty) => ty.format(ctx),
         }
+    }
+}
+
+impl Formattable for TypeDeclaration {
+    fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
+        let mut lines = Vec::new();
+        let mut buf = "type ".to_string();
+        buf.push_str(&*ctx.interner.get(self.name().id()));
+        let mut variants = self.variants().into_iter();
+        if let Some(first_variant) = variants.next() {
+            buf.push_str(" = ");
+            let first_variant = first_variant.format(ctx).into_single_line().content;
+            buf.push_str(&first_variant);
+        } else {
+            // this is a variantless struct
+            buf.push(';');
+            return FormattedLines::new(vec![ctx.new_line(buf)]);
+        }
+        ctx.tab_in();
+        // format variants 2..n
+        for variant in variants {
+            if ctx.config.put_variants_on_new_lines() {
+                lines.push(ctx.new_line(buf));
+                buf = Default::default();
+            }
+            buf.push_str("| ");
+            let variant = variant.format(ctx).into_single_line().content;
+            buf.push_str(&variant);
+        }
+        lines.push(ctx.new_line(buf));
+        ctx.tab_out();
+        FormattedLines::new(lines)
+    }
+}
+
+impl Formattable for TypeVariant {
+    fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
+        todo!()
     }
 }
 
@@ -195,6 +230,8 @@ impl<T: Formattable> Formattable for SpannedItem<T> {
     }
 }
 
+// TODO: methods like "continue on current line" are going to be useful
+// this can also hold line length context
 pub struct FormattedLines {
     lines: Vec<Line>,
 }
@@ -211,12 +248,37 @@ impl FormattedLines {
             content,
         } in &self.lines
         {
-            buf.push_str(&format!("{}{}\n", "  ".repeat(*indentation), content));
+            buf.push_str(&format!(
+                "{}{}\n",
+                INDENTATION_CHARACTER.repeat(*indentation),
+                content
+            ));
         }
         buf
     }
+
+    /// Forces a multi-line `FormattedLines` into a single line.
+    fn into_single_line(&self) -> Line {
+        let Some(indentation) = self.lines.get(0).map(|x| x.indentation) else {
+            return Line {
+                indentation: 0,
+                content: Rc::from(""),
+            };
+        };
+        let content = self
+            .lines
+            .iter()
+            .map(|line| line.content.as_ref())
+            .collect::<Vec<&str>>()
+            .join(" ");
+        Line {
+            indentation,
+            content: Rc::from(content),
+        }
+    }
 }
 
+#[derive(Debug)]
 pub struct Line {
     indentation: usize,
     content: Rc<str>,

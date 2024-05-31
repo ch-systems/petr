@@ -45,8 +45,14 @@ pub enum Token {
     Comma,
     #[token("returns")]
     ReturnsKeyword,
+    #[token("type")]
+    TypeKeyword,
     #[token("\n")]
     Newline,
+    #[token("=")]
+    Equals,
+    #[token("|")]
+    Pipe,
     Eof,
 }
 impl Token {
@@ -82,6 +88,9 @@ impl std::fmt::Display for Token {
             Eof => write!(f, "EOF"),
             Comment => write!(f, "{{- comment -}}"),
             Newline => write!(f, "newline"),
+            TypeKeyword => write!(f, "type"),
+            Equals => write!(f, "="),
+            Pipe => write!(f, "|"),
         }
     }
 }
