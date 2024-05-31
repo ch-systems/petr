@@ -22,6 +22,7 @@ impl FormatterConfig {
     pub fn join_comments(&self) -> bool {
         self.join_comments
     }
+
     pub fn newlines_between_comment_and_item(&self) -> usize {
         self.newlines_between_comment_and_item
     }

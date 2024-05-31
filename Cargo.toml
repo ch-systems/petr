@@ -1,2 +1,2 @@
 [workspace]
-members = [ "swim-parse", "swim-fmt", "swim-utils" , "swimc"]
+members = [ "swim-parse", "swim-fmt", "swim-utils" , "swimc", "swim-codegen"]

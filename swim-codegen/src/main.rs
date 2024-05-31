@@ -1,11 +1,82 @@
-use std::io::Write;
+use std::{fs::File, io::Write};
 
+use cranelift::codegen::ir::{UserExternalNameRef, UserFuncName};
 use cranelift::codegen::{CompiledCode, MachBufferFinalized};
 
 fn main() {
     println!("Hello, world!");
 }
 
+#[test]
+fn new_ir() -> Result<(), Box<dyn std::error::Error>> {
+    use cranelift::codegen::{
+        ir::{AbiParam, Function, Signature},
+        isa,
+        settings::{self, Configurable},
+    };
+    use cranelift::frontend::{FunctionBuilder, FunctionBuilderContext};
+    use cranelift::prelude::*;
+    use cranelift_module::{Linkage, Module};
+    use cranelift_native::builder as isa_builder;
+    use cranelift_object::{ObjectBuilder, ObjectModule};
+
+    // Set up the ISA for the current machine
+    let flag_builder = settings::builder();
+    let isa_builder = isa_builder()?;
+    let isa = isa_builder
+        .finish(settings::Flags::new(flag_builder))
+        .unwrap();
+
+    // Set up the object module
+    let builder = ObjectBuilder::new(
+        isa,
+        "my_program.o",
+        cranelift_module::default_libcall_names(),
+    )?;
+    let mut module = ObjectModule::new(builder);
+
+    // Create a function signature
+    let mut func_sig = module.make_signature();
+    func_sig
+        .returns
+        .push(AbiParam::new(cranelift::codegen::ir::types::I32));
+    let func_id = module.declare_function("_main", Linkage::Export, &func_sig)?;
+
+    // Define the function
+    let mut context = module.make_context();
+    context.func.signature = func_sig;
+    //    context.func.name = cranelift::codegen::ir::ExternalName::user(0, func_id.as_u32());
+    context.func.name = UserFuncName::user(0, func_id.as_u32());
+
+    {
+        let mut builder_ctx = FunctionBuilderContext::new();
+        let mut builder = FunctionBuilder::new(&mut context.func, &mut builder_ctx);
+
+        let entry_block = builder.create_block();
+        builder.switch_to_block(entry_block);
+        builder.seal_block(entry_block);
+
+        let value = builder.ins().iconst(cranelift::codegen::ir::types::I32, 42);
+        builder.ins().return_(&[value]);
+
+        builder.finalize();
+    }
+
+    // Define and compile the function
+    module.define_function(func_id, &mut context)?;
+    module.clear_context(&mut context);
+    //    module.finalize_definitions();
+
+    // Write the object file
+    let product = module.finish();
+    let obj = product.object;
+
+    let mut file = File::create("output.o")?;
+    file.write_all(&obj.write().unwrap())?;
+    Ok(())
+}
+
+/*
 #[test]
 fn ir() -> Result<(), Box<dyn std::error::Error>> {
     use cranelift::prelude::*;
@@ -275,4 +346,5 @@ fn generate_macos_executable(code: CompiledCode) {
     let buffer = code.buffer.data();
     create_macho_file(&buffer).unwrap();
 }
+*/
 */
