@@ -83,12 +83,11 @@ impl Parse for FunctionDeclaration {
                 p.token(Token::FunctionKeyword)?;
                 let name = p.parse()?;
                 p.token(Token::OpenParen)?;
-                let parameters = if *p.peek().item() == Token::CloseParen {
+                let parameters = if p.try_token(Token::CloseParen).is_some() {
                     vec![].into_boxed_slice()
                 } else {
                     p.sequence(Token::Comma)?.into_boxed_slice()
                 };
-                p.token(Token::CloseParen)?;
                 p.token(Token::ReturnsKeyword)?;
                 let return_type = p.parse()?;
                 let body = p.parse()?;

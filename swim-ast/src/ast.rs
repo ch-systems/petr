@@ -56,11 +56,6 @@ pub struct List {
     pub elements: Box<[Commented<SpannedItem<Expression>>]>,
 }
 
-pub struct Binding {
-    pub name: Identifier,
-    pub value: Expression,
-}
-
 pub enum Literal {
     Integer(i64),
 }

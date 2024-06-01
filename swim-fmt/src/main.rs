@@ -392,6 +392,10 @@ trait Formattable {
                 .build(),
             ctx.config
                 .as_builder()
+                .put_list_elements_on_new_lines(true)
+                .build(),
+            ctx.config
+                .as_builder()
                 .put_fn_params_on_new_lines(true)
                 .put_fn_body_on_new_line(true)
                 .put_variants_on_new_lines(true)

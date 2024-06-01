@@ -5,7 +5,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     use cranelift_object::{ObjectBuilder, ObjectModule};
 
     // Set up the ISA for the current machine
-    let flag_builder = settings::builder();
+    let mut flag_builder = settings::builder();
+    flag_builder.enable("is_pic").unwrap();
+
     let isa_builder = isa_builder()?;
     let isa = isa_builder
         .finish(settings::Flags::new(flag_builder))
@@ -87,6 +89,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .arg("output.o")
         .arg("-o")
         .arg("output")
+        .arg("-Wl")
+        .arg("-ld_classic")
         .arg("-v")
         .status()?;
 
