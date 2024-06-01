@@ -156,7 +156,7 @@ impl Formattable for Expression {
                 let ident_as_string = ctx.interner.get(var.name.id);
                 FormattedLines::new(vec![ctx.new_line(ident_as_string)])
             }
-            Expression::Block(..) => todo!(),
+            Expression::List(..) => todo!(),
         }
     }
 }

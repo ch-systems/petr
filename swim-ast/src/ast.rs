@@ -43,7 +43,7 @@ pub struct FunctionDeclaration {
 
 pub enum Expression {
     Literal(Literal),
-    Block(Box<BlockExpr>),
+    List(List),
     Operator(Box<OperatorExpression>),
     Variable(VariableExpression),
 }
@@ -52,9 +52,8 @@ pub struct VariableExpression {
     pub name: Identifier,
 }
 
-pub struct BlockExpr {
-    pub contents: Vec<Binding>,
-    pub return_expr: Expression,
+pub struct List {
+    pub elements: Box<[Commented<SpannedItem<Expression>>]>,
 }
 
 pub struct Binding {

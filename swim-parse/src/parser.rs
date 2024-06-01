@@ -8,7 +8,7 @@ use lexer::Lexer;
 pub use lexer::Token;
 
 use miette::Diagnostic;
-use swim_ast::Comment;
+use swim_ast::{Comment, List};
 use swim_utils::{IndexMap, SourceId, Span, SpannedItem};
 use swim_utils::{SymbolInterner, SymbolKey};
 use thiserror::Error;
@@ -276,6 +276,16 @@ impl Parser {
         }
     }
 
+    /// doesn't push the error to the error list and doesn't advance if the token is not found
+    pub fn try_token(&mut self, tok: Token) -> Option<SpannedItem<Token>> {
+        let peeked_token = self.peek();
+        if *peeked_token.item() == tok {
+            Some(self.advance())
+        } else {
+            None
+        }
+    }
+
     pub fn token(&mut self, tok: Token) -> Option<SpannedItem<Token>> {
         let peeked_token = self.peek();
         if *peeked_token.item() == tok {
@@ -348,5 +358,16 @@ where
 
         // i think this should be `hi` to `hi`, not 100% though
         Some(before_span.hi_to_hi(after_span).with_item(result))
+    }
+}
+
+impl Parse for List {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        p.try_token(Token::OpenBracket)?;
+        let elements = p.sequence(Token::Comma)?;
+        p.token(Token::CloseBracket)?;
+        Some(List {
+            elements: elements.into_boxed_slice(),
+        })
     }
 }

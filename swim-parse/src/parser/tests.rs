@@ -101,3 +101,39 @@ fn multi_commented_function() {
         "#]],
     )
 }
+
+#[test]
+fn list_expr() {
+    check(
+        vec!["function list_to_three() returns 'intlist [1, 2, 3]"],
+        expect![[r#"
+            AST
+            ____
+            Func list_to_three() -> 'intlist [1, 2, 3]
+        "#]],
+    )
+}
+
+#[test]
+fn list_with_nested_exprs() {
+    check(
+        vec!["function list_to_three() returns 'intlist [+ 1 2 , 2, + 1 + 2 3]"],
+        expect![[r#"
+            AST
+            ____
+            Func list_to_three() -> 'intlist [+(1 2), 2, +(1 +(2 3))]
+        "#]],
+    )
+}
+
+#[test]
+fn nested_list() {
+    check(
+        vec!["function list_to_three() returns 'intlist [[1, 2], [3, 4, + 1 2]]"],
+        expect![[r#"
+            AST
+            ____
+            Func list_to_three() -> 'intlist [[1, 2], [3, 4]]
+        "#]],
+    )
+}

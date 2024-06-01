@@ -89,12 +89,25 @@ impl PrettyPrint for Expression {
     fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String {
         match self {
             Expression::Literal(Literal::Integer(i)) => i.to_string(),
-            Expression::Block(_block) => todo!(),
+            Expression::List(list) => list.pretty_print(interner, indentation),
             Expression::Operator(op) => op.pretty_print(interner, indentation),
             Expression::Variable(v) => {
                 format!("var({})", v.name.pretty_print(interner, indentation))
             }
         }
+    }
+}
+
+impl PrettyPrint for List {
+    fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String {
+        format!(
+            "[{}]",
+            self.elements
+                .iter()
+                .map(|item| item.pretty_print(interner, indentation))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
     }
 }
 

@@ -220,6 +220,7 @@ impl Parse for Expression {
             // TODO might not want to do variables this way
             // may have to advance and peek to see if its a fn call etc
             Token::Identifier => Some(Expression::Variable(p.parse()?)),
+            Token::OpenBracket => Some(Expression::List(p.parse()?)),
             a => todo!("need to parse expr {a:?}"),
         }
     }
