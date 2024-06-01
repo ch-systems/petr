@@ -13,6 +13,7 @@ fn main() {
     println!("Hello, world!");
 }
 
+use config::FormatterConfigBuilder;
 use constants::{CLOSE_COMMENT_STR, INDENTATION_CHARACTER, OPEN_COMMENT_STR};
 use ctx::FormatterContext;
 use swim_ast::*;
@@ -71,7 +72,7 @@ impl Formattable for FunctionDeclaration {
         buf.push_str(&ctx.interner.get(self.name.id));
 
         buf.push('(');
-        if ctx.config.put_fn_params_on_new_lines() {
+        if ctx.config.put_fn_params_on_new_lines() && !self.parameters.is_empty() {
             lines.push(ctx.new_line(buf));
             buf = Default::default();
         }
@@ -156,7 +157,7 @@ impl Formattable for Expression {
                 let ident_as_string = ctx.interner.get(var.name.id);
                 FormattedLines::new(vec![ctx.new_line(ident_as_string)])
             }
-            Expression::List(..) => todo!(),
+            Expression::List(list) => list.format(ctx),
         }
     }
 }
@@ -246,6 +247,36 @@ impl Formattable for TypeVariant {
     }
 }
 
+impl Formattable for List {
+    fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
+        let mut lines = Vec::new();
+        let items = self.elements.iter();
+        let mut item_buf = vec![];
+        ctx.indented(|ctx| {
+            for item in items {
+                let element = item.format(ctx).into_single_line();
+                item_buf.push(element);
+            }
+        });
+
+        if ctx.config.put_list_elements_on_new_lines() {
+            lines.push(ctx.new_line("["));
+            for line in item_buf {
+                lines.push(line);
+            }
+            lines.push(ctx.new_line("]"));
+        } else {
+            let text = item_buf
+                .iter()
+                .map(|item| &*item.content.trim())
+                .collect::<Vec<_>>()
+                .join(", ");
+            lines.push(ctx.new_line(format!("[{}]", text)));
+        }
+
+        FormattedLines::new(lines)
+    }
+}
 impl<T: Formattable> Formattable for SpannedItem<T> {
     fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
         self.item().format(ctx)
@@ -256,7 +287,7 @@ impl<T: Formattable> Formattable for SpannedItem<T> {
 // this can also hold line length context
 // Instead of pushing/appending, we should be using custom joins with "continues from previous line" logic
 pub struct FormattedLines {
-    lines: Vec<Line>,
+    lines: Vec<(Line, Box<dyn Formattable>)>,
 }
 
 impl FormattedLines {
@@ -317,4 +348,25 @@ pub struct Line {
 
 trait Formattable {
     fn format(&self, ctx: &mut FormatterContext) -> FormattedLines;
+    fn line_length_aware_format(&self, ctx: &mut FormatterContext) -> FormattedLines {
+        let mut lines = self.format(ctx);
+        todo!()
+        /*
+        for (ix, line) in lines.iter().enumerate() {
+            if line.content.len() > ctx.config.max_line_length() {
+                // reformat the line and re-insert it
+                let lines_until_now = lines[0..ix];
+                let lines_after_now = lines[ix + 1..];
+                ctx.with_config_change(
+                    ctx.config
+                        .as_builder()
+                        .put_variants_on_new_lines(true)
+                        .put_fn_params_on_new_lines(true)
+                        .put_list_elements_on_new_lines(true)
+                        .build(),
+                );
+            }
+        }
+        */
+    }
 }

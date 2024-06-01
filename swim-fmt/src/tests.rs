@@ -334,3 +334,12 @@ fn ty_decl_multi_variant_fields() {
         "#]],
     );
 }
+
+#[test]
+fn format_list() {
+    check(
+        Default::default(),
+        "function returns_list() returns 'list [1, 2, 3]",
+        expect![[r#""#]],
+    );
+}

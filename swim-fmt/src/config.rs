@@ -5,6 +5,7 @@ pub struct FormatterConfig {
     newlines_between_items: usize,
     newlines_between_comment_and_item: usize,
     put_variants_on_new_lines: bool,
+    put_list_elements_on_new_lines: bool,
     tab_size: usize,
 }
 
@@ -33,8 +34,25 @@ impl FormatterConfig {
         self.put_variants_on_new_lines
     }
 
+    pub fn put_list_elements_on_new_lines(&self) -> bool {
+        self.put_list_elements_on_new_lines
+    }
+
     pub fn tab_size(&self) -> usize {
         self.tab_size
+    }
+
+    pub(crate) fn as_builder(&self) -> FormatterConfigBuilder {
+        FormatterConfigBuilder {
+            put_fn_params_on_new_lines: self.put_fn_params_on_new_lines,
+            use_set_notation_for_types: self.use_set_notation_for_types,
+            join_comments: self.join_comments,
+            newlines_between_items: self.newlines_between_items,
+            newlines_between_comment_and_item: self.newlines_between_comment_and_item,
+            put_variants_on_new_lines: self.put_variants_on_new_lines,
+            put_list_elements_on_new_lines: self.put_list_elements_on_new_lines,
+            tab_size: self.tab_size,
+        }
     }
 }
 
@@ -51,6 +69,7 @@ pub struct FormatterConfigBuilder {
     newlines_between_items: usize,
     newlines_between_comment_and_item: usize,
     put_variants_on_new_lines: bool,
+    put_list_elements_on_new_lines: bool,
     tab_size: usize,
 }
 
@@ -100,6 +119,13 @@ impl FormatterConfigBuilder {
         }
     }
 
+    pub fn put_list_elements_on_new_lines(self, put_list_elements_on_new_lines: bool) -> Self {
+        Self {
+            put_list_elements_on_new_lines,
+            ..self
+        }
+    }
+
     pub fn tab_size(self, tab_size: usize) -> Self {
         Self { tab_size, ..self }
     }
@@ -112,6 +138,7 @@ impl FormatterConfigBuilder {
             newlines_between_items: self.newlines_between_items,
             newlines_between_comment_and_item: self.newlines_between_comment_and_item,
             put_variants_on_new_lines: self.put_variants_on_new_lines,
+            put_list_elements_on_new_lines: self.put_list_elements_on_new_lines,
             tab_size: self.tab_size,
         }
     }
@@ -126,6 +153,7 @@ impl Default for FormatterConfigBuilder {
             newlines_between_items: 1,
             newlines_between_comment_and_item: 0,
             put_variants_on_new_lines: true,
+            put_list_elements_on_new_lines: false,
             tab_size: 2,
         }
     }
