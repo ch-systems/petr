@@ -378,43 +378,24 @@ trait Formattable {
     /// with more things broken up across lines if the line length exceeds the limit
     fn line_length_aware_format(&self, ctx: &mut FormatterContext) -> FormattedLines {
         let base_result = self.format(ctx);
-        let result_a = self.try_config(
-            ctx,
+        // try the first configs, then the later ones
+        // these are in order of preference
+        let configs = vec![
             ctx.config
                 .as_builder()
                 .put_fn_params_on_new_lines(true)
                 .build(),
-        );
-        if result_a.max_length() < ctx.config.max_line_length() {
-            return result_a;
-        }
-        let result_b = self.try_config(
-            ctx,
             ctx.config
                 .as_builder()
                 .put_fn_params_on_new_lines(true)
                 .put_fn_body_on_new_line(true)
                 .build(),
-        );
-        if result_b.max_length() < ctx.config.max_line_length() {
-            return result_b;
-        }
-
-        let result_c = self.try_config(
-            ctx,
             ctx.config
                 .as_builder()
                 .put_fn_params_on_new_lines(true)
                 .put_fn_body_on_new_line(true)
                 .put_variants_on_new_lines(true)
                 .build(),
-        );
-        if result_c.max_length() < ctx.config.max_line_length() {
-            return result_c;
-        }
-
-        let result_e = self.try_config(
-            ctx,
             ctx.config
                 .as_builder()
                 .put_fn_params_on_new_lines(true)
@@ -422,14 +403,23 @@ trait Formattable {
                 .put_variants_on_new_lines(true)
                 .put_list_elements_on_new_lines(true)
                 .build(),
-        );
-        if result_e.max_length() < ctx.config.max_line_length() {
-            return result_e;
+        ];
+
+        for config in &configs {
+            let result = self.try_config(ctx, config.clone());
+            if result.max_length() < ctx.config.max_line_length() {
+                return result;
+            }
         }
 
         // if none of the above were good enough, pick the shortest one
-        vec![base_result, result_a, result_b, result_c]
+        vec![base_result]
             .into_iter()
+            .chain(
+                configs
+                    .into_iter()
+                    .map(|config| self.try_config(ctx, config)),
+            )
             .min_by_key(|fl| fl.max_length())
             .unwrap()
     }
