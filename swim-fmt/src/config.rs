@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub struct FormatterConfig {
     put_fn_params_on_new_lines: bool,
     use_set_notation_for_types: bool,
@@ -6,7 +7,9 @@ pub struct FormatterConfig {
     newlines_between_comment_and_item: usize,
     put_variants_on_new_lines: bool,
     put_list_elements_on_new_lines: bool,
+    put_fn_body_on_new_line: bool,
     tab_size: usize,
+    max_line_length: usize,
 }
 
 impl FormatterConfig {
@@ -38,8 +41,16 @@ impl FormatterConfig {
         self.put_list_elements_on_new_lines
     }
 
+    pub fn put_fn_body_on_new_line(&self) -> bool {
+        self.put_fn_body_on_new_line
+    }
+
     pub fn tab_size(&self) -> usize {
         self.tab_size
+    }
+
+    pub fn max_line_length(&self) -> usize {
+        self.max_line_length
     }
 
     pub(crate) fn as_builder(&self) -> FormatterConfigBuilder {
@@ -51,7 +62,9 @@ impl FormatterConfig {
             newlines_between_comment_and_item: self.newlines_between_comment_and_item,
             put_variants_on_new_lines: self.put_variants_on_new_lines,
             put_list_elements_on_new_lines: self.put_list_elements_on_new_lines,
+            put_fn_body_on_new_line: self.put_fn_body_on_new_line,
             tab_size: self.tab_size,
+            max_line_length: self.max_line_length,
         }
     }
 }
@@ -70,7 +83,9 @@ pub struct FormatterConfigBuilder {
     newlines_between_comment_and_item: usize,
     put_variants_on_new_lines: bool,
     put_list_elements_on_new_lines: bool,
+    put_fn_body_on_new_line: bool,
     tab_size: usize,
+    max_line_length: usize,
 }
 
 impl FormatterConfigBuilder {
@@ -126,8 +141,22 @@ impl FormatterConfigBuilder {
         }
     }
 
+    pub fn put_fn_body_on_new_line(self, put_fn_body_on_new_line: bool) -> Self {
+        Self {
+            put_fn_body_on_new_line,
+            ..self
+        }
+    }
+
     pub fn tab_size(self, tab_size: usize) -> Self {
         Self { tab_size, ..self }
+    }
+
+    pub fn max_line_length(self, max_line_length: usize) -> Self {
+        Self {
+            max_line_length,
+            ..self
+        }
     }
 
     pub fn build(self) -> FormatterConfig {
@@ -139,7 +168,9 @@ impl FormatterConfigBuilder {
             newlines_between_comment_and_item: self.newlines_between_comment_and_item,
             put_variants_on_new_lines: self.put_variants_on_new_lines,
             put_list_elements_on_new_lines: self.put_list_elements_on_new_lines,
+            put_fn_body_on_new_line: self.put_fn_body_on_new_line,
             tab_size: self.tab_size,
+            max_line_length: self.max_line_length,
         }
     }
 }
@@ -154,7 +185,9 @@ impl Default for FormatterConfigBuilder {
             newlines_between_comment_and_item: 0,
             put_variants_on_new_lines: true,
             put_list_elements_on_new_lines: false,
+            put_fn_body_on_new_line: false,
             tab_size: 2,
+            max_line_length: 80,
         }
     }
 }

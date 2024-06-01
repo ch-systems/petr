@@ -56,4 +56,16 @@ impl FormatterContext {
     pub(crate) fn indentation(&self) -> usize {
         self.indentation
     }
+
+    pub(crate) fn with_new_config(
+        &mut self,
+        config: FormatterConfig,
+        f: impl Fn(&mut FormatterContext) -> crate::FormattedLines,
+    ) -> crate::FormattedLines {
+        let old_config = self.config.clone();
+        self.config = config;
+        let res = f(self);
+        self.config = old_config;
+        res
+    }
 }

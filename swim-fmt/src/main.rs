@@ -13,7 +13,7 @@ fn main() {
     println!("Hello, world!");
 }
 
-use config::FormatterConfigBuilder;
+use config::FormatterConfig;
 use constants::{CLOSE_COMMENT_STR, INDENTATION_CHARACTER, OPEN_COMMENT_STR};
 use ctx::FormatterContext;
 use swim_ast::*;
@@ -102,9 +102,20 @@ impl Formattable for FunctionDeclaration {
         ));
 
         lines.push(ctx.new_line(buf));
-        ctx.indented(|ctx| {
-            lines.append(&mut self.body.format(ctx).lines);
-        });
+
+        let mut body = ctx.indented(|ctx| self.body.format(ctx));
+
+        if ctx.config.put_fn_body_on_new_line() {
+            lines.append(&mut body.lines);
+        } else {
+            let first_line_of_body = body.lines.remove(0);
+            lines
+                .last_mut()
+                .expect("invariant")
+                .join_with_line(first_line_of_body, " ");
+            lines.append(&mut body.lines);
+        }
+
         FormattedLines::new(lines)
     }
 }
@@ -261,7 +272,8 @@ impl Formattable for List {
 
         if ctx.config.put_list_elements_on_new_lines() {
             lines.push(ctx.new_line("["));
-            for line in item_buf {
+            for mut line in item_buf {
+                line.content = Rc::from(format!("{},", line.content).as_str());
                 lines.push(line);
             }
             lines.push(ctx.new_line("]"));
@@ -287,12 +299,20 @@ impl<T: Formattable> Formattable for SpannedItem<T> {
 // this can also hold line length context
 // Instead of pushing/appending, we should be using custom joins with "continues from previous line" logic
 pub struct FormattedLines {
-    lines: Vec<(Line, Box<dyn Formattable>)>,
+    lines: Vec<Line>,
 }
 
 impl FormattedLines {
     pub fn new(lines: Vec<Line>) -> Self {
         Self { lines }
+    }
+
+    pub fn max_length(&self) -> usize {
+        self.lines
+            .iter()
+            .map(|line| line.content.len() + INDENTATION_CHARACTER.repeat(line.indentation).len())
+            .max()
+            .unwrap_or(0)
     }
 
     pub fn render(&self) -> String {
@@ -346,27 +366,74 @@ pub struct Line {
     content: Rc<str>,
 }
 
+impl Line {
+    pub fn join_with_line(&mut self, other: Line, join_str: &str) {
+        self.content = Rc::from(format!("{}{join_str}{}", self.content, other.content).as_str());
+    }
+}
+
 trait Formattable {
     fn format(&self, ctx: &mut FormatterContext) -> FormattedLines;
+    /// the below is the actual entry point to the interface, which attempts to reformat the item
+    /// with more things broken up across lines if the line length exceeds the limit
     fn line_length_aware_format(&self, ctx: &mut FormatterContext) -> FormattedLines {
-        let mut lines = self.format(ctx);
-        todo!()
-        /*
-        for (ix, line) in lines.iter().enumerate() {
-            if line.content.len() > ctx.config.max_line_length() {
-                // reformat the line and re-insert it
-                let lines_until_now = lines[0..ix];
-                let lines_after_now = lines[ix + 1..];
-                ctx.with_config_change(
-                    ctx.config
-                        .as_builder()
-                        .put_variants_on_new_lines(true)
-                        .put_fn_params_on_new_lines(true)
-                        .put_list_elements_on_new_lines(true)
-                        .build(),
-                );
-            }
+        let base_result = self.format(ctx);
+        let result_a = self.try_config(
+            ctx,
+            ctx.config
+                .as_builder()
+                .put_fn_params_on_new_lines(true)
+                .build(),
+        );
+        if result_a.max_length() < ctx.config.max_line_length() {
+            return result_a;
         }
-        */
+        let result_b = self.try_config(
+            ctx,
+            ctx.config
+                .as_builder()
+                .put_fn_params_on_new_lines(true)
+                .put_fn_body_on_new_line(true)
+                .build(),
+        );
+        if result_b.max_length() < ctx.config.max_line_length() {
+            return result_b;
+        }
+
+        let result_c = self.try_config(
+            ctx,
+            ctx.config
+                .as_builder()
+                .put_fn_params_on_new_lines(true)
+                .put_fn_body_on_new_line(true)
+                .put_variants_on_new_lines(true)
+                .build(),
+        );
+        if result_c.max_length() < ctx.config.max_line_length() {
+            return result_c;
+        }
+
+        let result_e = self.try_config(
+            ctx,
+            ctx.config
+                .as_builder()
+                .put_fn_params_on_new_lines(true)
+                .put_list_elements_on_new_lines(true)
+                .put_variants_on_new_lines(true)
+                .put_list_elements_on_new_lines(true)
+                .build(),
+        );
+        if result_e.max_length() < ctx.config.max_line_length() {
+            return result_e;
+        }
+
+        // if none of the above were good enough, pick the shortest one
+        vec![base_result, result_a, result_b, result_c]
+            .into_iter()
+            .min_by_key(|fl| fl.max_length())
+            .unwrap()
+    }
+    fn try_config(&self, ctx: &mut FormatterContext, config: FormatterConfig) -> FormattedLines {
+        ctx.with_new_config(config, |ctx| self.format(ctx))
     }
 }
