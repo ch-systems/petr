@@ -424,3 +424,17 @@ fn put_only_params_and_body_on_newlines_if_necessary() {
         "#]],
     );
 }
+
+#[test]
+fn no_matter_what_the_line_is_too_long_use_shortest_config_best_attempt() {
+    check(
+        FCB::default().max_line_length(1).build(),
+        "function returns_list(a in 'a) returns 'aaaaaaaaaaaaaaaaaaaaaaaaaaaa [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]",
+        expect![[r#"
+            function returns_list(
+              a ∈ 'a,
+            ) returns 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+              [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        "#]],
+    );
+}
