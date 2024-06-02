@@ -6,7 +6,7 @@ pub struct TypeChecker {
 }
 
 pub struct TypedAst {
-    nodes: Vec<TypedAstNode>,
+    nodes: Vec<AstNode>,
 }
 
 /*
@@ -17,10 +17,23 @@ pub struct Typed<T> {
 
 */
 
-pub enum TypedAstNode {
+pub enum AstNode {
     FunctionDeclaration(TypedFunctionDeclaration),
     TypeDeclaration(TypedTypeDeclaration),
 }
+
+pub struct FunctionDeclaration {
+    ty: Type,
+    name: Identifier,
+    args: Vec<TypedArgument>,
+    ret_ty: Type,
+}
+
+pub struct TypeDeclaration {
+    name: Identifier,
+    variants: Vec<TypeVariant>,
+}
+
 pub struct Type {
     ty: polytype::TypeScheme,
 }

@@ -7,7 +7,7 @@ pub trait PrettyPrint {
     fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String;
 }
 
-impl PrettyPrint for AST {
+impl PrettyPrint for Ast {
     fn pretty_print(&self, interner: &SymbolInterner, _indentation: usize) -> String {
         let mut buf = String::new();
         for node in &self.nodes {

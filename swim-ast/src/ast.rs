@@ -9,12 +9,12 @@ use swim_utils::{Identifier, SpannedItem};
 // use the tree to find the scopes that are "in scope" by traversing up
 // and then search those scopes
 
-pub struct AST {
+pub struct Ast {
     pub nodes: Vec<SpannedItem<AstNode>>,
 }
 
-impl AST {
-    pub fn new(nodes: Vec<SpannedItem<AstNode>>) -> AST {
+impl Ast {
+    pub fn new(nodes: Vec<SpannedItem<AstNode>>) -> Ast {
         Self { nodes }
     }
 }

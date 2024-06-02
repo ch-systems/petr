@@ -173,7 +173,7 @@ impl Formattable for Expression {
     }
 }
 
-impl Formattable for AST {
+impl Formattable for Ast {
     fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
         let mut lines = Vec::new();
         for (ix, item) in self.nodes.iter().enumerate() {

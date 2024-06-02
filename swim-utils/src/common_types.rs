@@ -2,42 +2,32 @@
 
 use std::rc::Rc;
 
-use crate::IndexMap;
+use crate::{idx_map_key, IndexMap};
 
 #[derive(Clone, Copy)]
 pub struct Identifier {
-    pub id: SymbolKey,
+    pub id: SymbolId,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct SymbolKey(usize);
-
-impl From<usize> for SymbolKey {
-    fn from(value: usize) -> Self {
-        Self(value)
-    }
-}
-
-impl From<SymbolKey> for usize {
-    fn from(value: SymbolKey) -> Self {
-        value.0
-    }
-}
+idx_map_key!(
+    /// The ID of an ident in the symbol interner
+    SymbolId
+);
 
 #[derive(Default, Debug, Clone)]
 pub struct SymbolInterner {
-    symbol_map: IndexMap<SymbolKey, Rc<str>>,
+    symbol_map: IndexMap<SymbolId, Rc<str>>,
 }
 
 impl SymbolInterner {
-    pub fn insert(&mut self, v: Rc<str>) -> SymbolKey {
+    pub fn insert(&mut self, v: Rc<str>) -> SymbolId {
         match self.symbol_map.contains_value(v.clone()) {
             Some(k) => k,
             None => self.symbol_map.insert(v),
         }
     }
 
-    pub fn get(&self, id: SymbolKey) -> Rc<str> {
+    pub fn get(&self, id: SymbolId) -> Rc<str> {
         self.symbol_map.get(id).clone()
     }
 }

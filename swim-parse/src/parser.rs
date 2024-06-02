@@ -10,10 +10,10 @@ pub use lexer::Token;
 use miette::Diagnostic;
 use swim_ast::{Comment, List};
 use swim_utils::{IndexMap, SourceId, Span, SpannedItem};
-use swim_utils::{SymbolInterner, SymbolKey};
+use swim_utils::{SymbolId, SymbolInterner};
 use thiserror::Error;
 
-use swim_ast::{AstNode, AST};
+use swim_ast::{Ast, AstNode};
 
 #[derive(Error, Debug, PartialEq)]
 pub struct ParseError {
@@ -145,7 +145,7 @@ impl Parser {
         self.lexer.slice()
     }
 
-    pub fn intern(&mut self, internee: Rc<str>) -> SymbolKey {
+    pub fn intern(&mut self, internee: Rc<str>) -> SymbolId {
         self.interner.insert(internee)
     }
 
@@ -207,14 +207,14 @@ impl Parser {
     pub fn into_result(
         mut self,
     ) -> (
-        AST,
+        Ast,
         Vec<SpannedItem<ParseError>>,
         SymbolInterner,
         IndexMap<SourceId, (&'static str, &'static str)>,
     ) {
         let nodes: Vec<SpannedItem<AstNode>> = self.many::<SpannedItem<AstNode>>();
         // drop the lexers from the source map
-        (AST::new(nodes), self.errors, self.interner, self.source_map)
+        (Ast::new(nodes), self.errors, self.interner, self.source_map)
     }
 
     pub fn interner(&self) -> &SymbolInterner {

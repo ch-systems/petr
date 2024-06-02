@@ -88,3 +88,25 @@ where
             .map(Into::into)
     }
 }
+
+#[macro_export]
+macro_rules! idx_map_key {
+    ($(#[$attr:meta])*
+        $name:ident) => {
+        #[derive(Debug, Clone, Copy)]
+        $(#[$attr])*
+        pub struct $name(usize);
+
+        impl From<usize> for $name {
+            fn from(value: usize) -> Self {
+                Self(value)
+            }
+        }
+
+        impl Into<usize> for $name {
+            fn into(self) -> usize {
+                self.0
+            }
+        }
+    };
+}
