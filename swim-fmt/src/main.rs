@@ -96,10 +96,11 @@ impl Formattable for FunctionDeclaration {
         });
         buf.push_str(") returns ");
 
-        buf.push_str(&format!(
-            "'{}",
-            ctx.interner.get(self.return_type.ty_name.id)
-        ));
+        buf.push_str(
+            &self
+                .return_type
+                .pretty_print(&ctx.interner, ctx.indentation()),
+        );
 
         lines.push(ctx.new_line(buf));
 
@@ -131,8 +132,8 @@ impl Formattable for FunctionParameter {
             "in"
         };
 
-        buf.push_str(&format!(" {ty_in} '"));
-        buf.push_str(&ctx.interner.get(self.ty.ty_name.id));
+        buf.push_str(&format!(" {ty_in} "));
+        buf.push_str(&self.ty.pretty_print(&ctx.interner, ctx.indentation()));
 
         FormattedLines::new(vec![ctx.new_line(buf)])
     }
@@ -169,6 +170,9 @@ impl Formattable for Expression {
                 FormattedLines::new(vec![ctx.new_line(ident_as_string)])
             }
             Expression::List(list) => list.format(ctx),
+            Expression::TypeConstructor => unreachable!(
+                "this is only constructed after binding, which the formatter doesn't do"
+            ),
         }
     }
 }
@@ -251,7 +255,7 @@ impl Formattable for TypeVariant {
         let mut fields_buf = Vec::with_capacity(self.fields.len());
         for field in &*self.fields {
             // TODO use impl Format for 'Ty here
-            fields_buf.push(format!("'{}", ctx.interner.get(field.ty_name.id)));
+            fields_buf.push(field.pretty_print(&ctx.interner, ctx.indentation()));
         }
         buf.push_str(&fields_buf.join(" "));
         FormattedLines::new(vec![ctx.new_line(buf)])

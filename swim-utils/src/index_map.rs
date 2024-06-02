@@ -53,6 +53,12 @@ impl<K, V> IndexMap<K, V>
 where
     K: From<usize> + Into<usize>,
 {
+    pub fn iter(&self) -> impl Iterator<Item = (K, &V)> {
+        self.entries
+            .iter()
+            .enumerate()
+            .map(|(k, v)| (K::from(k), v))
+    }
     pub fn insert(&mut self, value: V) -> K {
         let key = self.entries.len();
         self.entries.push(value);
@@ -93,7 +99,7 @@ where
 macro_rules! idx_map_key {
     ($(#[$attr:meta])*
         $name:ident) => {
-        #[derive(Debug, Clone, Copy)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd)]
         $(#[$attr])*
         pub struct $name(usize);
 

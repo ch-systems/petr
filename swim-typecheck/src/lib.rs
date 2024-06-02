@@ -1,4 +1,5 @@
 //! Given an `Ast`, produce a type-checked `TypedAst`.
+/*
 use swim_ast::{Ast, AstNode, FunctionDeclaration};
 pub struct TypeChecker {
     ast: Ast,
@@ -62,3 +63,5 @@ impl TypeCheckable for FunctionDeclaration {
         Type { ty }
     }
 }
+
+*/

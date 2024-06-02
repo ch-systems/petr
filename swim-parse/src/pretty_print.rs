@@ -70,7 +70,12 @@ impl PrettyPrint for Identifier {
 
 impl PrettyPrint for Ty {
     fn pretty_print(&self, interner: &SymbolInterner, _: usize) -> String {
-        format!("'{}", self.ty_name.pretty_print(interner, 0))
+        let name = match self {
+            Ty::Bool => "bool".to_string(),
+            Ty::Int => "int".to_string(),
+            Ty::Named(name) => name.pretty_print(interner, 0),
+        };
+        format!("'{name}")
     }
 }
 
@@ -94,6 +99,7 @@ impl PrettyPrint for Expression {
             Expression::Variable(v) => {
                 format!("var({})", v.name.pretty_print(interner, indentation))
             }
+            Expression::TypeConstructor => format!("type constructor"),
         }
     }
 }

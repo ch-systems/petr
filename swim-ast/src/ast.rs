@@ -24,16 +24,19 @@ pub enum AstNode {
     TypeDeclaration(Commented<TypeDeclaration>),
 }
 
+#[derive(Clone)]
 pub struct TypeDeclaration {
     pub name: Identifier,
-    pub variants: Box<[TypeVariant]>,
+    pub variants: Box<[SpannedItem<TypeVariant>]>,
 }
 
+#[derive(Clone)]
 pub struct TypeVariant {
     pub name: Identifier,
     pub fields: Box<[Ty]>,
 }
 
+#[derive(Clone)]
 pub struct FunctionDeclaration {
     pub name: Identifier,
     pub parameters: Box<[FunctionParameter]>,
@@ -41,21 +44,26 @@ pub struct FunctionDeclaration {
     pub body: SpannedItem<Expression>,
 }
 
+#[derive(Clone)]
 pub enum Expression {
     Literal(Literal),
     List(List),
     Operator(Box<OperatorExpression>),
     Variable(VariableExpression),
+    TypeConstructor,
 }
 
+#[derive(Clone)]
 pub struct VariableExpression {
     pub name: Identifier,
 }
 
+#[derive(Clone)]
 pub struct List {
     pub elements: Box<[Commented<SpannedItem<Expression>>]>,
 }
 
+#[derive(Clone, Copy)]
 pub enum Literal {
     Integer(i64),
 }
@@ -68,22 +76,27 @@ impl ToString for Literal {
     }
 }
 
+#[derive(Clone)]
 pub struct OperatorExpression {
     pub lhs: SpannedItem<Expression>,
     pub rhs: SpannedItem<Expression>,
     pub op: SpannedItem<Operator>,
 }
 
+#[derive(Clone)]
 pub struct FunctionParameter {
     pub name: Identifier,
     pub ty: Ty,
 }
 
 #[derive(Clone, Copy)]
-pub struct Ty {
-    pub ty_name: Identifier,
+pub enum Ty {
+    Int,
+    Bool,
+    Named(Identifier),
 }
 
+#[derive(Clone)]
 pub enum Operator {
     Plus,
     Minus,
@@ -102,6 +115,7 @@ impl Operator {
     }
 }
 
+#[derive(Clone)]
 pub struct Comment {
     pub content: Rc<str>,
 }

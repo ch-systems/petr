@@ -9,4 +9,6 @@ edition = "2021"
 swim-parse = { path = "../swim-parse" }
 swim-utils = { path = "../swim-utils" }
 swim-ast = { path = "../swim-ast" }
+
+[dev-dependencies]
 expect-test = "1.5.0"

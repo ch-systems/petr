@@ -18,3 +18,9 @@ impl<T> Commented<T> {
         &self.1[..]
     }
 }
+
+impl<T: Clone> Clone for Commented<T> {
+    fn clone(&self) -> Self {
+        Commented(self.0.clone(), self.1.clone())
+    }
+}

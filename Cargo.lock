@@ -841,7 +841,9 @@ dependencies = [
 name = "swim-bind"
 version = "0.1.0"
 dependencies = [
+ "expect-test",
  "swim-ast",
+ "swim-parse",
  "swim-utils",
 ]
 

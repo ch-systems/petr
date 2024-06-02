@@ -24,7 +24,7 @@ impl Parse for TypeDeclaration {
                     });
                 }
                 p.token(Token::Equals)?;
-                let variants = p.sequence::<TypeVariant>(Token::Pipe)?;
+                let variants = p.sequence(Token::Pipe)?;
                 Some(Self {
                     name,
                     variants: variants.into_boxed_slice(),
@@ -140,14 +140,21 @@ impl Parse for FunctionParameter {
         )
     }
 }
+
 impl Parse for Ty {
     // TODO types are not just idents,
     // they can be more than that
     fn parse(p: &mut Parser) -> Option<Self> {
         p.with_help("while parsing type", |p| -> Option<Self> {
             p.token(Token::TyMarker)?;
-            let ident = Identifier::parse(p)?;
-            Some(Self { ty_name: ident })
+            let raw_str = p.slice();
+            let ty = match raw_str {
+                "int" => Ty::Int,
+                "bool" => Ty::Bool,
+                _ => Ty::Named(p.parse()?),
+            };
+
+            Some(ty)
         })
     }
 }
