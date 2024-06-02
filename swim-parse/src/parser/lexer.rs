@@ -53,6 +53,10 @@ pub enum Token {
     Equals,
     #[token("|")]
     Pipe,
+    #[token("from")]
+    FromKeyword,
+    #[token("to")]
+    ToKeyword,
     Eof,
 }
 impl Token {
@@ -91,6 +95,8 @@ impl std::fmt::Display for Token {
             TypeKeyword => write!(f, "type"),
             Equals => write!(f, "="),
             Pipe => write!(f, "|"),
+            FromKeyword => write!(f, "from"),
+            ToKeyword => write!(f, "to"),
         }
     }
 }

@@ -1,4 +1,5 @@
 use expect_test::{expect, Expect};
+use swim_utils::render_error;
 
 use crate::{
     config::{FormatterConfig, FormatterConfigBuilder as FCB},
@@ -8,9 +9,11 @@ use crate::{
 fn check(config: FormatterConfig, input: impl Into<String>, expect: Expect) {
     let input = input.into();
     let parser = swim_parse::Parser::new(vec![("test", input)]);
-    let (ast, errs, interner, _source_map) = parser.into_result();
+    let (ast, errs, interner, source_map) = parser.into_result();
     if !errs.is_empty() {
-        panic!("parse errors: {:#?}", errs);
+        errs.into_iter()
+            .for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
+        panic!("fmt failed: code didn't parse");
     }
     let mut ctx = FormatterContext::from_interner(interner).with_config(config);
     let result = ast.line_length_aware_format(&mut ctx).render();
@@ -433,7 +436,7 @@ fn no_matter_what_the_line_is_too_long_use_shortest_config_best_attempt() {
         expect![[r#"
             function returns_list(
               a ∈ 'a,
-            ) returns 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            ) returns 'aaaaaaaaaaaaaaaaaaaaaaaaaaaa
               [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         "#]],
     );

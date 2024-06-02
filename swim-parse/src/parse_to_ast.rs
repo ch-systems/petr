@@ -8,6 +8,7 @@ use crate::{
     parser::{Parse, ParseErrorKind, Token},
     Parser,
 };
+
 impl Parse for TypeDeclaration {
     fn parse(p: &mut Parser) -> Option<Self> {
         p.with_help(
@@ -86,7 +87,9 @@ impl Parse for FunctionDeclaration {
                 let parameters = if p.try_token(Token::CloseParen).is_some() {
                     vec![].into_boxed_slice()
                 } else {
-                    p.sequence(Token::Comma)?.into_boxed_slice()
+                    let seq = p.sequence(Token::Comma)?.into_boxed_slice();
+                    p.token(Token::CloseParen)?;
+                    seq
                 };
                 p.token(Token::ReturnsKeyword)?;
                 let return_type = p.parse()?;

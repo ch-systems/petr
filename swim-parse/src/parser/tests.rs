@@ -133,7 +133,7 @@ fn nested_list() {
         expect![[r#"
             AST
             ____
-            Func list_to_three() -> 'intlist [[1, 2], [3, 4]]
+            Func list_to_three() -> 'intlist [[1, 2], [3, 4, +(1 2)]]
         "#]],
     )
 }
