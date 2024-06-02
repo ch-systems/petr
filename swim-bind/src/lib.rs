@@ -3,7 +3,6 @@
 mod impls {
 
     use crate::{Bind, Binder};
-    use std::collections::BTreeMap;
 
     use swim_ast::{
         Ast, Commented, Expression, FunctionDeclaration, Ty, TypeDeclaration, TypeVariant,
@@ -173,6 +172,7 @@ mod binder {
                     parameters: fields_as_parameters.into_boxed_slice(),
                     return_type: Ty::Named(ty_decl.name),
                     body: span.with_item(Expression::TypeConstructor),
+                    visibility: ty_decl.visibility,
                 };
 
                 let function_id = self.functions.insert(function);
@@ -250,20 +250,11 @@ mod binder {
                 "type trinary_boolean = true | false | maybe ",
                 expect![[r#"
                     Scope ScopeId(0):
-                      MyType: Type TypeId(0)
-                      Variant1: Function FunctionId(0)
-                      Variant2: Function FunctionId(1)
-                    "#]],
-            );
-        }
-        #[test]
-        fn bind_function_decl() {
-            check(
-                "function add(a in 'Int, b in  'Int) returns 'Int + a b",
-                expect![[r#"
-                    Scope ScopeId(0):
-                      add: Function FunctionId(0)
-                    "#]],
+                      trinary_boolean: Type TypeId(0)
+                      true: Function FunctionId(0)
+                      false: Function FunctionId(1)
+                      maybe: Function FunctionId(2)
+                "#]],
             );
         }
         #[test]

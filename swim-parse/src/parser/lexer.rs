@@ -57,6 +57,10 @@ pub enum Token {
     FromKeyword,
     #[token("to")]
     ToKeyword,
+    #[token("Function")]
+    ExportFunctionKeyword,
+    #[token("Type")]
+    ExportTypeKeyword,
     Eof,
 }
 impl Token {
@@ -97,6 +101,8 @@ impl std::fmt::Display for Token {
             Pipe => write!(f, "|"),
             FromKeyword => write!(f, "from"),
             ToKeyword => write!(f, "to"),
+            ExportFunctionKeyword => write!(f, "Function"),
+            ExportTypeKeyword => write!(f, "Type"),
         }
     }
 }

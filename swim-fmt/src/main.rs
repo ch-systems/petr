@@ -67,7 +67,12 @@ where
 impl Formattable for FunctionDeclaration {
     fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
         let mut lines: Vec<Line> = Vec::new();
-        let mut buf: String = "function ".into();
+        let mut buf: String = if self.visibility == Visibility::Exported {
+            "Function "
+        } else {
+            "function "
+        }
+        .to_string();
 
         buf.push_str(&ctx.interner.get(self.name.id));
 
@@ -204,7 +209,12 @@ impl Formattable for AstNode {
 impl Formattable for TypeDeclaration {
     fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
         let mut lines = Vec::new();
-        let mut buf = "type ".to_string();
+        let mut buf: String = if self.visibility == Visibility::Exported {
+            "Type "
+        } else {
+            "type "
+        }
+        .to_string();
         buf.push_str(&ctx.interner.get(self.name.id));
         let mut variants = self.variants.iter();
         if let Some(first_variant) = variants.next() {

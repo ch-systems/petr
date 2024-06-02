@@ -28,6 +28,13 @@ pub enum AstNode {
 pub struct TypeDeclaration {
     pub name: Identifier,
     pub variants: Box<[SpannedItem<TypeVariant>]>,
+    pub visibility: Visibility,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Visibility {
+    Local,
+    Exported,
 }
 
 #[derive(Clone)]
@@ -42,6 +49,7 @@ pub struct FunctionDeclaration {
     pub parameters: Box<[FunctionParameter]>,
     pub return_type: Ty,
     pub body: SpannedItem<Expression>,
+    pub visibility: Visibility,
 }
 
 #[derive(Clone)]

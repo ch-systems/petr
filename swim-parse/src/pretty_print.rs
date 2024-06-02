@@ -33,10 +33,19 @@ impl PrettyPrint for AstNode {
 
 impl PrettyPrint for TypeDeclaration {
     fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String {
-        let TypeDeclaration { name, variants } = self;
+        let TypeDeclaration {
+            name,
+            variants,
+            visibility,
+        } = self;
         format!(
-            "{}type {} =\n{}",
+            "{}{}type {} =\n{}",
             "  ".repeat(indentation),
+            if *visibility == Visibility::Exported {
+                "exported "
+            } else {
+                ""
+            },
             name.pretty_print(interner, 0),
             variants
                 .iter()
@@ -178,10 +187,16 @@ impl PrettyPrint for FunctionDeclaration {
             parameters,
             return_type,
             body,
+            visibility,
         } = self;
         format!(
-            "{}Func {}({}{}{}) -> {} {}",
+            "{}{}Func {}({}{}{}) -> {} {}",
             "  ".repeat(indentation),
+            if *visibility == Visibility::Exported {
+                "exported "
+            } else {
+                ""
+            },
             name.pretty_print(interner, 0),
             if parameters.is_empty() { "" } else { "\n" },
             parameters

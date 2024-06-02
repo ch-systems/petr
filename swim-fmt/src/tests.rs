@@ -441,3 +441,14 @@ fn no_matter_what_the_line_is_too_long_use_shortest_config_best_attempt() {
         "#]],
     );
 }
+
+#[test]
+fn exported_func() {
+    check(
+        Default::default(),
+        "Function foo() returns 'int + 1 2",
+        expect![[r#"
+            Function foo() returns 'int + 1 2
+        "#]],
+    )
+}

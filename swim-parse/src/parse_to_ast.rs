@@ -14,13 +14,19 @@ impl Parse for TypeDeclaration {
         p.with_help(
             "encountered while parsing type declaration",
             |p| -> Option<Self> {
-                p.token(Token::TypeKeyword)?;
+                let tok = p.one_of([Token::TypeKeyword, Token::ExportTypeKeyword])?;
+                let visibility = match tok.item() {
+                    Token::TypeKeyword => Visibility::Local,
+                    Token::ExportTypeKeyword => Visibility::Exported,
+                    _ => unreachable!(),
+                };
                 let name = p.parse()?;
                 if *p.peek().item() != Token::Equals {
                     // if there's no equals, then this is a type with no variants
                     return Some(Self {
                         name,
                         variants: vec![].into_boxed_slice(),
+                        visibility,
                     });
                 }
                 p.token(Token::Equals)?;
@@ -28,6 +34,7 @@ impl Parse for TypeDeclaration {
                 Some(Self {
                     name,
                     variants: variants.into_boxed_slice(),
+                    visibility,
                 })
             },
         )
@@ -62,8 +69,12 @@ impl Parse for TypeVariant {
 impl Parse for AstNode {
     fn parse(p: &mut Parser) -> Option<Self> {
         match p.peek().item() {
-            Token::FunctionKeyword => Some(AstNode::FunctionDeclaration(p.parse()?)),
-            Token::TypeKeyword => Some(AstNode::TypeDeclaration(p.parse()?)),
+            Token::FunctionKeyword | Token::ExportFunctionKeyword => {
+                Some(AstNode::FunctionDeclaration(p.parse()?))
+            }
+            Token::TypeKeyword | Token::ExportTypeKeyword => {
+                Some(AstNode::TypeDeclaration(p.parse()?))
+            }
             Token::Eof => None,
             a => {
                 let span = p.peek().span();
@@ -81,7 +92,12 @@ impl Parse for FunctionDeclaration {
         p.with_help(
             "encountered while parsing function declaration",
             |p| -> Option<Self> {
-                p.token(Token::FunctionKeyword)?;
+                let tok = p.one_of([Token::FunctionKeyword, Token::ExportFunctionKeyword])?;
+                let visibility = match tok.item() {
+                    Token::FunctionKeyword => Visibility::Local,
+                    Token::ExportFunctionKeyword => Visibility::Exported,
+                    _ => unreachable!(),
+                };
                 let name = p.parse()?;
                 p.token(Token::OpenParen)?;
                 let parameters = if p.try_token(Token::CloseParen).is_some() {
@@ -99,6 +115,7 @@ impl Parse for FunctionDeclaration {
                     parameters,
                     return_type,
                     body,
+                    visibility,
                 })
             },
         )
