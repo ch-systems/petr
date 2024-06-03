@@ -445,7 +445,11 @@ mod tests {
     fn func_returns_named_type_declared_after_use() {
         check(
             r#"
-            function foo(a in 'MyType) returns 'MyType [1, 2, 3]
+            function foo(a in 'MyType) returns 'MyType [
+                1,
+                2,
+                3
+            ]
             type MyType = a | b
             "#,
             expect![[r#""#]],
