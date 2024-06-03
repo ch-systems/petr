@@ -885,8 +885,10 @@ dependencies = [
 name = "swim-resolve"
 version = "0.1.0"
 dependencies = [
+ "expect-test",
  "swim-ast",
  "swim-bind",
+ "swim-parse",
  "swim-utils",
 ]
 

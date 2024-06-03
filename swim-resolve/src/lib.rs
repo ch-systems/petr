@@ -1,8 +1,11 @@
 //! given bindings, fully resolve an AST
+//! This crate's job is to tee up the type checker for the next stage of compilation.
 
-use std::{collections::BTreeMap, rc::Rc};
+use std::rc::Rc;
 
-use swim_ast::{Ast, AstNode, Commented, FunctionParameter, TypeDeclaration};
+use swim_ast::{
+    Ast, AstNode, Commented, Expression, FunctionDeclaration, FunctionParameter, TypeDeclaration,
+};
 use swim_bind::{Binder, FunctionId, Item, ScopeId, TypeId};
 use swim_utils::{Identifier, SpannedItem, SymbolId};
 
@@ -20,8 +23,14 @@ struct Package {
 }
 */
 
-struct ResolvedNode {
+pub struct ResolvedNode {
     kind: ResolvedNodeKind,
+}
+
+impl ResolvedNode {
+    pub fn new(kind: ResolvedNodeKind) -> Self {
+        Self { kind }
+    }
 }
 
 pub enum ResolvedNodeKind {
@@ -30,17 +39,21 @@ pub enum ResolvedNodeKind {
 }
 
 // TODO: refactor this into polytype
+#[derive(Clone, Copy)]
 pub enum Type {
-    Int,
+    Integer,
     Bool,
     Unit,
+    // like `Unit`, but doesn't throw additional type errors to prevent cascading errors.
+    ErrorRecovery,
     Named(TypeId),
 }
 
 impl Resolve for swim_ast::Ty {
-    fn resolve(&self, resolver: &mut Resolver, scope_id: ScopeId) -> Option<ResolvedNode> {
-        let ty = match self {
-            swim_ast::Ty::Int => Type::Int,
+    type Resolved = Type;
+    fn resolve(&self, resolver: &mut Resolver, scope_id: ScopeId) -> Option<Type> {
+        Some(match self {
+            swim_ast::Ty::Int => Type::Integer,
             swim_ast::Ty::Bool => Type::Bool,
             swim_ast::Ty::Named(name) => {
                 match resolver.binder.find_symbol_in_scope(name.id, scope_id) {
@@ -55,9 +68,7 @@ impl Resolve for swim_ast::Ty {
                     }
                 }
             }
-        };
-        todo!("should trait return associated type, or should everything be a resolved node?");
-        todo!("if we keep resolved nodes, then we have a TON of flexibility in resolving and handling items -- too much? Extra error handling down the line")
+        })
     }
 }
 
@@ -68,7 +79,29 @@ pub struct Function {
     pub body: Expr,
 }
 
-pub struct Expr;
+pub struct Expr {
+    kind: ExprKind,
+    return_type: Type,
+}
+
+impl Expr {
+    pub fn error_recovery() -> Self {
+        Self {
+            kind: ExprKind::Unit,
+            return_type: Type::ErrorRecovery,
+        }
+    }
+
+    pub fn new(kind: ExprKind, return_type: Type) -> Self {
+        Self { kind, return_type }
+    }
+}
+
+pub enum ExprKind {
+    Literal(swim_ast::Literal),
+    List(Box<[Expr]>),
+    Unit,
+}
 
 impl Resolver {
     pub fn add_package(&mut self, package_name: Rc<str>, ast: Ast) -> Vec<ResolvedNode> {
@@ -105,10 +138,12 @@ impl Resolver {
 }
 
 pub trait Resolve {
-    fn resolve(&self, resolver: &mut Resolver, scope_id: ScopeId) -> Option<ResolvedNode>;
+    type Resolved;
+    fn resolve(&self, resolver: &mut Resolver, scope_id: ScopeId) -> Option<Self::Resolved>;
 }
 
 impl Resolve for AstNode {
+    type Resolved = ResolvedNode;
     fn resolve(&self, resolver: &mut Resolver, scope_id: ScopeId) -> Option<ResolvedNode> {
         match self {
             swim_ast::AstNode::FunctionDeclaration(decl) => decl.resolve(resolver, scope_id),
@@ -117,7 +152,8 @@ impl Resolve for AstNode {
     }
 }
 
-impl Resolve for swim_ast::FunctionDeclaration {
+impl Resolve for FunctionDeclaration {
+    type Resolved = ResolvedNode;
     fn resolve(&self, resolver: &mut Resolver, scope_id: ScopeId) -> Option<ResolvedNode> {
         // when resolving a function declaration,
         // the symbols that need resolution are:
@@ -129,26 +165,79 @@ impl Resolve for swim_ast::FunctionDeclaration {
 
         for FunctionParameter { name, ty } in self.parameters.iter() {
             let ty = ty.resolve(resolver, scope_id).unwrap_or(Type::Unit);
-            params_buf.push((name, ty));
+            params_buf.push((*name, ty));
         }
 
-        todo!()
+        let return_type = self
+            .return_type
+            .resolve(resolver, scope_id)
+            .unwrap_or(Type::Unit);
+
+        let body = self
+            .body
+            .resolve(resolver, scope_id)
+            .unwrap_or(Expr::error_recovery());
+
+        Some(ResolvedNode::new(ResolvedNodeKind::Function(Function {
+            name: self.name.clone(),
+            params: params_buf,
+            return_type,
+            body,
+        })))
+    }
+}
+
+impl Resolve for Expression {
+    type Resolved = Expr;
+    fn resolve(&self, resolver: &mut Resolver, scope_id: ScopeId) -> Option<Expr> {
+        Some(match self {
+            Expression::Literal(x) => Expr::new(ExprKind::Literal(*x), literal_return_type(x)),
+            Expression::List(list) => {
+                let list: Vec<Expr> = list
+                    .elements
+                    .into_iter()
+                    .map(|x| {
+                        x.resolve(resolver, scope_id)
+                            .unwrap_or_else(Expr::error_recovery)
+                    })
+                    .collect();
+                let ty = list
+                    .get(0)
+                    .as_ref()
+                    .map(|x| x.return_type)
+                    .unwrap_or(Type::ErrorRecovery);
+                // TODO: do list combination type if list of unit, which functions like a block
+                Expr::new(ExprKind::List(list.into_boxed_slice()), ty)
+            }
+            Expression::Operator(_) => todo!(),
+            Expression::Variable(_) => todo!(),
+            Expression::TypeConstructor => todo!(),
+        })
+    }
+}
+
+fn literal_return_type(x: &swim_ast::Literal) -> Type {
+    match x {
+        swim_ast::Literal::Integer(_) => Type::Integer,
     }
 }
 
 impl<T: Resolve> Resolve for Commented<T> {
-    fn resolve(&self, resolver: &mut Resolver, scope_id: ScopeId) -> Option<ResolvedNode> {
-        self.item().resolve(resolver)
+    type Resolved = T::Resolved;
+    fn resolve(&self, resolver: &mut Resolver, scope_id: ScopeId) -> Option<Self::Resolved> {
+        self.item().resolve(resolver, scope_id)
     }
 }
 
 impl<T: Resolve> Resolve for SpannedItem<T> {
-    fn resolve(&self, resolver: &mut Resolver, scope_id: ScopeId) -> Option<ResolvedNode> {
-        self.item().resolve(resolver)
+    type Resolved = T::Resolved;
+    fn resolve(&self, resolver: &mut Resolver, scope_id: ScopeId) -> Option<Self::Resolved> {
+        self.item().resolve(resolver, scope_id)
     }
 }
 
 impl Resolve for TypeDeclaration {
+    type Resolved = ResolvedNode;
     fn resolve(&self, resolver: &mut Resolver, scope_id: ScopeId) -> Option<ResolvedNode> {
         todo!()
     }
@@ -165,3 +254,52 @@ pub fn resolve(&mut self) -> Vec<ResolvedNode> {
         })
         .collect()
         }*/
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use expect_test::{expect, Expect};
+    use swim_ast::Literal;
+    use swim_utils::render_error;
+    fn check(input: impl Into<String>, expect: Expect) {
+        let input = input.into();
+        let parser = swim_parse::Parser::new(vec![("test", input)]);
+        let (ast, errs, interner, source_map) = parser.into_result();
+        if !errs.is_empty() {
+            errs.into_iter()
+                .for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
+            panic!("fmt failed: code didn't parse");
+        }
+        let binder = Binder::from_ast(&ast);
+        let result = pretty_print_resolution(&binder, &interner);
+        expect.assert_eq(&result);
+    }
+
+    fn pretty_print_resolution(binder: &Binder, interner: &swim_utils::SymbolInterner) -> String {
+        let mut result = String::new();
+        for (scope_id, scope) in binder.scope_iter() {
+            result.push_str(&format!("Scope {:?}:\n", scope_id));
+            for (name, item) in scope.iter() {
+                let symbol = interner.get(*name);
+                let item_str = match item {
+                    Item::Function(func) => format!("Function {:?}", binder.get_function(func)),
+                    Item::Expr(expr) => format!("Expression {:?}", expr),
+                    Item::Type(ty) => format!("Type {:?}", ty),
+                };
+                result.push_str(&format!("  {}: {}\n", symbol, item_str));
+            }
+        }
+        result
+    }
+
+    #[test]
+    fn func_returns_list() {
+        check(
+            r#"
+            function foo(a in 'A) returns 'int [1, 2, 3]
+            "#,
+            expect![[r#"
+            "#]],
+        );
+    }
+}
