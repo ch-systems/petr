@@ -359,30 +359,30 @@ mod tests {
         result.push_str("_____FUNCTIONS_____\n");
         for (func_id, func) in &resolver.resolved_functions {
             result.push_str(&format!(
-                "Function: {} (id {:?})\n",
+                "#{} {}",
+                Into::<usize>::into(*func_id),
                 interner.get(func.name.id),
-                func_id
             ));
-            result.push_str("Params:\n");
+            result.push_str("(");
             for (name, ty) in &func.params {
                 let name = interner.get(name.id);
                 let ty = ty.to_string();
-                result.push_str(&format!("  {}: {}\n", name, ty));
+                result.push_str(&format!("  {}: {}, ", name, ty));
             }
+            result.push_str(") ");
             let ty = func.return_type.to_string();
-            result.push_str(&format!("Return Type: {}\n", ty));
-            result.push_str("Body:\n");
-            result.push_str(&format!("  {:?}\n\n", func.body));
+            result.push_str(&format!("-> {} ", ty));
+            result.push_str(&format!("  {:?}\n", func.body));
         }
 
         result.push_str("_____TYPES_____\n");
         for (type_id, ty_decl) in &resolver.resolved_types {
             result.push_str(&format!(
-                "Type {} (id {:?}): {:?}\n\n",
+                "#{} {}",
+                Into::<usize>::into(*type_id),
                 interner.get(ty_decl.name.id),
-                ty_decl,
-                type_id
             ));
+            result.push_str("\n\n");
         }
 
         result
@@ -396,13 +396,7 @@ mod tests {
             "#,
             expect![[r#"
                 _____FUNCTIONS_____
-                Function: foo (id FunctionId(0))
-                Params:
-                  a: int
-                Return Type: int
-                Body:
-                  Expr { kind: List([Expr { kind: Literal(Integer(1)), return_type: int }, Expr { kind: Literal(Integer(2)), return_type: int }, Expr { kind: Literal(Integer(3)), return_type: int }]), return_type: int }
-
+                #0 foo(  a: int, ) -> int   Expr { kind: List([Expr { kind: Literal(Integer(1)), return_type: int }, Expr { kind: Literal(Integer(2)), return_type: int }, Expr { kind: Literal(Integer(3)), return_type: int }]), return_type: int }
                 _____TYPES_____
             "#]],
         );
@@ -416,27 +410,11 @@ mod tests {
             "#,
             expect![[r#"
                 _____FUNCTIONS_____
-                Function: a (id FunctionId(0))
-                Params:
-                Return Type: named type typeid0
-                Body:
-                  Expr { kind: Unit, return_type: <error> }
-
-                Function: b (id FunctionId(1))
-                Params:
-                Return Type: named type typeid0
-                Body:
-                  Expr { kind: Unit, return_type: <error> }
-
-                Function: foo (id FunctionId(2))
-                Params:
-                  a: named type typeid0
-                Return Type: named type typeid0
-                Body:
-                  Expr { kind: List([Expr { kind: Literal(Integer(1)), return_type: int }, Expr { kind: Literal(Integer(2)), return_type: int }, Expr { kind: Literal(Integer(3)), return_type: int }]), return_type: int }
-
+                #0 a() -> named type typeid0   Expr { kind: Unit, return_type: <error> }
+                #1 b() -> named type typeid0   Expr { kind: Unit, return_type: <error> }
+                #2 foo(  a: named type typeid0, ) -> named type typeid0   Expr { kind: List([Expr { kind: Literal(Integer(1)), return_type: int }, Expr { kind: Literal(Integer(2)), return_type: int }, Expr { kind: Literal(Integer(3)), return_type: int }]), return_type: int }
                 _____TYPES_____
-                Type MyType (id TypeDeclaration { name: Identifier { id: SymbolId(0) } }): TypeId(0)
+                #0 MyType
 
             "#]],
         );
@@ -452,7 +430,15 @@ mod tests {
             ]
             type MyType = a | b
             "#,
-            expect![[r#""#]],
+            expect![[r#"
+                _____FUNCTIONS_____
+                #0 foo(  a: named type typeid0, ) -> named type typeid0   Expr { kind: List([Expr { kind: Literal(Integer(1)), return_type: int }, Expr { kind: Literal(Integer(2)), return_type: int }, Expr { kind: Literal(Integer(3)), return_type: int }]), return_type: int }
+                #1 a() -> named type typeid0   Expr { kind: Unit, return_type: <error> }
+                #2 b() -> named type typeid0   Expr { kind: Unit, return_type: <error> }
+                _____TYPES_____
+                #0 MyType
+
+            "#]],
         )
     }
 }
