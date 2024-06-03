@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use crate::{idx_map_key, IndexMap};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Identifier {
     pub id: SymbolId,
 }

@@ -71,7 +71,7 @@ pub struct List {
     pub elements: Box<[Commented<SpannedItem<Expression>>]>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Literal {
     Integer(i64),
 }
@@ -97,7 +97,7 @@ pub struct FunctionParameter {
     pub ty: Ty,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Ty {
     Int,
     Bool,

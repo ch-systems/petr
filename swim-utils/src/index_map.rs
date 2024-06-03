@@ -114,5 +114,11 @@ macro_rules! idx_map_key {
                 self.0
             }
         }
+
+        impl std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{}{}", stringify!($name).to_lowercase(), self.0)
+            }
+        }
     };
 }

@@ -164,11 +164,11 @@ impl Parse for Ty {
     fn parse(p: &mut Parser) -> Option<Self> {
         p.with_help("while parsing type", |p| -> Option<Self> {
             p.token(Token::TyMarker)?;
-            let raw_str = p.slice();
-            let ty = match raw_str {
+            let next: Identifier = p.parse()?;
+            let ty = match p.slice() {
                 "int" => Ty::Int,
                 "bool" => Ty::Bool,
-                _ => Ty::Named(p.parse()?),
+                _ => Ty::Named(next),
             };
 
             Some(ty)
