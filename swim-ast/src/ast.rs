@@ -57,8 +57,14 @@ pub enum Expression {
     Literal(Literal),
     List(List),
     Operator(Box<OperatorExpression>),
-    Variable(VariableExpression),
+    FunctionCall(FunctionCall),
     TypeConstructor,
+}
+
+#[derive(Clone)]
+pub struct FunctionCall {
+    pub func_name: Identifier,
+    pub args: Box<[Expression]>,
 }
 
 #[derive(Clone)]

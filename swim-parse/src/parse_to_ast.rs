@@ -9,6 +9,20 @@ use crate::{
     Parser,
 };
 
+impl Parse for FunctionCall {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        p.with_help(
+            "encountered while parsing function call",
+            |p| -> Option<Self> {
+                let func_name = p.parse()?;
+                let args = todo!();
+
+                Some(Self { func_name, args })
+            },
+        )
+    }
+}
+
 impl Parse for TypeDeclaration {
     fn parse(p: &mut Parser) -> Option<Self> {
         p.with_help(
