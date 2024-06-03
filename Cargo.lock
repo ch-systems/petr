@@ -882,6 +882,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "swim-resolve"
+version = "0.1.0"
+dependencies = [
+ "swim-ast",
+ "swim-bind",
+ "swim-utils",
+]
+
+[[package]]
 name = "swim-typecheck"
 version = "0.1.0"
 dependencies = [

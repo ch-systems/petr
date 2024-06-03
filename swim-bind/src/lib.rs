@@ -16,7 +16,19 @@ mod impls {
     }
 
     impl Bind for Expression {
-        fn bind(&self, binder: &mut Binder) {}
+        fn bind(&self, binder: &mut Binder) {
+            // only lists get their own scope for now
+            match self {
+                Expression::List(list) => {
+                    binder.with_scope(|binder, scope_id| {
+                        for item in list.elements.iter() {
+                            item.bind(binder);
+                        }
+                    });
+                }
+                _ => self.bind(binder),
+            }
+        }
     }
 
     impl<T: Bind> Bind for Commented<T> {
@@ -32,17 +44,17 @@ mod impls {
     }
     impl Bind for FunctionDeclaration {
         fn bind(&self, binder: &mut Binder) {
-            let function_id = binder.insert_function(self);
+            binder.insert_function(self);
         }
     }
 }
 
-pub use binder::{Bind, Binder};
+pub use binder::{Bind, Binder, FunctionId, Item, Scope, ScopeId, TypeId};
 mod binder {
     use std::collections::BTreeMap;
 
     use swim_ast::{Ast, Expression, FunctionDeclaration, FunctionParameter, Ty, TypeDeclaration};
-    use swim_utils::{idx_map_key, Identifier, IndexMap, SpannedItem, SymbolId, SymbolInterner};
+    use swim_utils::{idx_map_key, IndexMap, SpannedItem, SymbolId, SymbolInterner};
 
     idx_map_key!(
         /// The ID type of a Scope in the Binder.
@@ -69,48 +81,102 @@ mod binder {
         TypeId
     );
 
+    idx_map_key!(
+        /// The ID type of a bound node.
+       NodeId
+    );
+
+    /// Tracks what scope an item is in.
+    /// The resolver will iterate over these to resolve symbols.
+    #[derive(Clone, Debug)]
+    pub struct Node {
+        pub item: Item,
+        pub scope: ScopeId,
+    }
+
+    #[derive(Clone, Debug)]
     pub enum Item {
         Expr(ExprId),
         Function(FunctionId),
         Type(TypeId),
     }
 
-    pub struct Binder<'a> {
+    pub struct Binder {
         scopes: IndexMap<ScopeId, Scope<Item>>,
         scope_chain: Vec<ScopeId>,
-        interner: &'a SymbolInterner,
         //    bindings: IndexMap<BindingId, Binding>,
         functions: IndexMap<FunctionId, FunctionDeclaration>,
         types: IndexMap<TypeId, TypeDeclaration>,
+        /// The processed nodes that have been bound. They no longer contain things like
+        /// `SpannedItem` or `Commented` -- they're further from the language syntactically than
+        /// the AST, which directly represents the syntax.
+        /// Not a fully semantic representation, but a step closer. Serves to tee up the resolver for
+        /// an easy job.
+        nodes: IndexMap<NodeId, Node>,
     }
 
     pub struct Scope<T> {
         parent: Option<ScopeId>,
-        names: BTreeMap<SymbolId, T>,
+        items: BTreeMap<SymbolId, T>,
     }
 
     impl<T> Scope<T> {
         pub fn new() -> Self {
             Self {
                 parent: None,
-                names: BTreeMap::new(),
+                items: BTreeMap::new(),
             }
         }
 
         pub fn insert(&mut self, k: SymbolId, v: T) {
-            self.names.insert(k, v);
+            self.items.insert(k, v);
+        }
+
+        pub fn parent(&self) -> Option<ScopeId> {
+            self.parent
+        }
+
+        pub fn iter(&self) -> impl Iterator<Item = (&SymbolId, &T)> {
+            self.items.iter()
         }
     }
 
-    impl<'a> Binder<'a> {
-        pub fn new(interner: &'a SymbolInterner) -> Self {
+    impl Binder {
+        fn new() -> Self {
             Self {
                 scopes: IndexMap::default(),
                 scope_chain: Vec::new(),
-                interner,
                 functions: IndexMap::default(),
                 types: IndexMap::default(),
+                nodes: IndexMap::default(),
             }
+        }
+
+        pub fn get_function(&self, function_id: FunctionId) -> &FunctionDeclaration {
+            self.functions.get(function_id)
+        }
+
+        pub fn get_type(&self, type_id: TypeId) -> &TypeDeclaration {
+            self.types.get(type_id)
+        }
+
+        /// Searches for a symbol in a scope or any of its parents
+        pub fn find_symbol_in_scope(&self, name: SymbolId, scope_id: ScopeId) -> Option<&Item> {
+            let scope = self.scopes.get(scope_id);
+            if let Some(item) = scope.items.get(&name) {
+                return Some(item);
+            }
+
+            if let Some(parent_id) = scope.parent() {
+                return self.find_symbol_in_scope(name, parent_id);
+            }
+
+            None
+        }
+
+        /// Iterate over all scopes in the binder.
+        pub fn scope_iter(&self) -> impl Iterator<Item = (ScopeId, &Scope<Item>)> {
+            self.scopes.iter()
         }
 
         pub fn insert_into_current_scope(&mut self, name: SymbolId, item: Item) {
@@ -186,9 +252,9 @@ mod binder {
         }
     }
 
-    impl<'a> Binder<'a> {
-        pub fn from_ast(interner: &'a SymbolInterner, ast: &Ast) -> Self {
-            let mut binder = Self::new(interner);
+    impl Binder {
+        pub fn from_ast(ast: &Ast) -> Self {
+            let mut binder = Self::new();
 
             binder.with_scope(|binder, scope_id| {
                 for node in &ast.nodes {
@@ -218,8 +284,8 @@ mod binder {
                     .for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
                 panic!("fmt failed: code didn't parse");
             }
-            let binder = Binder::from_ast(&interner, &ast);
-            let result = pretty_print_bindings(&binder);
+            let binder = Binder::from_ast(&ast);
+            let result = pretty_print_bindings(&binder, &interner);
             expect.assert_eq(&result);
         }
 
@@ -227,12 +293,12 @@ mod binder {
         use swim_utils::render_error;
 
         use super::*;
-        fn pretty_print_bindings(binder: &Binder) -> String {
+        fn pretty_print_bindings(binder: &Binder, interner: &SymbolInterner) -> String {
             let mut result = String::new();
             for (scope_id, scope) in binder.scopes.iter() {
                 result.push_str(&format!("Scope {:?}:\n", scope_id));
-                for (symbol_id, item) in &scope.names {
-                    let symbol_name = binder.interner.get(*symbol_id);
+                for (symbol_id, item) in &scope.items {
+                    let symbol_name = interner.get(*symbol_id);
                     let item_description = match item {
                         Item::Expr(expr_id) => format!("Expr {:?}", expr_id),
                         Item::Function(function_id) => format!("Function {:?}", function_id),
@@ -261,6 +327,17 @@ mod binder {
         fn bind_function_decl() {
             check(
                 "function add(a in 'Int, b in  'Int) returns 'Int + a b",
+                expect![[r#"
+                    Scope ScopeId(0):
+                      add: Function FunctionId(0)
+                    "#]],
+            );
+        }
+
+        #[test]
+        fn bind_list_new_scope() {
+            check(
+                "function add(a in 'Int, b in  'Int) returns 'Int [ 1, 2, 3, 4, 5, 6 ]",
                 expect![[r#"
                     Scope ScopeId(0):
                       add: Function FunctionId(0)
