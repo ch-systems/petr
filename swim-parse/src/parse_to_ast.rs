@@ -14,10 +14,13 @@ impl Parse for FunctionCall {
         p.with_help(
             "encountered while parsing function call",
             |p| -> Option<Self> {
+                p.token(Token::Tilde)?;
                 let func_name = p.parse()?;
-                let args = todo!();
-
-                Some(Self { func_name, args })
+                let args = p.sequence(Token::Comma)?;
+                Some(Self {
+                    func_name,
+                    args: args.into_boxed_slice(),
+                })
             },
         )
     }
@@ -215,6 +218,7 @@ impl Parse for Identifier {
         Some(Identifier { id })
     }
 }
+
 impl Parse for Comment {
     fn parse(p: &mut Parser) -> Option<Self> {
         // because it matched in the lexer, we know the first two and last two chars
@@ -236,6 +240,7 @@ where
         Some(Commented::new(item, comments))
     }
 }
+
 impl Parse for Expression {
     fn parse(p: &mut Parser) -> Option<Self> {
         match p.peek().item() {
@@ -255,6 +260,7 @@ impl Parse for Expression {
             // may have to advance and peek to see if its a fn call etc
             Token::Identifier => Some(Expression::Variable(p.parse()?)),
             Token::OpenBracket => Some(Expression::List(p.parse()?)),
+            Token::Tilde => Some(Expression::FunctionCall(p.parse()?)),
             a => todo!("need to parse expr {a:?} {}", p.slice()),
         }
     }

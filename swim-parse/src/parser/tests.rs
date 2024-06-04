@@ -1,18 +1,23 @@
 use expect_test::expect;
 use swim_ast::*;
-use swim_utils::PrettyPrint;
+use swim_utils::{render_error, PrettyPrint};
 
 use super::Parser;
 
 fn check<T: Into<String>>(sources: Vec<T>, expected: expect_test::Expect) {
     let parser = Parser::new(sources.into_iter().map(|s| ("test", s)));
-    let (ast, errs, interner, _source_map) = parser.into_result();
+    let (ast, errs, interner, source_map) = parser.into_result();
 
     let pretty_printed_ast = ast.pretty_print(&interner, 0);
+    let errs = errs
+        .into_iter()
+        .map(|err| render_error(&source_map, err))
+        .collect::<Vec<_>>()
+        .join("\n");
     let errors_str = if errs.is_empty() {
         String::new()
     } else {
-        format!("\n\nErrors\n____\n{errs:#?}")
+        format!("\n\nErrors\n____\n{errs}")
     };
 
     expected.assert_eq(&format!("AST\n____\n{pretty_printed_ast}\n{errors_str}"));
@@ -135,6 +140,18 @@ fn nested_list() {
             AST
             ____
             Func list_to_three() -> 'intlist [[1, 2], [3, 4, +(1 2)]]
+        "#]],
+    )
+}
+
+#[test]
+fn fn_call() {
+    check(
+        vec!["function makes_function_call() returns 'unit ~fn_call a, b, c"],
+        expect![[r#"
+            AST
+            ____
+            Func makes_function_call() -> 'unit call fn_call(var(a), var(b), var(c))
         "#]],
     )
 }

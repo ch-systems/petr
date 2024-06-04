@@ -61,6 +61,8 @@ pub enum Token {
     ExportFunctionKeyword,
     #[token("Type")]
     ExportTypeKeyword,
+    #[token("~")]
+    Tilde,
     Eof,
 }
 impl Token {
@@ -103,6 +105,7 @@ impl std::fmt::Display for Token {
             ToKeyword => write!(f, "to"),
             ExportFunctionKeyword => write!(f, "Function"),
             ExportTypeKeyword => write!(f, "Type"),
+            Tilde => write!(f, "~"),
         }
     }
 }

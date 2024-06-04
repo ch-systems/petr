@@ -107,7 +107,7 @@ impl PrettyPrint for Expression {
 impl PrettyPrint for FunctionCall {
     fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String {
         format!(
-            "{}call function{}({})",
+            "{}call {}({})",
             "  ".repeat(indentation),
             interner.get(self.func_name.id),
             self.args
