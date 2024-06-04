@@ -82,7 +82,7 @@ use std::collections::BTreeMap;
 use error::{TypeCheckError, TypeCheckErrorKind};
 use polytype::{tp, Type};
 use swim_bind::{FunctionId, TypeId};
-use swim_resolve::{Expr, ExprKind, Literal, QueryableResolvedItems};
+use swim_resolve::{Expr, ExprKind, Literal, QueryableResolvedItems, Ty};
 use swim_utils::IndexMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -278,9 +278,7 @@ impl TypeCheck for Expr {
             }
             ExprKind::Unit => tp!(unit),
             ExprKind::ErrorRecovery => ctx.fresh_ty_var(),
-            ExprKind::Variable(item) => {
-                todo!("should this function live in polytype/typecheck?")
-            }
+            ExprKind::Variable(item) => ctx.to_type_var(item),
         }
     }
 }
@@ -396,7 +394,7 @@ mod tests {
         if !type_checker.errors.is_empty() {
             s.push_str("\nErrors:\n");
             for error in type_checker.errors {
-                s.push_str(&format!("{:?}\n", miette::Report::new(error)));
+                s.push_str(&format!("{}\n", miette::Report::new(error)));
             }
         }
         s
@@ -408,10 +406,13 @@ mod tests {
             r#"
             function foo(x in 'int) returns 'int x
             "#,
-            expect![[r#""#]],
+            expect![[r#"
+                function foo → int → int
+            "#]],
         );
     }
 
+    /* TODO this is maybe good for generic syntax
     #[test]
     fn identity_resolution_generic() {
         check(
@@ -421,6 +422,7 @@ mod tests {
             expect![[r#""#]],
         );
     }
+    */
 
     #[test]
     fn identity_resolution_custom_type() {
@@ -429,7 +431,12 @@ mod tests {
             type MyType = A | B
             function foo(x in 'MyType) returns 'MyType x
             "#,
-            expect![[r#""#]],
+            expect![[r#"
+                type MyType → t0
+                function A → t0
+                function B → t0
+                function foo → t0 → t0
+            "#]],
         );
     }
 
@@ -445,8 +452,7 @@ mod tests {
                 function bar → bool
 
                 Errors:
-                  [31m×[0m Failed to unify types: Failure(bool, int)
-
+                Failed to unify types: Failure(bool, int)
             "#]],
         );
     }

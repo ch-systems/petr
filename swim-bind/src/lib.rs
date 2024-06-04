@@ -62,6 +62,11 @@ mod binder {
     );
 
     idx_map_key!(
+        /// The ID type of a functoin parameter
+        FunctionParameterId
+    );
+
+    idx_map_key!(
         /// The ID type of an Expr.
        ExprId
     );
@@ -97,8 +102,10 @@ mod binder {
     #[derive(Clone, Debug, Copy)]
     pub enum Item {
         Expr(ExprId),
-        Function(FunctionId),
+        // the `ScopeId` is the scope of the function body
+        Function(FunctionId, ScopeId),
         Type(TypeId),
+        FunctionParameter(Ty),
     }
 
     pub struct Binder {
@@ -107,6 +114,7 @@ mod binder {
         //    bindings: IndexMap<BindingId, Binding>,
         functions: IndexMap<FunctionId, FunctionDeclaration>,
         types: IndexMap<TypeId, TypeDeclaration>,
+        func_parameters: IndexMap<FunctionParameterId, FunctionParameter>,
         /// The processed nodes that have been bound. They no longer contain things like
         /// `SpannedItem` or `Commented` -- they're further from the language syntactically than
         /// the AST, which directly represents the syntax.
@@ -149,6 +157,7 @@ mod binder {
                 functions: IndexMap::default(),
                 types: IndexMap::default(),
                 nodes: IndexMap::default(),
+                func_parameters: IndexMap::default(),
             }
         }
 
@@ -223,15 +232,20 @@ mod binder {
             ty_decl.variants.iter().for_each(|variant| {
                 let span = variant.span();
                 let variant = variant.item();
-                let fields_as_parameters = variant
-                    .fields
-                    .iter()
-                    .map(|field| FunctionParameter {
-                        // TODO: don't just use the parent variant name
-                        name: variant.name,
-                        ty: *field,
-                    })
-                    .collect::<Vec<_>>();
+                let (fields_as_parameters, func_scope) = self.with_scope(|binder, scope| {
+                    (
+                        variant
+                            .fields
+                            .iter()
+                            .map(|field| swim_ast::FunctionParameter {
+                                // TODO: don't just use the parent variant name
+                                name: variant.name,
+                                ty: *field,
+                            })
+                            .collect::<Vec<_>>(),
+                        scope,
+                    )
+                });
 
                 let function = FunctionDeclaration {
                     name: variant.name.clone(),
@@ -242,13 +256,28 @@ mod binder {
                 };
 
                 let function_id = self.functions.insert(function);
-                self.insert_into_current_scope(variant.name.id, Item::Function(function_id));
+                self.insert_into_current_scope(
+                    variant.name.id,
+                    Item::Function(function_id, func_scope),
+                );
             });
         }
 
         pub(crate) fn insert_function(&mut self, arg: &FunctionDeclaration) {
             let function_id = self.functions.insert(arg.clone());
-            self.insert_into_current_scope(arg.name.id, Item::Function(function_id));
+            let func_body_scope = self.with_scope(|binder, function_body_scope| {
+                for param in arg.parameters.iter() {
+                    binder.insert_into_current_scope(
+                        param.name.id,
+                        Item::FunctionParameter(param.ty),
+                    );
+                }
+                function_body_scope
+            });
+            self.insert_into_current_scope(
+                arg.name.id,
+                Item::Function(function_id, func_body_scope),
+            );
         }
     }
 
@@ -301,7 +330,9 @@ mod binder {
                     let symbol_name = interner.get(*symbol_id);
                     let item_description = match item {
                         Item::Expr(expr_id) => format!("Expr {:?}", expr_id),
-                        Item::Function(function_id) => format!("Function {:?}", function_id),
+                        Item::Function(function_id, _function_scope) => {
+                            format!("Function {:?}", function_id)
+                        }
                         Item::Type(type_id) => format!("Type {:?}", type_id),
                     };
                     result.push_str(&format!("  {}: {}\n", symbol_name, item_description));

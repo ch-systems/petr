@@ -3,7 +3,7 @@
 
 pub use resolved::QueryableResolvedItems;
 pub use resolver::{Expr, ExprKind, Function, FunctionCall, Type};
-pub use swim_ast::Literal;
+pub use swim_ast::{Literal, Ty};
 
 mod resolved {
     use std::{collections::BTreeMap, rc::Rc};
@@ -180,7 +180,7 @@ mod resolver {
         Literal(swim_ast::Literal),
         List(Box<[Expr]>),
         FunctionCall(FunctionCall),
-        Variable(Item),
+        Variable(Type),
         Unit,
         ErrorRecovery,
     }
@@ -206,9 +206,14 @@ mod resolver {
                 for (name, item) in scope.iter() {
                     use Item::*;
                     match item {
-                        Function(func) => self.resolve_function(binder, *func, scope_id),
+                        Function(func, func_scope) => {
+                            self.resolve_function(binder, *func, *func_scope)
+                        }
                         Expr(_expr) => todo!(),
                         Type(ty) => self.resolve_type(binder, *ty, scope_id),
+                        FunctionParameter(_ty) => {
+                            // I don't think we have to do anything here but not sure
+                        }
                     }
                 }
             }
@@ -324,10 +329,15 @@ mod resolver {
                     Expr::new(ExprKind::FunctionCall(resolved_call))
                 }
                 Expression::Variable(var) => {
-                    let Some(symbol) = binder.find_symbol_in_scope(var.id, scope_id) else {
+                    let Some(Item::FunctionParameter(ty)) =
+                        binder.find_symbol_in_scope(var.id, scope_id)
+                    else {
                         todo!("push error and return")
                     };
-                    Expr::new(ExprKind::Variable(*symbol))
+                    let ty = ty
+                        .resolve(resolver, binder, scope_id)
+                        .unwrap_or(Type::ErrorRecovery);
+                    Expr::new(ExprKind::Variable(ty))
                 }
                 // TODO
                 Expression::TypeConstructor => Expr::error_recovery(),
@@ -369,7 +379,7 @@ mod resolver {
             scope_id: ScopeId,
         ) -> Option<Self::Resolved> {
             let func_name = self.func_name;
-            let Some(Item::Function(resolved_id)) =
+            let Some(Item::Function(resolved_id, _func_scope)) =
                 binder.find_symbol_in_scope(func_name.id, scope_id)
             else {
                 todo!("push error");
@@ -494,6 +504,7 @@ mod resolver {
                         }
                         ExprKind::Unit => format!("Unit"),
                         ExprKind::ErrorRecovery => format!("<error>"),
+                        ExprKind::Variable(_) => todo!(),
                     }
                 }
             }

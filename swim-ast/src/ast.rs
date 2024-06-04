@@ -101,7 +101,7 @@ pub struct OperatorExpression {
     pub op: SpannedItem<Operator>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Copy)]
 pub struct FunctionParameter {
     pub name: Identifier,
     pub ty: Ty,
