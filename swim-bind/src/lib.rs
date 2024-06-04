@@ -94,7 +94,7 @@ mod binder {
         pub scope: ScopeId,
     }
 
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, Copy)]
     pub enum Item {
         Expr(ExprId),
         Function(FunctionId),

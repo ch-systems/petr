@@ -896,8 +896,10 @@ dependencies = [
 name = "swim-typecheck"
 version = "0.1.0"
 dependencies = [
+ "expect-test",
  "polytype",
  "swim-bind",
+ "swim-parse",
  "swim-resolve",
  "swim-utils",
 ]

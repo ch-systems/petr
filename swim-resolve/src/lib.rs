@@ -2,7 +2,7 @@
 //! This crate's job is to tee up the type checker for the next stage of compilation.
 
 pub use resolved::QueryableResolvedItems;
-pub use resolver::{Function, Type};
+pub use resolver::{Function, FunctionCall, Type};
 
 mod resolved {
     use std::{collections::BTreeMap, rc::Rc};
@@ -11,7 +11,7 @@ mod resolved {
     use swim_bind::{Binder, FunctionId, Item, ScopeId, TypeId};
     use swim_utils::{Identifier, SpannedItem, SymbolId};
 
-    use crate::resolver::{Function, TypeDeclaration};
+    use crate::resolver::{Function, Resolver, TypeDeclaration};
     /// Contains things that have already been resolved.
     /// Resolved items cannot be queried during resolution. This is because the resolution
     /// stage should only query the binder, then the type checking stage can query
@@ -52,6 +52,11 @@ mod resolved {
     }
 
     impl QueryableResolvedItems {
+        pub fn new_from_single_ast(ast: Ast) -> Self {
+            let mut resolver = Resolver::new_from_single_ast(ast);
+            resolver.into_queryable()
+        }
+
         pub fn get_function(&self, id: FunctionId) -> &Function {
             self.resolved_functions
                 .get(&id)
@@ -98,7 +103,7 @@ mod resolver {
 
     #[derive(Debug)]
     pub struct TypeDeclaration {
-        name: Identifier,
+        pub name: Identifier,
     }
 
     // TODO: refactor this into polytype
@@ -138,11 +143,13 @@ mod resolver {
         }
     }
 
+    #[derive(Clone)]
     pub struct FunctionCall {
         pub function: FunctionId,
         pub args: Vec<Expr>,
     }
 
+    #[derive(Clone)]
     pub struct Function {
         pub name: Identifier,
         pub params: Vec<(Identifier, Type)>,
@@ -150,6 +157,7 @@ mod resolver {
         pub body: Expr,
     }
 
+    #[derive(Clone)]
     pub struct Expr {
         kind: ExprKind,
     }
@@ -164,25 +172,31 @@ mod resolver {
         pub fn new(kind: ExprKind) -> Self {
             Self { kind }
         }
+
+        pub fn return_type(&self) -> Type {
+            self.kind.return_type()
+        }
     }
 
+    #[derive(Clone)]
     pub enum ExprKind {
         Literal(swim_ast::Literal),
         List(Box<[Expr]>),
         FunctionCall(FunctionCall),
+        Variable(Item),
         Unit,
         ErrorRecovery,
     }
 
     impl ExprKind {
-        pub fn return_ty(&self) -> Type {
+        pub fn return_type(&self) -> Type {
             match self {
                 ExprKind::Literal(lit) => literal_return_type(lit),
                 ExprKind::List(exprs) => {
                     if exprs.is_empty() {
                         Type::Unit
                     } else {
-                        exprs.first().unwrap().kind.return_ty()
+                        exprs.first().unwrap().kind.return_type()
                     }
                 }
                 ExprKind::FunctionCall(call) => {
@@ -191,6 +205,9 @@ mod resolver {
                 }
                 ExprKind::Unit => Type::Unit,
                 ExprKind::ErrorRecovery => Type::ErrorRecovery,
+                ExprKind::Variable(item) => {
+                    todo!("should this function live in polytype/typecheck?")
+                }
             }
         }
     }
@@ -248,6 +265,10 @@ mod resolver {
             };
             self.resolved.insert_function(func_id, func);
         }
+
+        pub fn into_queryable(self) -> QueryableResolvedItems {
+            self.resolved.into_queryable()
+        }
     }
 
     pub trait Resolve {
@@ -276,6 +297,7 @@ mod resolver {
 
             let mut params_buf = Vec::with_capacity(self.parameters.len());
 
+            // functions exist in their own scope with their own variables
             for FunctionParameter { name, ty } in self.parameters.iter() {
                 let ty = ty.resolve(resolver, binder, scope_id).unwrap_or(Type::Unit);
                 params_buf.push((*name, ty));
@@ -328,7 +350,12 @@ mod resolver {
 
                     Expr::new(ExprKind::FunctionCall(resolved_call))
                 }
-                Expression::Variable(_) => todo!(),
+                Expression::Variable(var) => {
+                    let Some(symbol) = binder.find_symbol_in_scope(var.id, scope_id) else {
+                        todo!("push error and return")
+                    };
+                    Expr::new(ExprKind::Variable(*symbol))
+                }
                 // TODO
                 Expression::TypeConstructor => Expr::error_recovery(),
             })

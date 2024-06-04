@@ -10,3 +10,8 @@ swim-utils = { path = "../swim-utils" }
 swim-resolve = { path = "../swim-resolve" }
 swim-bind = { path = "../swim-bind" }
 polytype = "7.0.1"
+
+
+[dev-dependencies]
+swim-parse = { path = "../swim-parse" }
+expect-test = "1.5.0"
