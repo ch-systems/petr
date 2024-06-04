@@ -95,7 +95,7 @@ mod resolver {
     }
 
     // TODO: refactor this into polytype
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, Debug)]
     pub enum Type {
         Integer,
         Bool,
@@ -143,6 +143,11 @@ mod resolver {
         }
     }
 
+    pub struct FunctionCall {
+        pub function: FunctionId,
+        pub args: Vec<Expr>,
+    }
+
     pub struct Function {
         pub name: Identifier,
         pub params: Vec<(Identifier, Type)>,
@@ -152,16 +157,15 @@ mod resolver {
 
     pub struct Expr {
         kind: ExprKind,
-        return_type: Type,
     }
 
     impl std::fmt::Debug for Expr {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             write!(
                 f,
-                "Expr {{ kind: {:?}, return_type: {} }}",
+                "Expr {{ kind: {:?}, return_type: {:?} }}",
                 self.kind,
-                self.return_type.to_string()
+                self.kind.return_ty()
             )
         }
     }
@@ -169,20 +173,21 @@ mod resolver {
     impl Expr {
         pub fn error_recovery() -> Self {
             Self {
-                kind: ExprKind::Unit,
-                return_type: Type::ErrorRecovery,
+                kind: ExprKind::ErrorRecovery,
             }
         }
 
-        pub fn new(kind: ExprKind, return_type: Type) -> Self {
-            Self { kind, return_type }
+        pub fn new(kind: ExprKind) -> Self {
+            Self { kind }
         }
     }
 
     pub enum ExprKind {
         Literal(swim_ast::Literal),
         List(Box<[Expr]>),
+        FunctionCall(FunctionCall),
         Unit,
+        ErrorRecovery,
     }
 
     impl std::fmt::Debug for ExprKind {
@@ -190,7 +195,30 @@ mod resolver {
             match self {
                 ExprKind::Literal(lit) => write!(f, "Literal({:?})", lit),
                 ExprKind::List(exprs) => write!(f, "List({:?})", exprs),
+                ExprKind::FunctionCall(call) => write!(f, "FunctionCall({})", call.function),
                 ExprKind::Unit => write!(f, "Unit"),
+                ExprKind::ErrorRecovery => write!(f, "<error>"),
+            }
+        }
+    }
+
+    impl ExprKind {
+        pub fn return_ty(&self) -> Type {
+            match self {
+                ExprKind::Literal(lit) => literal_return_type(lit),
+                ExprKind::List(exprs) => {
+                    if exprs.is_empty() {
+                        Type::Unit
+                    } else {
+                        exprs.first().unwrap().kind.return_ty()
+                    }
+                }
+                ExprKind::FunctionCall(call) => {
+                    // Assuming we have access to a resolver or some context to get the function's return type
+                    Type::ErrorRecovery // Placeholder: actual implementation would resolve the function's return type
+                }
+                ExprKind::Unit => Type::Unit,
+                ExprKind::ErrorRecovery => Type::ErrorRecovery,
             }
         }
     }
@@ -309,7 +337,7 @@ mod resolver {
             scope_id: ScopeId,
         ) -> Option<Expr> {
             Some(match self {
-                Expression::Literal(x) => Expr::new(ExprKind::Literal(*x), literal_return_type(x)),
+                Expression::Literal(x) => Expr::new(ExprKind::Literal(*x)),
                 Expression::List(list) => {
                     let list: Vec<Expr> = list
                         .elements
@@ -319,16 +347,15 @@ mod resolver {
                                 .unwrap_or_else(Expr::error_recovery)
                         })
                         .collect();
-                    let ty = list
-                        .get(0)
-                        .as_ref()
-                        .map(|x| x.return_type)
-                        .unwrap_or(Type::ErrorRecovery);
                     // TODO: do list combination type if list of unit, which functions like a block
-                    Expr::new(ExprKind::List(list.into_boxed_slice()), ty)
+                    Expr::new(ExprKind::List(list.into_boxed_slice()))
                 }
                 Expression::Operator(_) => todo!("resolve into a function call to stdlib"),
-                Expression::FunctionCall(_) => todo!("resolve"),
+                Expression::FunctionCall(decl) => {
+                    let resolved_call = decl.resolve(resolver, binder, scope_id)?;
+
+                    Expr::new(ExprKind::FunctionCall(resolved_call))
+                }
                 Expression::Variable(_) => todo!(),
                 // TODO
                 Expression::TypeConstructor => Expr::error_recovery(),
@@ -363,6 +390,39 @@ mod resolver {
             scope_id: ScopeId,
         ) -> Option<Self::Resolved> {
             self.item().resolve(resolver, binder, scope_id)
+        }
+    }
+
+    impl Resolve for swim_ast::FunctionCall {
+        type Resolved = FunctionCall;
+
+        fn resolve(
+            &self,
+            resolver: &mut Resolver,
+            binder: &Binder,
+            scope_id: ScopeId,
+        ) -> Option<Self::Resolved> {
+            let func_name = self.func_name;
+            let Some(Item::Function(resolved_id)) =
+                binder.find_symbol_in_scope(func_name.id, scope_id)
+            else {
+                todo!("push error");
+                panic!()
+            };
+
+            let args = self
+                .args
+                .iter()
+                .map(|x| {
+                    x.resolve(resolver, binder, scope_id)
+                        .unwrap_or_else(Expr::error_recovery)
+                })
+                .collect();
+
+            Some(FunctionCall {
+                function: *resolved_id,
+                args,
+            })
         }
     }
 
@@ -499,6 +559,7 @@ mod resolver {
             "#]],
             );
         }
+
         #[test]
         fn func_returns_named_type_declared_after_use() {
             check(
@@ -519,6 +580,38 @@ mod resolver {
                 #0 MyType
 
             "#]],
+            )
+        }
+
+        #[test]
+        fn call_func_before_decl() {
+            check(
+                r#"
+            function foo() returns 'MyType ~bar(5)
+            function bar(a in 'MyType) returns 'MyType [
+                1,
+                2,
+                3
+            ]
+            type MyType = a | b
+            "#,
+                expect![[r#""#]],
+            )
+        }
+
+        #[test]
+        fn call_func_in_list_before_decl() {
+            check(
+                r#"
+            function foo() returns 'MyType ~bar(5)
+            function bar(a in 'MyType) returns 'MyType [
+                1,
+                2,
+                3
+            ]
+            type MyType = a | b
+            "#,
+                expect![[r#""#]],
             )
         }
     }
