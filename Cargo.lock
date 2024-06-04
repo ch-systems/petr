@@ -897,7 +897,9 @@ name = "swim-typecheck"
 version = "0.1.0"
 dependencies = [
  "polytype",
- "swim-ast",
+ "swim-bind",
+ "swim-resolve",
+ "swim-utils",
 ]
 
 [[package]]

@@ -1,6 +1,9 @@
 //! given bindings, fully resolve an AST
 //! This crate's job is to tee up the type checker for the next stage of compilation.
 
+pub use resolved::QueryableResolvedItems;
+pub use resolver::{Function, Type};
+
 mod resolved {
     use std::{collections::BTreeMap, rc::Rc};
 
@@ -43,7 +46,7 @@ mod resolved {
         }
     }
 
-    pub(crate) struct QueryableResolvedItems {
+    pub struct QueryableResolvedItems {
         resolved_functions: BTreeMap<FunctionId, Function>,
         resolved_types: BTreeMap<TypeId, TypeDeclaration>,
     }
@@ -454,6 +457,7 @@ mod resolver {
                     self.kind.to_string(resolver, interner)
                 }
             }
+
             impl Type {
                 pub fn to_string(
                     &self,

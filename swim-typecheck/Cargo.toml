@@ -6,5 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-swim-ast = { path = "../swim-ast" }
+swim-utils = { path = "../swim-utils" }
+swim-resolve = { path = "../swim-resolve" }
+swim-bind = { path = "../swim-bind" }
 polytype = "7.0.1"
