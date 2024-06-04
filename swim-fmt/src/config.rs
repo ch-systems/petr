@@ -10,6 +10,7 @@ pub struct FormatterConfig {
     put_fn_body_on_new_line: bool,
     tab_size: usize,
     max_line_length: usize,
+    put_fn_args_on_new_lines: bool,
 }
 
 impl FormatterConfig {
@@ -53,6 +54,10 @@ impl FormatterConfig {
         self.max_line_length
     }
 
+    pub fn put_fn_args_on_new_lines(&self) -> bool {
+        self.put_fn_args_on_new_lines
+    }
+
     pub(crate) fn as_builder(&self) -> FormatterConfigBuilder {
         FormatterConfigBuilder {
             put_fn_params_on_new_lines: self.put_fn_params_on_new_lines,
@@ -65,6 +70,7 @@ impl FormatterConfig {
             put_fn_body_on_new_line: self.put_fn_body_on_new_line,
             tab_size: self.tab_size,
             max_line_length: self.max_line_length,
+            put_fn_args_on_new_lines: self.put_fn_args_on_new_lines,
         }
     }
 }
@@ -86,6 +92,7 @@ pub struct FormatterConfigBuilder {
     put_fn_body_on_new_line: bool,
     tab_size: usize,
     max_line_length: usize,
+    put_fn_args_on_new_lines: bool,
 }
 
 impl FormatterConfigBuilder {
@@ -159,6 +166,13 @@ impl FormatterConfigBuilder {
         }
     }
 
+    pub fn put_fn_args_on_new_lines(self, put_fn_args_on_new_lines: bool) -> Self {
+        Self {
+            put_fn_args_on_new_lines,
+            ..self
+        }
+    }
+
     pub fn build(self) -> FormatterConfig {
         FormatterConfig {
             put_fn_params_on_new_lines: self.put_fn_params_on_new_lines,
@@ -171,6 +185,7 @@ impl FormatterConfigBuilder {
             put_fn_body_on_new_line: self.put_fn_body_on_new_line,
             tab_size: self.tab_size,
             max_line_length: self.max_line_length,
+            put_fn_args_on_new_lines: self.put_fn_args_on_new_lines,
         }
     }
 }
@@ -185,9 +200,10 @@ impl Default for FormatterConfigBuilder {
             newlines_between_comment_and_item: 0,
             put_variants_on_new_lines: true,
             put_list_elements_on_new_lines: false,
-            put_fn_body_on_new_line: false,
+            put_fn_body_on_new_line: true,
             tab_size: 2,
             max_line_length: 80,
+            put_fn_args_on_new_lines: false,
         }
     }
 }

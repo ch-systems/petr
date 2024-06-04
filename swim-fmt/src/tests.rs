@@ -29,7 +29,8 @@ fn basic_func_decl() {
             function foo(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int + 2 3
+            ) returns 'int
+              + 2 3
         "#]],
     );
 }
@@ -43,7 +44,8 @@ fn func_decl_params_same_line() {
             function foo(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int + 2 3
+            ) returns 'int
+              + 2 3
         "#]],
     );
 }
@@ -58,7 +60,8 @@ fn commented_fn_decl() {
             function foo(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int + 2 3
+            ) returns 'int
+              + 2 3
         "#]],
     );
 }
@@ -74,7 +77,8 @@ fn multiple_comments_before_fn() {
             function foo(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int + 2 3
+            ) returns 'int
+              + 2 3
         "#]],
     );
 }
@@ -89,7 +93,8 @@ fn multiple_comments_before_fn_no_join() {
             function foo(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int + 2 3
+            ) returns 'int
+              + 2 3
         "#]],
     );
 }
@@ -104,7 +109,8 @@ fn extract_comments_from_within_decl() {
             function foo(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int + 2 3
+            ) returns 'int
+              + 2 3
         "#]],
     );
 }
@@ -119,12 +125,14 @@ fn multiple_functions() {
             function foo(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int + 2 3
+            ) returns 'int
+              + 2 3
 
             function bar(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int + 2 3
+            ) returns 'int
+              + 2 3
         "#]],
     );
 }
@@ -143,13 +151,15 @@ fn multiple_functions_with_comments() {
             function foo(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int + 2 3
+            ) returns 'int
+              + 2 3
 
             {- this function is called bar -}
             function bar(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int + 2 3
+            ) returns 'int
+              + 2 3
         "#]],
     );
 }
@@ -168,14 +178,16 @@ fn multiple_functions_more_newlines_between_functions() {
             function foo(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int + 2 3
+            ) returns 'int
+              + 2 3
 
 
             {- this function is called bar -}
             function bar(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int + 2 3
+            ) returns 'int
+              + 2 3
         "#]],
     );
 }
@@ -196,7 +208,8 @@ fn multiple_functions_newlines_between_comment_and_item() {
             function foo(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int + 2 3
+            ) returns 'int
+              + 2 3
 
             {- bar should look like this
                this function is called bar -}
@@ -204,7 +217,8 @@ fn multiple_functions_newlines_between_comment_and_item() {
             function bar(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int + 2 3
+            ) returns 'int
+              + 2 3
         "#]],
     );
 }
@@ -228,7 +242,8 @@ fn multiple_functions_newlines_between_comment_and_item_unjoined() {
             function foo(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int + 2 3
+            ) returns 'int
+              + 2 3
 
             {- bar should look like this -}
             {- this function is called bar -}
@@ -236,7 +251,8 @@ fn multiple_functions_newlines_between_comment_and_item_unjoined() {
             function bar(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int + 2 3
+            ) returns 'int
+              + 2 3
         "#]],
     );
 }
@@ -331,7 +347,8 @@ fn format_list() {
         Default::default(),
         "function returns_list() returns 'list [1, 2, 3]",
         expect![[r#"
-            function returns_list() returns 'list [1, 2, 3]
+            function returns_list() returns 'list
+              [1, 2, 3]
         "#]],
     );
 }
@@ -347,10 +364,11 @@ fn long_line_forces_newlines() {
         function returns_list() returns 'list [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]
         ",
         expect![[r#"
-            function returns_list() returns 'list [
-                 1,
-                 2,
-                 3,
+            function returns_list() returns 'list
+              [
+                1,
+                2,
+                3,
               ]
 
             function returns_list(
@@ -360,37 +378,39 @@ fn long_line_forces_newlines() {
               d ∈ 'd,
               e ∈ 'e,
               f ∈ 'f,
-            ) returns 'list [
-                 1,
-                 2,
-                 3,
-                 4,
-                 5,
+            ) returns 'list
+              [
+                1,
+                2,
+                3,
+                4,
+                5,
               ]
 
-            function returns_list() returns 'list [
-                 1,
-                 2,
-                 3,
-                 4,
-                 5,
-                 6,
-                 7,
-                 8,
-                 9,
-                 10,
-                 11,
-                 12,
-                 13,
-                 14,
-                 15,
-                 16,
-                 17,
-                 18,
-                 19,
-                 20,
-                 21,
-                 22,
+            function returns_list() returns 'list
+              [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
               ]
         "#]],
     );
@@ -409,7 +429,8 @@ fn put_only_params_on_newlines_if_necessary() {
               d ∈ 'd,
               e ∈ 'e,
               f ∈ 'f,
-            ) returns 'list [1, 2, 3, 4]
+            ) returns 'list
+              [1, 2, 3, 4]
         "#]],
     );
 }
@@ -448,7 +469,48 @@ fn exported_func() {
         Default::default(),
         "Function foo() returns 'int + 1 2",
         expect![[r#"
-            Function foo() returns 'int + 1 2
+            Function foo() returns 'int
+              + 1 2
+        "#]],
+    )
+}
+
+#[test]
+fn func_application_in_list() {
+    check(
+        Default::default(),
+        "function foo() returns 'int [
+            ~foo 1,2,3,4
+        ]",
+        expect![[r#"
+            function foo() returns 'int
+              [~foo 1, 2, 3, 4]
+        "#]],
+    )
+}
+
+#[test]
+fn func_application_in_list_with_parens_resolve_ambiguity() {
+    check(
+        Default::default(),
+        "function foo() returns 'int [
+            ~foo(1,2),3,4
+         ]",
+        expect![[r#"
+            function foo() returns 'int
+              [~foo(1, 2), 3, 4]
+        "#]],
+    )
+}
+
+#[test]
+fn func_application() {
+    check(
+        Default::default(),
+        "function foo() returns 'int ~foo 1,2,3,4",
+        expect![[r#"
+            function foo() returns 'int
+              ~foo 1, 2, 3, 4
         "#]],
     )
 }

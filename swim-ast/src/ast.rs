@@ -66,6 +66,8 @@ pub enum Expression {
 pub struct FunctionCall {
     pub func_name: Identifier,
     pub args: Box<[Expression]>,
+    // used for the formatter, primarily
+    pub args_were_parenthesized: bool,
 }
 
 #[derive(Clone)]

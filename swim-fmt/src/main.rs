@@ -148,6 +148,7 @@ impl Formattable for Expression {
         match self {
             Expression::Operator(op) => {
                 let mut buf = op.op.item().as_str().to_string();
+                buf.push(' ');
                 let (mut lhs, mut rhs) = ctx.indented(|ctx| {
                     let lhs = op.lhs.item().format(ctx).lines;
                     let rhs = op.rhs.item().format(ctx).lines;
@@ -155,6 +156,7 @@ impl Formattable for Expression {
                 });
                 if lhs.len() == 1 && rhs.len() == 1 {
                     buf.push_str(&lhs[0].content);
+                    buf.push(' ');
                     buf.push_str(&rhs[0].content);
                     FormattedLines::new(vec![ctx.new_line(buf)])
                 } else {
@@ -167,7 +169,7 @@ impl Formattable for Expression {
                 }
             }
             Expression::Literal(lit) => {
-                FormattedLines::new(vec![ctx.new_line(format!(" {}", lit.to_string()))])
+                FormattedLines::new(vec![ctx.new_line(format!("{}", lit.to_string()))])
             }
             Expression::Variable(var) => {
                 let ident_as_string = ctx.interner.get(var.id);
@@ -177,8 +179,59 @@ impl Formattable for Expression {
             Expression::TypeConstructor => unreachable!(
                 "this is only constructed after binding, which the formatter doesn't do"
             ),
-            Expression::FunctionCall(_) => todo!(),
+            Expression::FunctionCall(f) => f.format(ctx),
         }
+    }
+}
+
+impl Formattable for FunctionCall {
+    fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
+        // function calls look like this: ~foo bar, baz
+        // format as such
+        let mut buf = String::new();
+        let mut lines = vec![];
+
+        buf.push('~');
+        buf.push_str(&ctx.interner.get(self.func_name.id));
+        if self.args_were_parenthesized {
+            buf.push('(');
+        } else {
+            if !ctx.config.put_fn_args_on_new_lines() {
+                buf.push(' ');
+            }
+        }
+
+        if ctx.config.put_fn_args_on_new_lines() {
+            lines.push(ctx.new_line(buf));
+            buf = Default::default();
+        }
+
+        ctx.indented(|ctx| {
+            for (ix, arg) in self.args.iter().enumerate() {
+                let mut arg = (arg).format(ctx).into_single_line().content.to_string();
+                let is_last = ix == self.args.len() - 1;
+
+                if !is_last || ctx.config.put_fn_args_on_new_lines() {
+                    arg.push(',');
+                }
+
+                if !ctx.config.put_fn_args_on_new_lines() && !is_last {
+                    arg.push(' ');
+                }
+                if ctx.config.put_fn_args_on_new_lines() {
+                    lines.push(ctx.new_line(arg));
+                    buf = Default::default();
+                } else {
+                    buf.push_str(&arg);
+                }
+            }
+        });
+        if self.args_were_parenthesized {
+            buf.push(')');
+        }
+
+        lines.push(ctx.new_line(buf));
+        FormattedLines::new(lines)
     }
 }
 
@@ -312,6 +365,7 @@ impl<T: Formattable> Formattable for SpannedItem<T> {
 // TODO: methods like "continue on current line" are going to be useful
 // this can also hold line length context
 // Instead of pushing/appending, we should be using custom joins with "continues from previous line" logic
+#[derive(Debug)]
 pub struct FormattedLines {
     lines: Vec<Line>,
 }
@@ -398,6 +452,11 @@ trait Formattable {
             ctx.config
                 .as_builder()
                 .put_fn_params_on_new_lines(true)
+                .build(),
+            ctx.config
+                .as_builder()
+                .put_fn_params_on_new_lines(true)
+                .put_fn_args_on_new_lines(true)
                 .build(),
             ctx.config
                 .as_builder()

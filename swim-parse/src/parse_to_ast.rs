@@ -16,10 +16,17 @@ impl Parse for FunctionCall {
             |p| -> Option<Self> {
                 p.token(Token::Tilde)?;
                 let func_name = p.parse()?;
+                // optionally, args can be in parens to resolve ambiguity
+                // like if they're in a list
+                let open = p.try_token(Token::OpenParen);
                 let args = p.sequence(Token::Comma)?;
+                if open.is_some() {
+                    p.token(Token::CloseParen)?;
+                }
                 Some(Self {
                     func_name,
                     args: args.into_boxed_slice(),
+                    args_were_parenthesized: open.is_some(),
                 })
             },
         )
