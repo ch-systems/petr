@@ -2,7 +2,8 @@
 //! This crate's job is to tee up the type checker for the next stage of compilation.
 
 pub use resolved::QueryableResolvedItems;
-pub use resolver::{Function, FunctionCall, Type};
+pub use resolver::{Expr, ExprKind, Function, FunctionCall, Type};
+pub use swim_ast::Literal;
 
 mod resolved {
     use std::{collections::BTreeMap, rc::Rc};
@@ -159,7 +160,7 @@ mod resolver {
 
     #[derive(Clone)]
     pub struct Expr {
-        kind: ExprKind,
+        pub kind: ExprKind,
     }
 
     impl Expr {
@@ -172,10 +173,6 @@ mod resolver {
         pub fn new(kind: ExprKind) -> Self {
             Self { kind }
         }
-
-        pub fn return_type(&self) -> Type {
-            self.kind.return_type()
-        }
     }
 
     #[derive(Clone)]
@@ -186,30 +183,6 @@ mod resolver {
         Variable(Item),
         Unit,
         ErrorRecovery,
-    }
-
-    impl ExprKind {
-        pub fn return_type(&self) -> Type {
-            match self {
-                ExprKind::Literal(lit) => literal_return_type(lit),
-                ExprKind::List(exprs) => {
-                    if exprs.is_empty() {
-                        Type::Unit
-                    } else {
-                        exprs.first().unwrap().kind.return_type()
-                    }
-                }
-                ExprKind::FunctionCall(call) => {
-                    // Assuming we have access to a resolver or some context to get the function's return type
-                    Type::ErrorRecovery // Placeholder: actual implementation would resolve the function's return type
-                }
-                ExprKind::Unit => Type::Unit,
-                ExprKind::ErrorRecovery => Type::ErrorRecovery,
-                ExprKind::Variable(item) => {
-                    todo!("should this function live in polytype/typecheck?")
-                }
-            }
-        }
     }
 
     impl Resolver {
@@ -359,12 +332,6 @@ mod resolver {
                 // TODO
                 Expression::TypeConstructor => Expr::error_recovery(),
             })
-        }
-    }
-
-    fn literal_return_type(x: &swim_ast::Literal) -> Type {
-        match x {
-            swim_ast::Literal::Integer(_) => Type::Integer,
         }
     }
 

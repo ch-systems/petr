@@ -63,6 +63,10 @@ pub enum Token {
     ExportTypeKeyword,
     #[token("~")]
     Tilde,
+    #[token("true")]
+    True,
+    #[token("false")]
+    False,
     Eof,
 }
 impl Token {
@@ -106,6 +110,8 @@ impl std::fmt::Display for Token {
             ExportFunctionKeyword => write!(f, "Function"),
             ExportTypeKeyword => write!(f, "Type"),
             Tilde => write!(f, "~"),
+            True => write!(f, "true"),
+            False => write!(f, "false"),
         }
     }
 }

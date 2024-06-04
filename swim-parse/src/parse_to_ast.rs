@@ -152,6 +152,8 @@ impl Parse for Literal {
             Token::Integer => Some(Literal::Integer(
                 p.slice().parse().expect("lexer should have verified this"),
             )),
+            Token::True => Some(Literal::Boolean(true)),
+            Token::False => Some(Literal::Boolean(false)),
             _ => {
                 p.push_error(
                     p.span()
@@ -268,6 +270,7 @@ impl Parse for Expression {
             Token::Identifier => Some(Expression::Variable(p.parse()?)),
             Token::OpenBracket => Some(Expression::List(p.parse()?)),
             Token::Tilde => Some(Expression::FunctionCall(p.parse()?)),
+            Token::True | Token::False => Some(Expression::Literal(p.parse()?)),
             a => todo!("need to parse expr {a:?} {}", p.slice()),
         }
     }

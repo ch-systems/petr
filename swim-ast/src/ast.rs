@@ -82,12 +82,14 @@ pub struct List {
 #[derive(Clone, Copy, Debug)]
 pub enum Literal {
     Integer(i64),
+    Boolean(bool),
 }
 
 impl ToString for Literal {
     fn to_string(&self) -> String {
         match self {
             Literal::Integer(i) => i.to_string(),
+            Literal::Boolean(b) => b.to_string(),
         }
     }
 }

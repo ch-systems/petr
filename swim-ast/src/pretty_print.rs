@@ -93,6 +93,7 @@ impl PrettyPrint for Expression {
     fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String {
         match self {
             Expression::Literal(Literal::Integer(i)) => i.to_string(),
+            Expression::Literal(Literal::Boolean(b)) => b.to_string(),
             Expression::List(list) => list.pretty_print(interner, indentation),
             Expression::Operator(op) => op.pretty_print(interner, indentation),
             Expression::TypeConstructor => format!("type constructor"),

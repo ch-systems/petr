@@ -10,6 +10,8 @@ swim-utils = { path = "../swim-utils" }
 swim-resolve = { path = "../swim-resolve" }
 swim-bind = { path = "../swim-bind" }
 polytype = "7.0.1"
+miette = { version = "7.2.0", features = ["fancy"] }
+thiserror = "1.0.61"
 
 
 [dev-dependencies]

@@ -1,8 +1,88 @@
+mod error {
+    use std::os;
+
+    use miette::Diagnostic;
+    use thiserror::Error;
+
+    #[derive(Error, Debug, PartialEq)]
+    pub struct TypeCheckError {
+        kind: TypeCheckErrorKind,
+        help: Option<String>,
+    }
+
+    impl std::fmt::Display for TypeCheckError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.kind)
+        }
+    }
+    #[derive(Error, Debug, Diagnostic, PartialEq)]
+    pub enum TypeCheckErrorKind {
+        #[error("Failed to unify types: {0}")]
+        UnificationFailure(#[from] polytype::UnificationError),
+    }
+
+    impl TypeCheckErrorKind {
+        pub fn into_err(self) -> TypeCheckError {
+            self.into()
+        }
+    }
+
+    impl TypeCheckError {
+        pub fn with_help(mut self, help: impl Into<String>) -> Self {
+            self.help = Some(help.into());
+            self
+        }
+    }
+
+    impl From<TypeCheckErrorKind> for TypeCheckError {
+        fn from(kind: TypeCheckErrorKind) -> Self {
+            Self { kind, help: None }
+        }
+    }
+
+    impl Diagnostic for TypeCheckError {
+        fn help<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
+            self.help
+                .as_ref()
+                .map(|x| -> Box<dyn std::fmt::Display> { Box::new(x) })
+        }
+
+        fn code<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
+            self.kind.code()
+        }
+
+        fn severity(&self) -> Option<miette::Severity> {
+            self.kind.severity()
+        }
+
+        fn url<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
+            self.kind.url()
+        }
+
+        fn source_code(&self) -> Option<&dyn miette::SourceCode> {
+            self.kind.source_code()
+        }
+
+        fn labels(&self) -> Option<Box<dyn Iterator<Item = miette::LabeledSpan> + '_>> {
+            self.kind.labels()
+        }
+
+        fn related<'a>(&'a self) -> Option<Box<dyn Iterator<Item = &'a dyn Diagnostic> + 'a>> {
+            self.kind.related()
+        }
+
+        fn diagnostic_source(&self) -> Option<&dyn Diagnostic> {
+            self.kind.diagnostic_source()
+        }
+    }
+}
+
 use std::collections::BTreeMap;
 
+use error::{TypeCheckError, TypeCheckErrorKind};
 use polytype::{tp, Type};
 use swim_bind::{FunctionId, TypeId};
-use swim_resolve::QueryableResolvedItems;
+use swim_resolve::{Expr, ExprKind, Literal, QueryableResolvedItems};
 use swim_utils::IndexMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -38,6 +118,7 @@ impl From<&FunctionId> for TypeOrFunctionId {
 struct TypeChecker {
     ctx: polytype::Context,
     type_map: BTreeMap<TypeOrFunctionId, TypeVariable>,
+    errors: Vec<TypeCheckError>,
 }
 
 type TypeVariable = Type<&'static str>;
@@ -94,6 +175,7 @@ impl TypeChecker {
         let mut type_checker = TypeChecker {
             ctx,
             type_map: Default::default(),
+            errors: Default::default(),
         };
 
         for (id, _ty) in resolved.types() {
@@ -157,36 +239,79 @@ impl TypeChecker {
             .expect("type did not exist in type map")
     }
 
+    fn convert_literal_to_type(&self, literal: &swim_resolve::Literal) -> TypeVariable {
+        use swim_resolve::Literal::*;
+        match literal {
+            Integer(_) => tp!(int),
+            Boolean(_) => tp!(bool),
+        }
+    }
+
+    fn push_error(&mut self, e: impl Into<TypeCheckErrorKind>) {
+        let kind = e.into();
+        self.errors.push(kind.into());
+    }
+
     pub fn unify(&mut self, ty1: &TypeVariable, ty2: &TypeVariable) {
         match self.ctx.unify(ty1, ty2) {
             Ok(_) => (),
-            Err(_) => todo!("push to errs"),
+            Err(e) => self.push_error(e),
+        }
+    }
+}
+
+impl TypeCheck for Expr {
+    type Output = TypeVariable;
+
+    fn type_check(&self, ctx: &mut TypeChecker) -> Self::Output {
+        match &self.kind {
+            ExprKind::Literal(lit) => ctx.convert_literal_to_type(&lit),
+            ExprKind::List(exprs) => {
+                if exprs.is_empty() {
+                    tp!(list(tp!(unit)))
+                } else {
+                    todo!(" exprs.first().unwrap().kind.return_type()")
+                }
+            }
+            ExprKind::FunctionCall(call) => {
+                todo!()
+            }
+            ExprKind::Unit => tp!(unit),
+            ExprKind::ErrorRecovery => ctx.fresh_ty_var(),
+            ExprKind::Variable(item) => {
+                todo!("should this function live in polytype/typecheck?")
+            }
         }
     }
 }
 
 trait TypeCheck {
     type Output;
-    fn type_check(&mut self, ctx: &mut TypeChecker) -> Self::Output;
+    fn type_check(&self, ctx: &mut TypeChecker) -> Self::Output;
 }
 
 impl TypeCheck for swim_resolve::Function {
     type Output = ();
 
-    fn type_check(&mut self, ctx: &mut TypeChecker) -> Self::Output {
-        let parameter_types = self.params.iter().map(|(name, ty)| ctx.to_type_var(ty));
+    fn type_check(&self, ctx: &mut TypeChecker) -> Self::Output {
+        //   let parameter_types = self.params.iter().map(|(name, ty)| ctx.to_type_var(ty));
+
+        // unify types within the body with the parameter
+        let return_type_of_body_expr = self.body.type_check(ctx);
+
+        let declared_return_type = ctx.to_type_var(&self.return_type);
+
+        ctx.unify(&declared_return_type, &return_type_of_body_expr);
 
         // in a scope that contains the above names to type variables, check the body
         // TODO: introduce scopes here, like in the binder, except with type variables
-
-        todo!()
     }
 }
 
 impl TypeCheck for swim_resolve::FunctionCall {
     type Output = ();
 
-    fn type_check(&mut self, ctx: &mut TypeChecker) -> Self::Output {
+    fn type_check(&self, ctx: &mut TypeChecker) -> Self::Output {
         // use polytype::Type::substitute to sub in the types of the arg exprs
         // and then unify with the function's type
         // get the function type
@@ -194,7 +319,7 @@ impl TypeCheck for swim_resolve::FunctionCall {
         let arg_types = self
             .args
             .iter()
-            .map(|arg| ctx.to_type_var(&arg.return_type()))
+            .map(|arg| arg.type_check(ctx))
             .collect::<Vec<_>>();
 
         let arg_type = TypeChecker::arrow_type(arg_types);
@@ -220,6 +345,7 @@ mod tests {
 
     use super::*;
     use expect_test::{expect, Expect};
+    use miette::Error;
     use swim_resolve::QueryableResolvedItems;
     use swim_utils::{render_error, SourceId, SymbolInterner};
     fn check(input: impl Into<String>, expect: Expect) {
@@ -234,7 +360,7 @@ mod tests {
         let resolved = QueryableResolvedItems::new_from_single_ast(ast);
         let mut type_checker = TypeChecker::from_resolved(&resolved);
         type_checker.fully_resolve(&resolved);
-        let res = pretty_print_type_checker(&interner, &source_map, &type_checker, &resolved);
+        let res = pretty_print_type_checker(&interner, &source_map, type_checker, &resolved);
 
         expect.assert_eq(&res);
     }
@@ -242,7 +368,7 @@ mod tests {
     fn pretty_print_type_checker(
         interner: &SymbolInterner,
         source_map: &IndexMap<SourceId, (&str, &str)>,
-        type_checker: &TypeChecker,
+        type_checker: TypeChecker,
         resolved: &QueryableResolvedItems,
     ) -> String {
         let mut s = String::new();
@@ -266,11 +392,18 @@ mod tests {
             s.push_str(&ty.to_string());
             s.push('\n');
         }
+
+        if !type_checker.errors.is_empty() {
+            s.push_str("\nErrors:\n");
+            for error in type_checker.errors {
+                s.push_str(&format!("{:?}\n", miette::Report::new(error)));
+            }
+        }
         s
     }
 
     #[test]
-    fn identity_resolution_concrete() {
+    fn identity_resolution_concrete_type() {
         check(
             r#"
             function foo(x in 'int) returns 'int x
@@ -301,80 +434,34 @@ mod tests {
     }
 
     #[test]
-    fn concrete_unification() {
+    fn literal_unification_fail() {
         check(
             r#"
             function foo() returns 'int 5
             function bar() returns 'bool 5
             "#,
-            expect![[r#""#]],
+            expect![[r#"
+                function foo → int
+                function bar → bool
+
+                Errors:
+                  [31m×[0m Failed to unify types: Failure(bool, int)
+
+            "#]],
+        );
+    }
+
+    #[test]
+    fn literal_unification_success() {
+        check(
+            r#"
+            function foo() returns 'int 5
+            function bar() returns 'bool true
+            "#,
+            expect![[r#"
+                function foo → int
+                function bar → bool
+            "#]],
         );
     }
 }
-
-/*
-use swim_ast::{Ast, AstNode, FunctionDeclaration};
-pub struct TypeChecker {
-    ast: Ast,
-    ctx: polytype::Context,
-}
-
-pub struct TypedAst {
-    nodes: Vec<AstNode>,
-}
-
-/*
-pub struct Typed<T> {
-    item: T,
-    ty: Type,
-}
-
-*/
-
-pub enum AstNode {
-    FunctionDeclaration(TypedFunctionDeclaration),
-    TypeDeclaration(TypedTypeDeclaration),
-}
-
-pub struct FunctionDeclaration {
-    ty: Type,
-    name: Identifier,
-    args: Vec<TypedArgument>,
-    ret_ty: Type,
-}
-
-pub struct TypeDeclaration {
-    name: Identifier,
-    variants: Vec<TypeVariant>,
-}
-
-pub struct Type {
-    ty: polytype::TypeScheme,
-}
-
-impl TypeChecker {
-    pub fn type_check(&mut self, node: AstNode) -> Typed<AstNode> {
-        let ty = match node {
-            AstNode::FunctionDeclaration(decl) => decl.type_check(&mut self.ctx),
-            AstNode::TypeDeclaration(_) => todo!(),
-        };
-        Typed { item: node, ty }
-    }
-}
-
-pub trait TypeCheckable {
-    fn type_check(&self, ctx: &mut polytype::Context) -> Type;
-}
-
-impl TypeCheckable for FunctionDeclaration {
-    fn type_check(&self, ctx: &mut polytype::Context) -> Type {
-        let ty = ctx.new_type();
-        ctx.bind(self.name, ty.clone());
-        let ret_ty = self.ret_ty.type_check(ctx);
-        let arg_tys = self.args.iter().map(|arg| arg.type_check(ctx)).collect();
-        let ty = polytype::TypeScheme::new(arg_tys, ret_ty);
-        Type { ty }
-    }
-}
-
-*/
