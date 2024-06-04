@@ -49,12 +49,16 @@ mod resolved {
     }
 
     impl QueryableResolvedItems {
-        pub fn get_function(&self, id: FunctionId) -> Option<&Function> {
-            self.resolved_functions.get(&id)
+        pub fn get_function(&self, id: FunctionId) -> &Function {
+            self.resolved_functions
+                .get(&id)
+                .expect("function IDs should always correspond to resolved functions")
         }
 
-        pub fn get_type(&self, id: TypeId) -> Option<&TypeDeclaration> {
-            self.resolved_types.get(&id)
+        pub fn get_type(&self, id: TypeId) -> &TypeDeclaration {
+            self.resolved_types
+                .get(&id)
+                .expect("type IDs should always correspond to resolved types")
         }
 
         pub fn functions(&self) -> impl Iterator<Item = (&FunctionId, &Function)> {
@@ -72,9 +76,9 @@ mod resolver {
 
     use swim_ast::{Ast, AstNode, Commented, Expression, FunctionDeclaration, FunctionParameter};
     use swim_bind::{Binder, FunctionId, Item, ScopeId, TypeId};
-    use swim_utils::{Identifier, SpannedItem, SymbolId};
+    use swim_utils::{Identifier, SpannedItem, SymbolId, SymbolInterner};
 
-    use crate::resolved::ResolvedItems;
+    use crate::resolved::{QueryableResolvedItems, ResolvedItems};
     pub struct ResolutionError;
 
     pub struct Resolver {
@@ -103,18 +107,6 @@ mod resolver {
         // like `Unit`, but doesn't throw additional type errors to prevent cascading errors.
         ErrorRecovery,
         Named(TypeId),
-    }
-
-    impl Type {
-        fn to_string(&self) -> String {
-            match self {
-                Type::Integer => "int".to_string(),
-                Type::Bool => "bool".to_string(),
-                Type::Unit => "()".to_string(),
-                Type::ErrorRecovery => "<error>".to_string(),
-                Type::Named(id) => format!("named type {}", id),
-            }
-        }
     }
 
     impl Resolve for swim_ast::Ty {
@@ -159,17 +151,6 @@ mod resolver {
         kind: ExprKind,
     }
 
-    impl std::fmt::Debug for Expr {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(
-                f,
-                "Expr {{ kind: {:?}, return_type: {:?} }}",
-                self.kind,
-                self.kind.return_ty()
-            )
-        }
-    }
-
     impl Expr {
         pub fn error_recovery() -> Self {
             Self {
@@ -188,18 +169,6 @@ mod resolver {
         FunctionCall(FunctionCall),
         Unit,
         ErrorRecovery,
-    }
-
-    impl std::fmt::Debug for ExprKind {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            match self {
-                ExprKind::Literal(lit) => write!(f, "Literal({:?})", lit),
-                ExprKind::List(exprs) => write!(f, "List({:?})", exprs),
-                ExprKind::FunctionCall(call) => write!(f, "FunctionCall({})", call.function),
-                ExprKind::Unit => write!(f, "Unit"),
-                ExprKind::ErrorRecovery => write!(f, "<error>"),
-            }
-        }
     }
 
     impl ExprKind {
@@ -470,7 +439,68 @@ mod resolver {
 
     #[cfg(test)]
     mod tests {
-        use crate::resolved::QueryableResolvedItems;
+        mod pretty_printing {
+            use swim_utils::{PrettyPrint, SymbolInterner};
+
+            use crate::{resolved::QueryableResolvedItems, resolver::Type};
+
+            use super::{Expr, ExprKind};
+            impl Expr {
+                pub fn to_string(
+                    &self,
+                    resolver: &QueryableResolvedItems,
+                    interner: &SymbolInterner,
+                ) -> String {
+                    self.kind.to_string(resolver, interner)
+                }
+            }
+            impl Type {
+                pub fn to_string(
+                    &self,
+                    resolver: &QueryableResolvedItems,
+                    interner: &SymbolInterner,
+                ) -> String {
+                    match self {
+                        Type::Integer => "int".to_string(),
+                        Type::Bool => "bool".to_string(),
+                        Type::Unit => "()".to_string(),
+                        Type::ErrorRecovery => "<error>".to_string(),
+                        Type::Named(id) => {
+                            format!(
+                                "named type {}",
+                                interner.get(resolver.get_type(*id).name.id)
+                            )
+                        }
+                    }
+                }
+            }
+
+            impl ExprKind {
+                pub fn to_string(
+                    &self,
+                    resolver: &QueryableResolvedItems,
+                    interner: &SymbolInterner,
+                ) -> String {
+                    match self {
+                        ExprKind::Literal(lit) => format!("Literal({:?})", lit),
+                        ExprKind::List(exprs) => format!(
+                            "[{}]",
+                            exprs
+                                .iter()
+                                .map(|x| x.to_string(&resolver, &interner))
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        ),
+                        ExprKind::FunctionCall(call) => {
+                            format!("FunctionCall({})", call.function)
+                        }
+                        ExprKind::Unit => format!("Unit"),
+                        ExprKind::ErrorRecovery => format!("<error>"),
+                    }
+                }
+            }
+        }
+        use crate::{resolved::QueryableResolvedItems, resolver::Type};
 
         use super::*;
         use expect_test::{expect, Expect};
@@ -506,13 +536,16 @@ mod resolver {
                 result.push_str("(");
                 for (name, ty) in &func.params {
                     let name = interner.get(name.id);
-                    let ty = ty.to_string();
+                    let ty = ty.to_string(&queryable, &interner);
                     result.push_str(&format!("  {}: {}, ", name, ty));
                 }
                 result.push_str(") ");
-                let ty = func.return_type.to_string();
+                let ty = func.return_type.to_string(&queryable, &interner);
                 result.push_str(&format!("-> {} ", ty));
-                result.push_str(&format!("  {:?}\n", func.body));
+                result.push_str(&format!(
+                    "  {:?}\n",
+                    func.body.to_string(&queryable, &interner)
+                ));
             }
 
             result.push_str("_____TYPES_____\n");
