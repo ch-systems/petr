@@ -11,7 +11,7 @@ fn check<T: Into<String>>(sources: Vec<T>, expected: expect_test::Expect) {
     let pretty_printed_ast = ast.pretty_print(&interner, 0);
     let errs = errs
         .into_iter()
-        .map(|err| render_error(&source_map, err))
+        .map(|err| format!("{:?}", render_error(&source_map, err)))
         .collect::<Vec<_>>()
         .join("\n");
     let errors_str = if errs.is_empty() {

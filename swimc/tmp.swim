@@ -1,1 +1,4 @@
-type foo = a 'int '  af  eerr 'string | b 'bool 'bool
+type name = a 'bool 'int | b | c
+
+
+function bebebebe(variable_1 in 'int variable_2 in 'bool) returns 'int  ~bebebebe 1, true
