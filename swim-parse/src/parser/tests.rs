@@ -1,5 +1,6 @@
-use crate::pretty_print::*;
 use expect_test::expect;
+use swim_ast::*;
+use swim_utils::PrettyPrint;
 
 use super::Parser;
 

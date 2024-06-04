@@ -1,6 +1,7 @@
 use clap::Parser as ClapParser;
 use std::fs;
-use swim_parse::{pretty_print::PrettyPrint, Parser};
+use swim_parse::Parser;
+use swim_utils::PrettyPrint;
 
 #[derive(ClapParser)]
 #[command(version = "0.0", author = "Alex H <alex@alex-hansen.com>")]

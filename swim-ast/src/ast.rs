@@ -58,6 +58,7 @@ pub enum Expression {
     List(List),
     Operator(Box<OperatorExpression>),
     FunctionCall(FunctionCall),
+    Variable(Identifier),
     TypeConstructor,
 }
 
@@ -71,7 +72,6 @@ pub struct FunctionCall {
 pub struct VariableExpression {
     pub name: Identifier,
 }
-
 #[derive(Clone)]
 pub struct List {
     pub elements: Box<[Commented<SpannedItem<Expression>>]>,

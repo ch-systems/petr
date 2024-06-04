@@ -17,8 +17,7 @@ use config::FormatterConfig;
 use constants::{CLOSE_COMMENT_STR, INDENTATION_CHARACTER, OPEN_COMMENT_STR};
 use ctx::FormatterContext;
 use swim_ast::*;
-use swim_parse::pretty_print::PrettyPrint;
-use swim_utils::SpannedItem;
+use swim_utils::{PrettyPrint, SpannedItem};
 
 impl<T> Formattable for Commented<T>
 where
@@ -171,13 +170,14 @@ impl Formattable for Expression {
                 FormattedLines::new(vec![ctx.new_line(format!(" {}", lit.to_string()))])
             }
             Expression::Variable(var) => {
-                let ident_as_string = ctx.interner.get(var.name.id);
+                let ident_as_string = ctx.interner.get(var.id);
                 FormattedLines::new(vec![ctx.new_line(ident_as_string)])
             }
             Expression::List(list) => list.format(ctx),
             Expression::TypeConstructor => unreachable!(
                 "this is only constructed after binding, which the formatter doesn't do"
             ),
+            Expression::FunctionCall(_) => todo!(),
         }
     }
 }

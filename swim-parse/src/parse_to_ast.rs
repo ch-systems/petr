@@ -135,12 +135,6 @@ impl Parse for FunctionDeclaration {
         )
     }
 }
-impl Parse for VariableExpression {
-    fn parse(p: &mut Parser) -> Option<Self> {
-        let id = Identifier::parse(p)?;
-        Some(VariableExpression { name: id })
-    }
-}
 impl Parse for Literal {
     fn parse(p: &mut Parser) -> Option<Self> {
         let tok = p.advance();
@@ -261,7 +255,7 @@ impl Parse for Expression {
             // may have to advance and peek to see if its a fn call etc
             Token::Identifier => Some(Expression::Variable(p.parse()?)),
             Token::OpenBracket => Some(Expression::List(p.parse()?)),
-            a => todo!("need to parse expr {a:?}"),
+            a => todo!("need to parse expr {a:?} {}", p.slice()),
         }
     }
 }

@@ -326,7 +326,7 @@ mod binder {
         #[test]
         fn bind_function_decl() {
             check(
-                "function add(a in 'Int, b in  'Int) returns 'Int + a b",
+                "function add(a in 'Int, b in 'Int) returns 'Int + 1 2",
                 expect![[r#"
                     Scope ScopeId(0):
                       add: Function FunctionId(0)

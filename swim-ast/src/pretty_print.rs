@@ -1,11 +1,7 @@
 //! Pretty-print the AST for tests and ease of development.
 
-use swim_ast::*;
-use swim_utils::{Identifier, SpannedItem, SymbolInterner};
-
-pub trait PrettyPrint {
-    fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String;
-}
+use crate::*;
+use swim_utils::{Identifier, PrettyPrint, SpannedItem, SymbolInterner};
 
 impl PrettyPrint for Ast {
     fn pretty_print(&self, interner: &SymbolInterner, _indentation: usize) -> String {
@@ -71,12 +67,6 @@ impl PrettyPrint for TypeVariant {
     }
 }
 
-impl PrettyPrint for Identifier {
-    fn pretty_print(&self, interner: &SymbolInterner, _: usize) -> String {
-        interner.get(self.id).to_string()
-    }
-}
-
 impl PrettyPrint for Ty {
     fn pretty_print(&self, interner: &SymbolInterner, _: usize) -> String {
         let name = match self {
@@ -105,11 +95,27 @@ impl PrettyPrint for Expression {
             Expression::Literal(Literal::Integer(i)) => i.to_string(),
             Expression::List(list) => list.pretty_print(interner, indentation),
             Expression::Operator(op) => op.pretty_print(interner, indentation),
-            Expression::Variable(v) => {
-                format!("var({})", v.name.pretty_print(interner, indentation))
-            }
             Expression::TypeConstructor => format!("type constructor"),
+            Expression::FunctionCall(call) => call.pretty_print(interner, indentation),
+            Expression::Variable(v) => {
+                format!("var({})", interner.get(v.id))
+            }
         }
+    }
+}
+
+impl PrettyPrint for FunctionCall {
+    fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String {
+        format!(
+            "{}call function{}({})",
+            "  ".repeat(indentation),
+            interner.get(self.func_name.id),
+            self.args
+                .iter()
+                .map(|arg| arg.pretty_print(interner, indentation))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
     }
 }
 
@@ -137,46 +143,6 @@ impl PrettyPrint for OperatorExpression {
             Operator::Slash => "/",
         };
         format!("{}({} {})", op, lhs, rhs)
-    }
-}
-
-impl<T> PrettyPrint for SpannedItem<T>
-where
-    T: PrettyPrint,
-{
-    fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String {
-        self.item().pretty_print(interner, indentation)
-    }
-}
-
-impl<T> PrettyPrint for Commented<T>
-where
-    T: PrettyPrint,
-{
-    fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String {
-        let comments = self.comments();
-        format!(
-            "{}{}",
-            if comments.is_empty() {
-                String::new()
-            } else {
-                format!(
-                    "{}\n",
-                    comments
-                        .iter()
-                        .map(|comment| comment.pretty_print(interner, indentation))
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                )
-            },
-            self.item().pretty_print(interner, indentation)
-        )
-    }
-}
-
-impl PrettyPrint for Comment {
-    fn pretty_print(&self, _interner: &SymbolInterner, indentation: usize) -> String {
-        format!("{}{{- {} -}}", "  ".repeat(indentation), self.content)
     }
 }
 
