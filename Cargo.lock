@@ -927,6 +927,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "swim-ir"
+version = "0.1.0"
+dependencies = [
+ "cranelift",
+ "cranelift-module",
+ "cranelift-native",
+ "cranelift-object",
+ "cranelift-reader",
+ "miette",
+ "thiserror",
+]
+
+[[package]]
 name = "swim-parse"
 version = "0.1.0"
 dependencies = [
