@@ -244,6 +244,7 @@ impl TypeChecker {
         match literal {
             Integer(_) => tp!(int),
             Boolean(_) => tp!(bool),
+            String(_) => tp!(string),
         }
     }
 

@@ -1,7 +1,7 @@
 //! Pretty-print the AST for tests and ease of development.
 
 use crate::*;
-use swim_utils::{Identifier, PrettyPrint, SpannedItem, SymbolInterner};
+use swim_utils::{PrettyPrint, SymbolInterner};
 
 impl PrettyPrint for Ast {
     fn pretty_print(&self, interner: &SymbolInterner, _indentation: usize) -> String {
@@ -94,6 +94,7 @@ impl PrettyPrint for Expression {
         match self {
             Expression::Literal(Literal::Integer(i)) => i.to_string(),
             Expression::Literal(Literal::Boolean(b)) => b.to_string(),
+            Expression::Literal(Literal::String(s)) => format!("\"{s}\""),
             Expression::List(list) => list.pretty_print(interner, indentation),
             Expression::Operator(op) => op.pretty_print(interner, indentation),
             Expression::TypeConstructor => format!("type constructor"),

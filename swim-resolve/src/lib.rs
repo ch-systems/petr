@@ -309,7 +309,7 @@ mod resolver {
             scope_id: ScopeId,
         ) -> Option<Expr> {
             Some(match self {
-                Expression::Literal(x) => Expr::new(ExprKind::Literal(*x)),
+                Expression::Literal(x) => Expr::new(ExprKind::Literal(x.clone())),
                 Expression::List(list) => {
                     let list: Vec<Expr> = list
                         .elements
@@ -577,10 +577,10 @@ mod resolver {
             function foo(a in 'int) returns 'int [1, 2, 3]
             "#,
                 expect![[r#"
-                _____FUNCTIONS_____
-                #0 foo(  a: int, ) -> int   Expr { kind: List([Expr { kind: Literal(Integer(1)), return_type: int }, Expr { kind: Literal(Integer(2)), return_type: int }, Expr { kind: Literal(Integer(3)), return_type: int }]), return_type: int }
-                _____TYPES_____
-            "#]],
+                    _____FUNCTIONS_____
+                    #0 foo(  a: int, ) -> int   "[Literal(Integer(1)), Literal(Integer(2)), Literal(Integer(3))]"
+                    _____TYPES_____
+                "#]],
             );
         }
         #[test]
@@ -591,14 +591,14 @@ mod resolver {
             function foo(a in 'MyType) returns 'MyType [1, 2, 3]
             "#,
                 expect![[r#"
-                _____FUNCTIONS_____
-                #0 a() -> named type typeid0   Expr { kind: Unit, return_type: <error> }
-                #1 b() -> named type typeid0   Expr { kind: Unit, return_type: <error> }
-                #2 foo(  a: named type typeid0, ) -> named type typeid0   Expr { kind: List([Expr { kind: Literal(Integer(1)), return_type: int }, Expr { kind: Literal(Integer(2)), return_type: int }, Expr { kind: Literal(Integer(3)), return_type: int }]), return_type: int }
-                _____TYPES_____
-                #0 MyType
+                    _____FUNCTIONS_____
+                    #0 a() -> named type MyType   "<error>"
+                    #1 b() -> named type MyType   "<error>"
+                    #2 foo(  a: named type MyType, ) -> named type MyType   "[Literal(Integer(1)), Literal(Integer(2)), Literal(Integer(3))]"
+                    _____TYPES_____
+                    #0 MyType
 
-            "#]],
+                "#]],
             );
         }
 
@@ -614,14 +614,14 @@ mod resolver {
             type MyType = a | b
             "#,
                 expect![[r#"
-                _____FUNCTIONS_____
-                #0 foo(  a: named type typeid0, ) -> named type typeid0   Expr { kind: List([Expr { kind: Literal(Integer(1)), return_type: int }, Expr { kind: Literal(Integer(2)), return_type: int }, Expr { kind: Literal(Integer(3)), return_type: int }]), return_type: int }
-                #1 a() -> named type typeid0   Expr { kind: Unit, return_type: <error> }
-                #2 b() -> named type typeid0   Expr { kind: Unit, return_type: <error> }
-                _____TYPES_____
-                #0 MyType
+                    _____FUNCTIONS_____
+                    #0 foo(  a: named type MyType, ) -> named type MyType   "[Literal(Integer(1)), Literal(Integer(2)), Literal(Integer(3))]"
+                    #1 a() -> named type MyType   "<error>"
+                    #2 b() -> named type MyType   "<error>"
+                    _____TYPES_____
+                    #0 MyType
 
-            "#]],
+                "#]],
             )
         }
 
@@ -637,7 +637,16 @@ mod resolver {
             ]
             type MyType = a | b
             "#,
-                expect![[r#""#]],
+                expect![[r#"
+                    _____FUNCTIONS_____
+                    #0 foo() -> named type MyType   "FunctionCall(functionid1)"
+                    #1 bar(  a: named type MyType, ) -> named type MyType   "[Literal(Integer(1)), Literal(Integer(2)), Literal(Integer(3))]"
+                    #2 a() -> named type MyType   "<error>"
+                    #3 b() -> named type MyType   "<error>"
+                    _____TYPES_____
+                    #0 MyType
+
+                "#]],
             )
         }
 
@@ -653,7 +662,16 @@ mod resolver {
             ]
             type MyType = a | b
             "#,
-                expect![[r#""#]],
+                expect![[r#"
+                    _____FUNCTIONS_____
+                    #0 foo() -> named type MyType   "FunctionCall(functionid1)"
+                    #1 bar(  a: named type MyType, ) -> named type MyType   "[Literal(Integer(1)), Literal(Integer(2)), Literal(Integer(3))]"
+                    #2 a() -> named type MyType   "<error>"
+                    #3 b() -> named type MyType   "<error>"
+                    _____TYPES_____
+                    #0 MyType
+
+                "#]],
             )
         }
     }

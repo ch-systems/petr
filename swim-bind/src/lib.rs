@@ -232,7 +232,7 @@ mod binder {
             ty_decl.variants.iter().for_each(|variant| {
                 let span = variant.span();
                 let variant = variant.item();
-                let (fields_as_parameters, func_scope) = self.with_scope(|binder, scope| {
+                let (fields_as_parameters, func_scope) = self.with_scope(|_, scope| {
                     (
                         variant
                             .fields
@@ -334,6 +334,7 @@ mod binder {
                             format!("Function {:?}", function_id)
                         }
                         Item::Type(type_id) => format!("Type {:?}", type_id),
+                        Item::FunctionParameter(param) => format!("FunctionParameter {:?}", param),
                     };
                     result.push_str(&format!("  {}: {}\n", symbol_name, item_description));
                 }
@@ -344,13 +345,16 @@ mod binder {
         #[test]
         fn bind_type_decl() {
             check(
-                "type trinary_boolean = true | false | maybe ",
+                "type trinary_boolean = True | False | maybe ",
                 expect![[r#"
                     Scope ScopeId(0):
                       trinary_boolean: Type TypeId(0)
-                      true: Function FunctionId(0)
-                      false: Function FunctionId(1)
+                      True: Function FunctionId(0)
+                      False: Function FunctionId(1)
                       maybe: Function FunctionId(2)
+                    Scope ScopeId(1):
+                    Scope ScopeId(2):
+                    Scope ScopeId(3):
                 "#]],
             );
         }
@@ -361,7 +365,10 @@ mod binder {
                 expect![[r#"
                     Scope ScopeId(0):
                       add: Function FunctionId(0)
-                    "#]],
+                    Scope ScopeId(1):
+                      a: FunctionParameter Named(Identifier { id: SymbolId(2) })
+                      b: FunctionParameter Named(Identifier { id: SymbolId(2) })
+                "#]],
             );
         }
 
@@ -372,7 +379,10 @@ mod binder {
                 expect![[r#"
                     Scope ScopeId(0):
                       add: Function FunctionId(0)
-                    "#]],
+                    Scope ScopeId(1):
+                      a: FunctionParameter Named(Identifier { id: SymbolId(2) })
+                      b: FunctionParameter Named(Identifier { id: SymbolId(2) })
+                "#]],
             );
         }
     }

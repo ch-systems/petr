@@ -9,15 +9,84 @@ use std::rc::Rc;
 // potential improvements to the formatter:
 // don't use Strings in the Lines struct, use a Vec<String> and join, separated by single spaces
 
-fn main() {
-    println!("Hello, world!");
+use std::fs;
+use std::io::{self, Write};
+use std::path::PathBuf;
+use structopt::StructOpt;
+
+#[derive(StructOpt, Debug)]
+#[structopt(name = "formatter")]
+struct Opt {
+    /// Input source files to format
+    #[structopt(parse(from_os_str))]
+    input: Vec<PathBuf>,
+
+    /// Save backup files with .bak extension
+    #[structopt(long)]
+    backup: bool,
+}
+
+fn main() -> io::Result<()> {
+    let opt = Opt::from_args();
+
+    // read sources from disk
+    let sources = opt
+        .input
+        .iter()
+        .map(|p| fs::read_to_string(p))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let sources = opt
+        .input
+        .into_iter()
+        .zip(sources.into_iter())
+        .collect::<Vec<_>>();
+
+    let longest_source_name = sources
+        .iter()
+        .map(|(path, _)| path.display().to_string().len())
+        .max()
+        .unwrap_or(0);
+
+    let distance_to_check = longest_source_name + 5;
+
+    for (source_name, source) in sources {
+        let num_dots_to_display = distance_to_check - source_name.display().to_string().len();
+        print!("formatting {}...", source_name.display());
+        let string_source_name = source_name.to_string_lossy();
+        let parser = Parser::new(vec![(string_source_name.clone(), source.clone())]);
+        let (ast, errs, interner, source_map) = parser.into_result();
+        print!("{}", ".".repeat(num_dots_to_display));
+        if !errs.is_empty() {
+            errs.into_iter()
+                .for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
+            panic!("fmt failed: code didn't parse");
+        }
+        let mut ctx = FormatterContext::from_interner(interner).with_config(Default::default());
+        let formatted_content = ast.line_length_aware_format(&mut ctx).render();
+        // Create a new formatter context
+        print!("...");
+
+        if opt.backup {
+            let backup_path = format!("{string_source_name}.bak");
+            fs::write(backup_path, &source)?;
+        }
+
+        // Write the formatted content back to the file
+        let mut file = fs::File::create(source_name)?;
+        file.write_all(formatted_content.as_bytes())?;
+        println!("✅");
+    }
+
+    Ok(())
 }
 
 use config::FormatterConfig;
 use constants::{CLOSE_COMMENT_STR, INDENTATION_CHARACTER, OPEN_COMMENT_STR};
 use ctx::FormatterContext;
 use swim_ast::*;
-use swim_utils::{PrettyPrint, SpannedItem};
+use swim_parse::Parser;
+use swim_utils::{render_error, PrettyPrint, SpannedItem};
 
 impl<T> Formattable for Commented<T>
 where
@@ -440,7 +509,7 @@ impl Line {
     }
 }
 
-trait Formattable {
+pub trait Formattable {
     fn format(&self, ctx: &mut FormatterContext) -> FormattedLines;
     /// the below is the actual entry point to the interface, which attempts to reformat the item
     /// with more things broken up across lines if the line length exceeds the limit

@@ -79,10 +79,11 @@ pub struct List {
     pub elements: Box<[Commented<SpannedItem<Expression>>]>,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum Literal {
     Integer(i64),
     Boolean(bool),
+    String(Rc<str>),
 }
 
 impl ToString for Literal {
@@ -90,6 +91,7 @@ impl ToString for Literal {
         match self {
             Literal::Integer(i) => i.to_string(),
             Literal::Boolean(b) => b.to_string(),
+            Literal::String(s) => format!("\"{s}\""),
         }
     }
 }

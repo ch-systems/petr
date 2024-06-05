@@ -152,6 +152,9 @@ impl Parse for Literal {
             Token::Integer => Some(Literal::Integer(
                 p.slice().parse().expect("lexer should have verified this"),
             )),
+            Token::String => Some(Literal::String(Rc::from(
+                &p.slice()[1..p.slice().len() - 1],
+            ))),
             Token::True => Some(Literal::Boolean(true)),
             Token::False => Some(Literal::Boolean(false)),
             _ => {
@@ -264,13 +267,14 @@ impl Parse for Expression {
                     op,
                 })))
             }
-            Token::Integer => Some(Expression::Literal(p.parse()?)),
             // TODO might not want to do variables this way
             // may have to advance and peek to see if its a fn call etc
             Token::Identifier => Some(Expression::Variable(p.parse()?)),
             Token::OpenBracket => Some(Expression::List(p.parse()?)),
             Token::Tilde => Some(Expression::FunctionCall(p.parse()?)),
-            Token::True | Token::False => Some(Expression::Literal(p.parse()?)),
+            Token::True | Token::False | Token::String | Token::Integer => {
+                Some(Expression::Literal(p.parse()?))
+            }
             a => todo!("need to parse expr {a:?} {}", p.slice()),
         }
     }

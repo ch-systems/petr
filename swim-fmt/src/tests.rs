@@ -514,3 +514,39 @@ fn func_application() {
         "#]],
     )
 }
+
+#[test]
+fn string_in_list() {
+    check(
+        Default::default(),
+        "function returns_list() returns 'list [\"one\", \"two\", \"three\"]",
+        expect![[r#"
+            function returns_list() returns 'list
+              ["one", "two", "three"]
+        "#]],
+    );
+}
+
+#[test]
+fn string_in_operators() {
+    check(
+        Default::default(),
+        "function concat_strings() returns 'string + \"Hello, \" \"world!\"",
+        expect![[r#"
+            function concat_strings() returns 'string
+              + "Hello, " "world!"
+        "#]],
+    );
+}
+
+#[test]
+fn string_literals() {
+    check(
+        Default::default(),
+        "function string_literals() returns 'string \"This is a string literal.\"",
+        expect![[r#"
+            function string_literals() returns 'string
+              "This is a string literal."
+        "#]],
+    );
+}

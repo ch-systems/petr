@@ -31,6 +31,8 @@ pub enum Token {
     Integer,
     #[regex("[_a-zA-Z][_a-zA-Z0-9]{0,30}")]
     Identifier,
+    #[regex(r#""([^"\\]|\\["\\bnfrt]|u[a-fA-F0-9]{4})*""#)]
+    String,
     #[regex(r#"(\{\-)[^-}]*(\-\})"#)]
     Comment,
     #[token("function")]
@@ -112,6 +114,7 @@ impl std::fmt::Display for Token {
             Tilde => write!(f, "~"),
             True => write!(f, "true"),
             False => write!(f, "false"),
+            String => write!(f, "string"),
         }
     }
 }
