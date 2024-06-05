@@ -556,10 +556,28 @@ fn intrinsic() {
     check(
         Default::default(),
         r#"
-                  function my_func() returns 'unit @puts(~string_literal)"#,
+        function string_literals() returns 'string "This is a string literal."
+
+        function my_func() returns 'unit @puts(~string_literal)"#,
         expect![[r#"
+            function string_literals() returns 'string
+              "This is a string literal."
+
             function my_func() returns 'unit
               @puts(~string_literal)
+        "#]],
+    );
+}
+
+#[test]
+fn intrinsic_2() {
+    check(
+        Default::default(),
+        r#"
+                  function my_func() returns 'unit @puts("hello, world!")"#,
+        expect![[r#"
+            function my_func() returns 'unit
+              @puts("hello, world!")
         "#]],
     );
 }

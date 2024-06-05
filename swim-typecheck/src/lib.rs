@@ -221,6 +221,7 @@ impl TypeChecker {
             swim_resolve::Type::Integer => tp!(int),
             swim_resolve::Type::Bool => tp!(bool),
             swim_resolve::Type::Unit => tp!(unit),
+            swim_resolve::Type::String => tp!(string),
             swim_resolve::Type::ErrorRecovery => {
                 // unifies to anything, fresh var
                 self.fresh_ty_var()
@@ -490,6 +491,52 @@ mod tests {
                 function foo → int
                 function bar → bool
             "#]],
+        );
+    }
+
+    #[test]
+    fn pass_zero_arity_func_to_intrinsic() {
+        check(
+            r#"
+        function string_literal() returns 'string
+          "This is a string literal."
+
+        function my_func() returns 'unit
+          @puts(~string_literal)"#,
+            expect![[r#""#]],
+        );
+    }
+
+    #[test]
+    fn pass_literal_string_to_intrinsic() {
+        check(
+            r#"
+        function my_func() returns 'unit
+          @puts("test")"#,
+            expect![[r#""#]],
+        );
+    }
+
+    #[test]
+    fn pass_wrong_type_literal_to_intrinsic() {
+        check(
+            r#"
+        function my_func() returns 'unit
+          @puts(bool)"#,
+            expect![[r#""#]],
+        );
+    }
+
+    #[test]
+    fn pass_wrong_type_fn_call_to_intrinsic() {
+        check(
+            r#"
+        function bool_literal() returns 'bool
+            true
+
+        function my_func() returns 'unit
+          @puts(~bool_literal)"#,
+            expect![[r#""#]],
         );
     }
 }

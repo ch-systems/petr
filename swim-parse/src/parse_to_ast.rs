@@ -191,6 +191,8 @@ impl Parse for Ty {
             let ty = match p.slice() {
                 "int" => Ty::Int,
                 "bool" => Ty::Bool,
+                "string" => Ty::String,
+                "unit" => Ty::Unit,
                 _ => Ty::Named(next),
             };
 

@@ -113,6 +113,7 @@ mod resolver {
         Integer,
         Bool,
         Unit,
+        String,
         // like `Unit`, but doesn't throw additional type errors to prevent cascading errors.
         ErrorRecovery,
         Named(TypeId),
@@ -129,6 +130,8 @@ mod resolver {
             Some(match self {
                 swim_ast::Ty::Int => Type::Integer,
                 swim_ast::Ty::Bool => Type::Bool,
+                swim_ast::Ty::String => Type::String,
+                swim_ast::Ty::Unit => Type::Unit,
                 swim_ast::Ty::Named(name) => match binder.find_symbol_in_scope(name.id, scope_id) {
                     Some(Item::Type(id)) => Type::Named(*id),
                     Some(_) => {
@@ -365,7 +368,18 @@ mod resolver {
             binder: &Binder,
             scope_id: ScopeId,
         ) -> Option<Self::Resolved> {
-            todo!()
+            let args = self
+                .args
+                .iter()
+                .map(|x| {
+                    x.resolve(resolver, binder, scope_id)
+                        .unwrap_or_else(Expr::error_recovery)
+                })
+                .collect();
+            Some(Intrinsic {
+                intrinsic: self.intrinsic.clone(),
+                args,
+            })
         }
     }
 
@@ -496,6 +510,7 @@ mod resolver {
                         Type::Integer => "int".to_string(),
                         Type::Bool => "bool".to_string(),
                         Type::Unit => "()".to_string(),
+                        Type::String => "string".to_string(),
                         Type::ErrorRecovery => "<error>".to_string(),
                         Type::Named(id) => {
                             format!(

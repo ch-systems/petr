@@ -135,6 +135,8 @@ pub enum Ty {
     Int,
     Bool,
     Named(Identifier),
+    String,
+    Unit,
 }
 
 #[derive(Clone)]

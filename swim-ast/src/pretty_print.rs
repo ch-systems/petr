@@ -72,6 +72,8 @@ impl PrettyPrint for Ty {
         let name = match self {
             Ty::Bool => "bool".to_string(),
             Ty::Int => "int".to_string(),
+            Ty::String => "string".to_string(),
+            Ty::Unit => "unit".to_string(),
             Ty::Named(name) => name.pretty_print(interner, 0),
         };
         format!("'{name}")
