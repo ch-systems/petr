@@ -557,6 +557,9 @@ fn intrinsic() {
         Default::default(),
         r#"
                   function my_func() returns 'unit @puts(~string_literal)"#,
-        expect![[r#""#]],
+        expect![[r#"
+            function my_func() returns 'unit
+              @puts(~string_literal)
+        "#]],
     );
 }

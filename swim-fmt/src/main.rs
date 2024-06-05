@@ -309,7 +309,7 @@ impl Formattable for FunctionCall {
         if self.args_were_parenthesized {
             buf.push('(');
         } else {
-            if !ctx.config.put_fn_args_on_new_lines() {
+            if !ctx.config.put_fn_args_on_new_lines() && !self.args.is_empty() {
                 buf.push(' ');
             }
         }

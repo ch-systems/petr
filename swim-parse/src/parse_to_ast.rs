@@ -19,7 +19,7 @@ impl Parse for FunctionCall {
                 // optionally, args can be in parens to resolve ambiguity
                 // like if they're in a list
                 let open = p.try_token(Token::OpenParen);
-                let args = p.sequence(Token::Comma)?;
+                let args = p.sequence_zero_or_more(Token::Comma)?;
                 if open.is_some() {
                     p.token(Token::CloseParen)?;
                 }
@@ -298,6 +298,7 @@ impl Parse for IntrinsicCall {
                 let open = p.try_token(Token::OpenParen);
                 let args = p.sequence_zero_or_more(Token::Comma)?;
                 let args = args.into_boxed_slice();
+
                 if open.is_some() {
                     p.token(Token::CloseParen)?;
                 }
