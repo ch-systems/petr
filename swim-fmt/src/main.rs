@@ -249,6 +249,50 @@ impl Formattable for Expression {
                 "this is only constructed after binding, which the formatter doesn't do"
             ),
             Expression::FunctionCall(f) => f.format(ctx),
+            Expression::IntrinsicCall(i) => i.format(ctx),
+        }
+    }
+}
+
+impl Formattable for IntrinsicCall {
+    fn format(&self, ctx: &mut FormatterContext) -> FormattedLines {
+        {
+            let mut buf = String::new();
+            let mut lines = vec![];
+
+            buf.push_str(&format!("@{}", self.intrinsic));
+            buf.push('(');
+
+            if ctx.config.put_fn_args_on_new_lines() {
+                lines.push(ctx.new_line(buf));
+                buf = Default::default();
+            }
+
+            ctx.indented(|ctx| {
+                for (ix, arg) in self.args.iter().enumerate() {
+                    let mut arg = (arg).format(ctx).into_single_line().content.to_string();
+                    let is_last = ix == self.args.len() - 1;
+
+                    if !is_last || ctx.config.put_fn_args_on_new_lines() {
+                        arg.push(',');
+                    }
+
+                    if !ctx.config.put_fn_args_on_new_lines() && !is_last {
+                        arg.push(' ');
+                    }
+                    if ctx.config.put_fn_args_on_new_lines() {
+                        lines.push(ctx.new_line(arg));
+                        buf = Default::default();
+                    } else {
+                        buf.push_str(&arg);
+                    }
+                }
+            });
+
+            buf.push(')');
+
+            lines.push(ctx.new_line(buf));
+            FormattedLines::new(lines)
         }
     }
 }

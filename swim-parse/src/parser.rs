@@ -232,6 +232,27 @@ impl Parser {
         }
         buf
     }
+    /// parses a sequence separated by `separator`
+    /// e.g. if separator is `Token::Comma`, can parse `a, b, c, d`
+    /// NOTE: this parses zero or more items. Will not reject zero items.
+    pub fn sequence_zero_or_more<P: Parse>(&mut self, separator: Token) -> Option<Vec<P>> {
+        let mut buf = vec![];
+        loop {
+            let item = P::parse(self);
+            match item {
+                Some(item) => buf.push(item),
+                None => {
+                    break;
+                }
+            }
+            if *self.peek().item() == separator {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        Some(buf)
+    }
 
     /// parses a sequence separated by `separator`
     /// e.g. if separator is `Token::Comma`, can parse `a, b, c, d`

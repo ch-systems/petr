@@ -59,7 +59,28 @@ pub enum Expression {
     Operator(Box<OperatorExpression>),
     FunctionCall(FunctionCall),
     Variable(Identifier),
+    IntrinsicCall(IntrinsicCall),
     TypeConstructor,
+}
+
+#[derive(Clone)]
+pub struct IntrinsicCall {
+    pub intrinsic: Intrinsic,
+    pub args: Box<[Expression]>,
+}
+
+impl std::fmt::Display for Intrinsic {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Intrinsic::Puts => write!(f, "puts"),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub enum Intrinsic {
+    /// intrinsic for `libc` puts
+    Puts,
 }
 
 #[derive(Clone)]

@@ -275,7 +275,34 @@ impl Parse for Expression {
             Token::True | Token::False | Token::String | Token::Integer => {
                 Some(Expression::Literal(p.parse()?))
             }
-            a => todo!("need to parse expr {a:?} {}", p.slice()),
+            Token::Intrinsic => Some(Expression::IntrinsicCall(p.parse()?)),
+            a => {
+                println!("need to parse expr {a:?} {}", p.slice());
+                None
+            }
         }
+    }
+}
+
+impl Parse for IntrinsicCall {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        p.with_help(
+            "encountered while parsing intrinsic call",
+            |p| -> Option<Self> {
+                let name = p.slice().to_string();
+                let intrinsic = match &name[1..] {
+                    "puts" => Intrinsic::Puts,
+                    a => todo!("unrecognized intrinsic error: {a:?}"),
+                };
+                p.token(Token::Intrinsic)?;
+                let open = p.try_token(Token::OpenParen);
+                let args = p.sequence_zero_or_more(Token::Comma)?;
+                let args = args.into_boxed_slice();
+                if open.is_some() {
+                    p.token(Token::CloseParen)?;
+                }
+                Some(Self { intrinsic, args })
+            },
+        )
     }
 }

@@ -550,3 +550,13 @@ fn string_literals() {
         "#]],
     );
 }
+
+#[test]
+fn intrinsic() {
+    check(
+        Default::default(),
+        r#"
+                  function my_func() returns 'unit @puts(~string_literal)"#,
+        expect![[r#""#]],
+    );
+}

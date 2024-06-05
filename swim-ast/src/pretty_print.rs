@@ -99,10 +99,24 @@ impl PrettyPrint for Expression {
             Expression::Operator(op) => op.pretty_print(interner, indentation),
             Expression::TypeConstructor => format!("type constructor"),
             Expression::FunctionCall(call) => call.pretty_print(interner, indentation),
-            Expression::Variable(v) => {
-                format!("var({})", interner.get(v.id))
-            }
+            Expression::Variable(v) => format!("var({})", interner.get(v.id)),
+            Expression::IntrinsicCall(call) => call.pretty_print(interner, indentation),
         }
+    }
+}
+
+impl PrettyPrint for IntrinsicCall {
+    fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String {
+        format!(
+            "{}{}({})",
+            "  ".repeat(indentation),
+            self.intrinsic,
+            self.args
+                .iter()
+                .map(|arg| arg.pretty_print(interner, indentation))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
     }
 }
 

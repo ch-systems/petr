@@ -2,8 +2,8 @@
 //! This crate's job is to tee up the type checker for the next stage of compilation.
 
 pub use resolved::QueryableResolvedItems;
-pub use resolver::{Expr, ExprKind, Function, FunctionCall, Type};
-pub use swim_ast::{Literal, Ty};
+pub use resolver::{Expr, ExprKind, Function, FunctionCall, Intrinsic, Type};
+pub use swim_ast::{Intrinsic as IntrinsicName, Literal, Ty};
 
 mod resolved {
     use std::{collections::BTreeMap, rc::Rc};
@@ -181,8 +181,15 @@ mod resolver {
         List(Box<[Expr]>),
         FunctionCall(FunctionCall),
         Variable(Type),
+        Intrinsic(Intrinsic),
         Unit,
         ErrorRecovery,
+    }
+
+    #[derive(Clone)]
+    pub struct Intrinsic {
+        pub intrinsic: swim_ast::Intrinsic,
+        pub args: Box<[Expr]>,
     }
 
     impl Resolver {
@@ -341,7 +348,24 @@ mod resolver {
                 }
                 // TODO
                 Expression::TypeConstructor => Expr::error_recovery(),
+                Expression::IntrinsicCall(intrinsic) => {
+                    let resolved = intrinsic.resolve(resolver, binder, scope_id)?;
+                    Expr::new(ExprKind::Intrinsic(resolved))
+                }
             })
+        }
+    }
+
+    impl Resolve for swim_ast::IntrinsicCall {
+        type Resolved = Intrinsic;
+
+        fn resolve(
+            &self,
+            resolver: &mut Resolver,
+            binder: &Binder,
+            scope_id: ScopeId,
+        ) -> Option<Self::Resolved> {
+            todo!()
         }
     }
 
@@ -505,6 +529,15 @@ mod resolver {
                         ExprKind::Unit => format!("Unit"),
                         ExprKind::ErrorRecovery => format!("<error>"),
                         ExprKind::Variable(_) => todo!(),
+                        ExprKind::Intrinsic(x) => format!(
+                            "@{}({})",
+                            x.intrinsic,
+                            x.args
+                                .iter()
+                                .map(|x| x.to_string(&resolver, &interner))
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        ),
                     }
                 }
             }

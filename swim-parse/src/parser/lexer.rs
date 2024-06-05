@@ -69,6 +69,8 @@ pub enum Token {
     True,
     #[token("false")]
     False,
+    #[regex(r#"\@[_a-zA-Z][_a-zA-Z0-9]{0,30}"#)]
+    Intrinsic,
     Eof,
 }
 impl Token {
@@ -115,6 +117,7 @@ impl std::fmt::Display for Token {
             True => write!(f, "true"),
             False => write!(f, "false"),
             String => write!(f, "string"),
+            Intrinsic => write!(f, "@intrinsic"),
         }
     }
 }

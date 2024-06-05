@@ -82,7 +82,7 @@ use std::collections::BTreeMap;
 use error::{TypeCheckError, TypeCheckErrorKind};
 use polytype::{tp, Type};
 use swim_bind::{FunctionId, TypeId};
-use swim_resolve::{Expr, ExprKind, Literal, QueryableResolvedItems, Ty};
+use swim_resolve::{Expr, ExprKind, Intrinsic, Literal, QueryableResolvedItems, Ty};
 use swim_utils::IndexMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -280,6 +280,27 @@ impl TypeCheck for Expr {
             ExprKind::Unit => tp!(unit),
             ExprKind::ErrorRecovery => ctx.fresh_ty_var(),
             ExprKind::Variable(item) => ctx.to_type_var(item),
+            ExprKind::Intrinsic(intrinsic) => intrinsic.type_check(ctx),
+        }
+    }
+}
+
+impl TypeCheck for Intrinsic {
+    type Output = TypeVariable;
+
+    fn type_check(&self, ctx: &mut TypeChecker) -> Self::Output {
+        use swim_resolve::IntrinsicName::*;
+        match self.intrinsic {
+            Puts => {
+                if self.args.len() != 1 {
+                    todo!("puts arg len check");
+                    return ctx.fresh_ty_var();
+                }
+                // puts takes a single string and returns unit
+                let type_of_arg = self.args[0].type_check(ctx);
+                ctx.unify(&tp!(string), &type_of_arg);
+                tp!(unit)
+            }
         }
     }
 }
