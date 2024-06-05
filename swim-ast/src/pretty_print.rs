@@ -99,7 +99,7 @@ impl PrettyPrint for Expression {
             Expression::Literal(Literal::String(s)) => format!("\"{s}\""),
             Expression::List(list) => list.pretty_print(interner, indentation),
             Expression::Operator(op) => op.pretty_print(interner, indentation),
-            Expression::TypeConstructor => format!("type constructor"),
+            Expression::TypeConstructor => "type constructor".to_string(),
             Expression::FunctionCall(call) => call.pretty_print(interner, indentation),
             Expression::Variable(v) => format!("var({})", interner.get(v.id)),
             Expression::IntrinsicCall(call) => call.pretty_print(interner, indentation),

@@ -33,13 +33,13 @@ fn main() -> io::Result<()> {
     let sources = opt
         .input
         .iter()
-        .map(|p| fs::read_to_string(p))
+        .map(fs::read_to_string)
         .collect::<Result<Vec<_>, _>>()?;
 
     let sources = opt
         .input
         .into_iter()
-        .zip(sources.into_iter())
+        .zip(sources)
         .collect::<Vec<_>>();
 
     let longest_source_name = sources
@@ -238,7 +238,7 @@ impl Formattable for Expression {
                 }
             }
             Expression::Literal(lit) => {
-                FormattedLines::new(vec![ctx.new_line(format!("{}", lit.to_string()))])
+                FormattedLines::new(vec![ctx.new_line(lit.to_string())])
             }
             Expression::Variable(var) => {
                 let ident_as_string = ctx.interner.get(var.id);
@@ -308,10 +308,8 @@ impl Formattable for FunctionCall {
         buf.push_str(&ctx.interner.get(self.func_name.id));
         if self.args_were_parenthesized {
             buf.push('(');
-        } else {
-            if !ctx.config.put_fn_args_on_new_lines() && !self.args.is_empty() {
-                buf.push(' ');
-            }
+        } else if !ctx.config.put_fn_args_on_new_lines() && !self.args.is_empty() {
+            buf.push(' ');
         }
 
         if ctx.config.put_fn_args_on_new_lines() {
@@ -460,7 +458,7 @@ impl Formattable for List {
         } else {
             let text = item_buf
                 .iter()
-                .map(|item| &*item.content.trim())
+                .map(|item| item.content.trim())
                 .collect::<Vec<_>>()
                 .join(", ");
             lines.push(ctx.new_line(format!("[{}]", text)));

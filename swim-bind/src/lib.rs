@@ -5,9 +5,9 @@ mod impls {
     use crate::{Bind, Binder};
 
     use swim_ast::{
-        Ast, Commented, Expression, FunctionDeclaration, Ty, TypeDeclaration, TypeVariant,
+        Commented, Expression, FunctionDeclaration, TypeDeclaration,
     };
-    use swim_utils::{idx_map_key, IndexMap, SpannedItem, SymbolId, SymbolInterner};
+    use swim_utils::{SpannedItem};
 
     impl Bind for TypeDeclaration {
         fn bind(&self, binder: &mut Binder) {
@@ -20,7 +20,7 @@ mod impls {
             // only lists get their own scope for now
             match self {
                 Expression::List(list) => {
-                    binder.with_scope(|binder, scope_id| {
+                    binder.with_scope(|binder, _scope_id| {
                         for item in list.elements.iter() {
                             item.bind(binder);
                         }
@@ -54,7 +54,7 @@ mod binder {
     use std::collections::BTreeMap;
 
     use swim_ast::{Ast, Expression, FunctionDeclaration, FunctionParameter, Ty, TypeDeclaration};
-    use swim_utils::{idx_map_key, IndexMap, SpannedItem, SymbolId, SymbolInterner};
+    use swim_utils::{idx_map_key, IndexMap, SymbolId};
 
     idx_map_key!(
         /// The ID type of a Scope in the Binder.
@@ -126,6 +126,12 @@ mod binder {
     pub struct Scope<T> {
         parent: Option<ScopeId>,
         items: BTreeMap<SymbolId, T>,
+    }
+
+    impl<T> Default for Scope<T> {
+        fn default() -> Self {
+            Self::new()
+        }
     }
 
     impl<T> Scope<T> {
@@ -248,7 +254,7 @@ mod binder {
                 });
 
                 let function = FunctionDeclaration {
-                    name: variant.name.clone(),
+                    name: variant.name,
                     parameters: fields_as_parameters.into_boxed_slice(),
                     return_type: Ty::Named(ty_decl.name),
                     body: span.with_item(Expression::TypeConstructor),
@@ -285,7 +291,7 @@ mod binder {
         pub fn from_ast(ast: &Ast) -> Self {
             let mut binder = Self::new();
 
-            binder.with_scope(|binder, scope_id| {
+            binder.with_scope(|binder, _scope_id| {
                 for node in &ast.nodes {
                     match node.item() {
                         swim_ast::AstNode::FunctionDeclaration(decl) => decl.bind(binder),

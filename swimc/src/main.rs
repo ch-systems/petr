@@ -26,11 +26,9 @@ fn main() {
                 let rendered = swim_utils::render_error(&source_map, err);
                 eprintln!("{:?}", rendered);
             }
-            return;
         }
         _ => {
             println!("{}", ast.pretty_print(&interner, 0));
-            return;
         }
     }
 }

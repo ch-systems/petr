@@ -6,11 +6,11 @@ pub use resolver::{Expr, ExprKind, Function, FunctionCall, Intrinsic, Type};
 pub use swim_ast::{Intrinsic as IntrinsicName, Literal, Ty};
 
 mod resolved {
-    use std::{collections::BTreeMap, rc::Rc};
+    use std::{collections::BTreeMap};
 
-    use swim_ast::{Ast, AstNode, Commented, Expression, FunctionDeclaration, FunctionParameter};
-    use swim_bind::{Binder, FunctionId, Item, ScopeId, TypeId};
-    use swim_utils::{Identifier, SpannedItem, SymbolId};
+    use swim_ast::{Ast};
+    use swim_bind::{FunctionId, TypeId};
+    
 
     use crate::resolver::{Function, Resolver, TypeDeclaration};
     /// Contains things that have already been resolved.
@@ -54,7 +54,7 @@ mod resolved {
 
     impl QueryableResolvedItems {
         pub fn new_from_single_ast(ast: Ast) -> Self {
-            let mut resolver = Resolver::new_from_single_ast(ast);
+            let resolver = Resolver::new_from_single_ast(ast);
             resolver.into_queryable()
         }
 
@@ -81,11 +81,11 @@ mod resolved {
 }
 
 mod resolver {
-    use std::{collections::BTreeMap, rc::Rc};
+    
 
-    use swim_ast::{Ast, AstNode, Commented, Expression, FunctionDeclaration, FunctionParameter};
+    use swim_ast::{Ast, Commented, Expression, FunctionDeclaration, FunctionParameter};
     use swim_bind::{Binder, FunctionId, Item, ScopeId, TypeId};
-    use swim_utils::{Identifier, SpannedItem, SymbolId, SymbolInterner};
+    use swim_utils::{Identifier, SpannedItem};
 
     use crate::resolved::{QueryableResolvedItems, ResolvedItems};
     pub struct ResolutionError;
@@ -123,7 +123,7 @@ mod resolver {
         type Resolved = Type;
         fn resolve(
             &self,
-            resolver: &mut Resolver,
+            _resolver: &mut Resolver,
             binder: &Binder,
             scope_id: ScopeId,
         ) -> Option<Type> {
@@ -206,14 +206,13 @@ mod resolver {
             resolver.add_package(ast, &binder);
             resolver
         }
-        pub fn add_package(&mut self, ast: Ast, binder: &Binder) {
+        pub fn add_package(&mut self, _ast: Ast, binder: &Binder) {
             // Iterate over the binder's scopes and resolve all symbols
             let scopes_and_ids = binder
                 .scope_iter()
-                .map(|(x, y)| (x, y.clone()))
                 .collect::<Vec<_>>();
             for (scope_id, scope) in scopes_and_ids {
-                for (name, item) in scope.iter() {
+                for (_name, item) in scope.iter() {
                     use Item::*;
                     match item {
                         Function(func, func_scope) => {
@@ -302,7 +301,7 @@ mod resolver {
                 .unwrap_or(Expr::error_recovery());
 
             Some(Function {
-                name: self.name.clone(),
+                name: self.name,
                 params: params_buf,
                 return_type,
                 body,
@@ -323,7 +322,7 @@ mod resolver {
                 Expression::List(list) => {
                     let list: Vec<Expr> = list
                         .elements
-                        .into_iter()
+                        .iter()
                         .map(|x| {
                             x.resolve(resolver, binder, scope_id)
                                 .unwrap_or_else(Expr::error_recovery)
@@ -485,7 +484,7 @@ mod resolver {
     #[cfg(test)]
     mod tests {
         mod pretty_printing {
-            use swim_utils::{PrettyPrint, SymbolInterner};
+            use swim_utils::{SymbolInterner};
 
             use crate::{resolved::QueryableResolvedItems, resolver::Type};
 
@@ -534,22 +533,22 @@ mod resolver {
                             "[{}]",
                             exprs
                                 .iter()
-                                .map(|x| x.to_string(&resolver, &interner))
+                                .map(|x| x.to_string(resolver, interner))
                                 .collect::<Vec<_>>()
                                 .join(", ")
                         ),
                         ExprKind::FunctionCall(call) => {
                             format!("FunctionCall({})", call.function)
                         }
-                        ExprKind::Unit => format!("Unit"),
-                        ExprKind::ErrorRecovery => format!("<error>"),
+                        ExprKind::Unit => "Unit".to_string(),
+                        ExprKind::ErrorRecovery => "<error>".to_string(),
                         ExprKind::Variable(_) => todo!(),
                         ExprKind::Intrinsic(x) => format!(
                             "@{}({})",
                             x.intrinsic,
                             x.args
                                 .iter()
-                                .map(|x| x.to_string(&resolver, &interner))
+                                .map(|x| x.to_string(resolver, interner))
                                 .collect::<Vec<_>>()
                                 .join(", ")
                         ),
@@ -557,11 +556,11 @@ mod resolver {
                 }
             }
         }
-        use crate::{resolved::QueryableResolvedItems, resolver::Type};
+        use crate::{resolved::QueryableResolvedItems};
 
         use super::*;
         use expect_test::{expect, Expect};
-        use swim_ast::Literal;
+        
         use swim_utils::render_error;
         fn check(input: impl Into<String>, expect: Expect) {
             let input = input.into();
@@ -590,18 +589,18 @@ mod resolver {
                     Into::<usize>::into(*func_id),
                     interner.get(func.name.id),
                 ));
-                result.push_str("(");
+                result.push('(');
                 for (name, ty) in &func.params {
                     let name = interner.get(name.id);
-                    let ty = ty.to_string(&queryable, &interner);
+                    let ty = ty.to_string(queryable, interner);
                     result.push_str(&format!("  {}: {}, ", name, ty));
                 }
                 result.push_str(") ");
-                let ty = func.return_type.to_string(&queryable, &interner);
+                let ty = func.return_type.to_string(queryable, interner);
                 result.push_str(&format!("-> {} ", ty));
                 result.push_str(&format!(
                     "  {:?}\n",
-                    func.body.to_string(&queryable, &interner)
+                    func.body.to_string(queryable, interner)
                 ));
             }
 

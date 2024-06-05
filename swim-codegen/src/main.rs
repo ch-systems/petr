@@ -52,10 +52,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         puts_sig.returns.push(AbiParam::new(types::I32)); // return type of `puts`
         let puts_func = module.declare_function("puts", Linkage::Import, &puts_sig)?;
         // get func ref for func id
-        let puts_func_ref = module.declare_func_in_func(puts_func, &mut builder.func);
+        let puts_func_ref = module.declare_func_in_func(puts_func, builder.func);
 
         // Reference the data section
-        let data_ref = module.declare_data_in_func(data_id, &mut builder.func);
+        let data_ref = module.declare_data_in_func(data_id, builder.func);
         let base_addr = builder.ins().global_value(types::I64, data_ref);
 
         // Call `puts` with the string address

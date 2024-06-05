@@ -1,5 +1,5 @@
 use expect_test::expect;
-use swim_ast::*;
+
 use swim_utils::{render_error, PrettyPrint};
 
 use super::Parser;
