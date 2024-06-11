@@ -49,7 +49,7 @@ mod opcodes {
 
     #[derive(Debug)]
     pub struct TypedReg {
-        pub ty: IrTy,
+        pub ty:  IrTy,
         pub reg: Reg,
     }
 
@@ -78,12 +78,12 @@ pub struct Function {
 
 /// Lowers typed nodes into an IR suitable for code generation.
 pub struct Lowerer {
-    data_section: IndexMap<DataLabel, DataSectionEntry>,
-    entry_point: FunctionLabel,
-    functions: BTreeMap<FunctionId, Function>,
+    data_section:   IndexMap<DataLabel, DataSectionEntry>,
+    entry_point:    FunctionLabel,
+    functions:      BTreeMap<FunctionId, Function>,
     resolved_items: QueryableResolvedItems,
-    reg_assigner: usize,
-    type_checker: TypeChecker,
+    reg_assigner:   usize,
+    type_checker:   TypeChecker,
 }
 
 pub enum DataSectionEntry {
@@ -93,25 +93,21 @@ pub enum DataSectionEntry {
 }
 
 impl Lowerer {
-    pub fn new(
-        resolved_items: QueryableResolvedItems,
-        type_checker: TypeChecker,
-    ) -> Self {
+    pub fn new(resolved_items: QueryableResolvedItems,
+               type_checker: TypeChecker)
+               -> Self {
         todo!("Remove the resolved items, the type checker should be able to provide all necessary information");
-        Self {
-            data_section: IndexMap::default(),
-            entry_point: todo!(),
-            functions: BTreeMap::default(),
-            resolved_items,
-            reg_assigner: 0,
-            type_checker,
-        }
+        Self { data_section: IndexMap::default(),
+               entry_point: todo!(),
+               functions: BTreeMap::default(),
+               resolved_items,
+               reg_assigner: 0,
+               type_checker }
     }
 
-    pub fn lower(
-        &mut self,
-        nodes: BTreeMap<TypeOrFunctionId, TypeVariable>,
-    ) -> Result<(), LoweringError> {
+    pub fn lower(&mut self,
+                 nodes: BTreeMap<TypeOrFunctionId, TypeVariable>)
+                 -> Result<(), LoweringError> {
         for (id, ty) in nodes {
             match id {
                 TypeOrFunctionId::FunctionId(id) => {
@@ -125,11 +121,10 @@ impl Lowerer {
         todo!()
     }
 
-    fn lower_function(
-        &mut self,
-        id: FunctionId,
-        ty: TypeVariable,
-    ) -> Result<(), LoweringError> {
+    fn lower_function(&mut self,
+                      id: FunctionId,
+                      ty: TypeVariable)
+                      -> Result<(), LoweringError> {
         let mut buf = vec![];
         let mut param_to_reg_mapping = BTreeMap::new();
         let func = self.resolved_items.get_function(id).clone();
@@ -140,10 +135,8 @@ impl Lowerer {
             if fits_in_reg(param_ty) {
                 // load from stack into register
                 let param_reg = self.fresh_reg();
-                let ty_reg = TypedReg {
-                    ty: self.to_ir_type(param_ty),
-                    reg: param_reg,
-                };
+                let ty_reg = TypedReg { ty:  self.to_ir_type(param_ty),
+                                        reg: param_reg, };
                 buf.push(IrOpcode::StackPop(ty_reg));
                 // insert param into mapping
                 param_to_reg_mapping.insert(param_name, param_reg);
@@ -168,12 +161,11 @@ impl Lowerer {
         Reg::Virtual(val)
     }
 
-    fn lower_expr(
-        &mut self,
-        body: &swim_resolve::Expr,
-        param_to_reg_mapping: &mut BTreeMap<&swim_utils::Identifier, Reg>,
-        return_destination: ReturnDestination,
-    ) -> Result<Vec<IrOpcode>, LoweringError> {
+    fn lower_expr(&mut self,
+                  body: &swim_resolve::Expr,
+                  param_to_reg_mapping: &mut BTreeMap<&swim_utils::Identifier, Reg>,
+                  return_destination: ReturnDestination)
+                  -> Result<Vec<IrOpcode>, LoweringError> {
         use swim_resolve::ExprKind::*;
         match body.kind {
             Literal(ref lit) => {
@@ -183,10 +175,8 @@ impl Lowerer {
                     ReturnDestination::Reg(reg) => vec![IrOpcode::LoadData(reg, data_label)],
                     ReturnDestination::Stack => {
                         let reg = self.fresh_reg();
-                        vec![
-                            IrOpcode::LoadData(reg, data_label),
-                            IrOpcode::StackPush(TypedReg { ty, reg }),
-                        ]
+                        vec![IrOpcode::LoadData(reg, data_label),
+                             IrOpcode::StackPush(TypedReg { ty, reg }),]
                     },
                 })
             },
@@ -199,24 +189,23 @@ impl Lowerer {
         }
     }
 
-    fn insert_literal_data(
-        &mut self,
-        lit: &swim_resolve::Literal,
-    ) -> DataLabel {
+    fn insert_literal_data(&mut self,
+                           lit: &swim_resolve::Literal)
+                           -> DataLabel {
         use swim_resolve::Literal::*;
-        let label = self.data_section.insert(match lit {
-            Integer(val) => DataSectionEntry::Int64(*val),
-            Boolean(val) => DataSectionEntry::Bool(*val),
-            String(val) => DataSectionEntry::String(val.clone()),
-        });
+        let label =
+            self.data_section.insert(match lit {
+                                         Integer(val) => DataSectionEntry::Int64(*val),
+                                         Boolean(val) => DataSectionEntry::Bool(*val),
+                                         String(val) => DataSectionEntry::String(val.clone()),
+                                     });
         label
     }
 
     // convert a polytype type to an `IrTy`
-    fn to_ir_type(
-        &self,
-        param_ty: TypeVariable,
-    ) -> IrTy {
+    fn to_ir_type(&self,
+                  param_ty: TypeVariable)
+                  -> IrTy {
         let ty = self.type_checker.get_type(param_ty);
         todo!()
     }
