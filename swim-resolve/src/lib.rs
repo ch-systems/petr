@@ -6,11 +6,10 @@ pub use resolver::{Expr, ExprKind, Function, FunctionCall, Intrinsic, Type};
 pub use swim_ast::{Intrinsic as IntrinsicName, Literal, Ty};
 
 mod resolved {
-    use std::{collections::BTreeMap};
+    use std::collections::BTreeMap;
 
-    use swim_ast::{Ast};
+    use swim_ast::Ast;
     use swim_bind::{FunctionId, TypeId};
-    
 
     use crate::resolver::{Function, Resolver, TypeDeclaration};
     /// Contains things that have already been resolved.
@@ -81,7 +80,6 @@ mod resolved {
 }
 
 mod resolver {
-    
 
     use swim_ast::{Ast, Commented, Expression, FunctionDeclaration, FunctionParameter};
     use swim_bind::{Binder, FunctionId, Item, ScopeId, TypeId};
@@ -208,9 +206,7 @@ mod resolver {
         }
         pub fn add_package(&mut self, _ast: Ast, binder: &Binder) {
             // Iterate over the binder's scopes and resolve all symbols
-            let scopes_and_ids = binder
-                .scope_iter()
-                .collect::<Vec<_>>();
+            let scopes_and_ids = binder.scope_iter().collect::<Vec<_>>();
             for (scope_id, scope) in scopes_and_ids {
                 for (_name, item) in scope.iter() {
                     use Item::*;
@@ -484,7 +480,7 @@ mod resolver {
     #[cfg(test)]
     mod tests {
         mod pretty_printing {
-            use swim_utils::{SymbolInterner};
+            use swim_utils::SymbolInterner;
 
             use crate::{resolved::QueryableResolvedItems, resolver::Type};
 
@@ -556,11 +552,11 @@ mod resolver {
                 }
             }
         }
-        use crate::{resolved::QueryableResolvedItems};
+        use crate::resolved::QueryableResolvedItems;
 
         use super::*;
         use expect_test::{expect, Expect};
-        
+
         use swim_utils::render_error;
         fn check(input: impl Into<String>, expect: Expect) {
             let input = input.into();

@@ -36,11 +36,7 @@ fn main() -> io::Result<()> {
         .map(fs::read_to_string)
         .collect::<Result<Vec<_>, _>>()?;
 
-    let sources = opt
-        .input
-        .into_iter()
-        .zip(sources)
-        .collect::<Vec<_>>();
+    let sources = opt.input.into_iter().zip(sources).collect::<Vec<_>>();
 
     let longest_source_name = sources
         .iter()
@@ -237,9 +233,7 @@ impl Formattable for Expression {
                     FormattedLines::new(lines)
                 }
             }
-            Expression::Literal(lit) => {
-                FormattedLines::new(vec![ctx.new_line(lit.to_string())])
-            }
+            Expression::Literal(lit) => FormattedLines::new(vec![ctx.new_line(lit.to_string())]),
             Expression::Variable(var) => {
                 let ident_as_string = ctx.interner.get(var.id);
                 FormattedLines::new(vec![ctx.new_line(ident_as_string)])

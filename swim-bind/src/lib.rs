@@ -4,10 +4,8 @@ mod impls {
 
     use crate::{Bind, Binder};
 
-    use swim_ast::{
-        Commented, Expression, FunctionDeclaration, TypeDeclaration,
-    };
-    use swim_utils::{SpannedItem};
+    use swim_ast::{Commented, Expression, FunctionDeclaration, TypeDeclaration};
+    use swim_utils::SpannedItem;
 
     impl Bind for TypeDeclaration {
         fn bind(&self, binder: &mut Binder) {
@@ -325,7 +323,7 @@ mod binder {
         }
 
         use expect_test::{expect, Expect};
-        use swim_utils::render_error;
+        use swim_utils::{render_error, SymbolInterner};
 
         use super::*;
         fn pretty_print_bindings(binder: &Binder, interner: &SymbolInterner) -> String {

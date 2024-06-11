@@ -86,7 +86,7 @@ use swim_resolve::{Expr, ExprKind, Intrinsic, Literal, QueryableResolvedItems, T
 use swim_utils::IndexMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum TypeOrFunctionId {
+pub enum TypeOrFunctionId {
     TypeId(TypeId),
     FunctionId(FunctionId),
 }
@@ -121,7 +121,7 @@ struct TypeChecker {
     errors: Vec<TypeCheckError>,
 }
 
-type TypeVariable = Type<&'static str>;
+pub type TypeVariable = Type<&'static str>;
 
 impl TypeChecker {
     fn fully_resolve(&mut self, resolved: &QueryableResolvedItems) {

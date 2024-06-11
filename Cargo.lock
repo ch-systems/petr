@@ -913,6 +913,9 @@ dependencies = [
  "cranelift-native",
  "cranelift-object",
  "cranelift-reader",
+ "miette",
+ "swim-ir",
+ "thiserror",
 ]
 
 [[package]]
@@ -936,6 +939,10 @@ dependencies = [
  "cranelift-object",
  "cranelift-reader",
  "miette",
+ "swim-bind",
+ "swim-resolve",
+ "swim-typecheck",
+ "swim-utils",
  "thiserror",
 ]
 
