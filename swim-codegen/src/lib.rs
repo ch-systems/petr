@@ -23,7 +23,9 @@ mod error {
     }
 
     impl std::fmt::Display for IrError {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fn fmt(&self,
+               f: &mut std::fmt::Formatter<'_>)
+               -> std::fmt::Result {
             write!(f, "{:?}", self.kind)
         }
     }
@@ -54,12 +56,10 @@ impl IrContext {
         let mut flag_builder = settings::builder();
         flag_builder.enable("is_pic").unwrap();
 
-        let isa_builder = isa_builder()
-            .map_err(ToString::to_string)
-            .map_err(IrErrorKind::GenericIRError)?;
-        let isa = isa_builder
-            .finish(settings::Flags::new(flag_builder))
-            .unwrap();
+        let isa_builder = isa_builder().map_err(ToString::to_string)
+                                       .map_err(IrErrorKind::GenericIRError)?;
+        let isa = isa_builder.finish(settings::Flags::new(flag_builder))
+                             .unwrap();
 
         let builder = ObjectBuilder::new(isa, file_name, cranelift_module::default_libcall_names())
             .expect("TODO");
@@ -68,33 +68,29 @@ impl IrContext {
         Ok(Self { module })
     }
 
-    pub fn insert_data(
-        &mut self,
-        data: Box<[u8]>,
-        data_name: &str,
-        is_writable: bool,
-    ) -> Result<DataId, IrError> {
+    pub fn insert_data(&mut self,
+                       data: Box<[u8]>,
+                       data_name: &str,
+                       is_writable: bool)
+                       -> Result<DataId, IrError> {
         // Define the data section with "Hello, world!\n"
         let mut data_ctx = cranelift_module::DataDescription::new();
         data_ctx.define(data);
-        let data_id = self
-            .module
-            .declare_data(data_name, Linkage::Local, is_writable, false)?;
+        let data_id = self.module
+                          .declare_data(data_name, Linkage::Local, is_writable, false)?;
         self.module.define_data(data_id, &data_ctx).expect("TODO");
         Ok(data_id)
     }
 
     // TODO: lowered function type?
-    pub fn add_function(
-        &mut self,
-        func_name: &str,
-        function: swim_ir::Function,
-    ) -> Result<(), IrError> {
+    pub fn add_function(&mut self,
+                        func_name: &str,
+                        function: swim_ir::Function)
+                        -> Result<(), IrError> {
         let sig = self.module.make_signature();
-        let func_id = self
-            .module
-            .declare_function(func_name, Linkage::Local, &sig)
-            .map_err(|e| IrErrorKind::GenericIRError(e.to_string()))?;
+        let func_id = self.module
+                          .declare_function(func_name, Linkage::Local, &sig)
+                          .map_err(|e| IrErrorKind::GenericIRError(e.to_string()))?;
         // func_sig
         //     .returns
         //     .push(AbiParam::new(cranelift::codegen::ir::types::I32));
@@ -127,11 +123,10 @@ impl IrContext {
         todo!()
     }
 
-    fn lower_function_body(
-        &self,
-        function: &swim_ir::Function,
-        builder: &mut FunctionBuilder,
-    ) -> Result<(), IrError> {
+    fn lower_function_body(&self,
+                           function: &swim_ir::Function,
+                           builder: &mut FunctionBuilder)
+                           -> Result<(), IrError> {
         todo!()
         // let entry_block = builder.create_block();
         // builder.switch_to_block(entry_block);
@@ -158,7 +153,9 @@ impl IrContext {
     }
 }
 
-fn write_obj_file(file_name: &str, obj: Object) -> Result<(), IrError> {
+fn write_obj_file(file_name: &str,
+                  obj: Object)
+                  -> Result<(), IrError> {
     let mut file = std::fs::File::create(file_name).expect("TODO errs");
     use std::io::Write;
 
@@ -166,19 +163,19 @@ fn write_obj_file(file_name: &str, obj: Object) -> Result<(), IrError> {
     Ok(())
 }
 
-fn link_for_mac(obj_file_name: &str, output_file_name: &str) -> Result<(), IrError> {
+fn link_for_mac(obj_file_name: &str,
+                output_file_name: &str)
+                -> Result<(), IrError> {
     // Link the object file using clang
-    Command::new("clang")
-        .arg("output.o")
-        .arg("-o")
-        .arg("output")
-        .arg("-Wl")
-        .arg("-ld_classic")
-        .arg("-v")
-        .status()
-        .expect("TODO errs");
-    use std::fs;
-    use std::os::unix::fs::PermissionsExt;
+    Command::new("clang").arg("output.o")
+                         .arg("-o")
+                         .arg("output")
+                         .arg("-Wl")
+                         .arg("-ld_classic")
+                         .arg("-v")
+                         .status()
+                         .expect("TODO errs");
+    use std::{fs, os::unix::fs::PermissionsExt};
 
     // Set the output file to be executable
     let mut perms = fs::metadata("output").expect("TODO errs").permissions();
@@ -198,16 +195,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     flag_builder.enable("is_pic").unwrap();
 
     let isa_builder = isa_builder()?;
-    let isa = isa_builder
-        .finish(settings::Flags::new(flag_builder))
-        .unwrap();
+    let isa = isa_builder.finish(settings::Flags::new(flag_builder))
+                         .unwrap();
 
     // Set up the object module
-    let builder = ObjectBuilder::new(
-        isa,
-        "my_program.o",
-        cranelift_module::default_libcall_names(),
-    )?;
+    let builder = ObjectBuilder::new(isa,
+                                     "my_program.o",
+                                     cranelift_module::default_libcall_names())?;
     let mut module = ObjectModule::new(builder);
 
     // Define the data section with "Hello, world!\n"
@@ -219,9 +213,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create a function signature
     let mut func_sig = module.make_signature();
-    func_sig
-        .returns
-        .push(AbiParam::new(cranelift::codegen::ir::types::I32));
+    func_sig.returns
+            .push(AbiParam::new(cranelift::codegen::ir::types::I32));
     let func_id = module.declare_function("main", Linkage::Export, &func_sig)?;
 
     // Define the function
@@ -274,17 +267,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     use std::process::Command;
 
     // Link the object file using clang
-    Command::new("clang")
-        .arg("output.o")
-        .arg("-o")
-        .arg("output")
-        .arg("-Wl")
-        .arg("-ld_classic")
-        .arg("-v")
-        .status()?;
+    Command::new("clang").arg("output.o")
+                         .arg("-o")
+                         .arg("output")
+                         .arg("-Wl")
+                         .arg("-ld_classic")
+                         .arg("-v")
+                         .status()?;
 
-    use std::fs;
-    use std::os::unix::fs::PermissionsExt;
+    use std::{fs, os::unix::fs::PermissionsExt};
 
     // Set the output file to be executable
     let mut perms = fs::metadata("output")?.permissions();

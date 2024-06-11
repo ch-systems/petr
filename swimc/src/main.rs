@@ -1,5 +1,6 @@
-use clap::Parser as ClapParser;
 use std::fs;
+
+use clap::Parser as ClapParser;
 use swim_parse::Parser;
 use swim_utils::PrettyPrint;
 
@@ -21,14 +22,14 @@ fn main() {
     let parser = Parser::new(buf);
     let (ast, errs, interner, source_map) = parser.into_result();
     match errs {
-        errs if !errs.is_empty() => {
+        | errs if !errs.is_empty() => {
             for err in errs {
                 let rendered = swim_utils::render_error(&source_map, err);
                 eprintln!("{:?}", rendered);
             }
-        }
-        _ => {
+        },
+        | _ => {
             println!("{}", ast.pretty_print(&interner, 0));
-        }
+        },
     }
 }

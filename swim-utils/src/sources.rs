@@ -8,31 +8,35 @@ impl<T> SpannedItem<T> {
     pub fn item(&self) -> &T {
         &self.0
     }
+
     pub fn into_item(self) -> T {
         self.0
     }
+
     pub fn span(&self) -> Span {
         self.1
     }
 
-    fn with_source(
-        self,
-        name: impl Into<String>,
-        source: &'static str,
-    ) -> SourcedItem<SpannedItem<T>>
-    where
-        T: Diagnostic,
+    fn with_source(self,
+                   name: impl Into<String>,
+                   source: &'static str)
+                   -> SourcedItem<SpannedItem<T>>
+        where T: Diagnostic
     {
         SourcedItem::new(name, source, self)
     }
 
-    pub fn map<B>(self, f: impl Fn(T) -> B) -> SpannedItem<B> {
+    pub fn map<B>(self,
+                  f: impl Fn(T) -> B)
+                  -> SpannedItem<B> {
         SpannedItem(f(self.0), self.1)
     }
 }
 
 impl<T: std::fmt::Display> std::fmt::Display for SpannedItem<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self,
+           f: &mut std::fmt::Formatter<'_>)
+           -> std::fmt::Result {
         write!(f, "{}", self.item())
     }
 }
@@ -73,11 +77,11 @@ impl<T: Diagnostic + std::error::Error> Diagnostic for SpannedItem<T> {
 
 impl<T> Copy for SpannedItem<T> where T: Copy {}
 
-impl<T> std::fmt::Debug for SpannedItem<T>
-where
-    T: std::fmt::Debug,
+impl<T> std::fmt::Debug for SpannedItem<T> where T: std::fmt::Debug
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self,
+           f: &mut std::fmt::Formatter<'_>)
+           -> std::fmt::Result {
         write!(f, "SpannedItem {:?} [{:?}]", self.0, self.1)
     }
 }
@@ -99,22 +103,27 @@ impl From<SourceId> for usize {
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub struct Span {
     source: SourceId,
-    span: miette::SourceSpan,
+    span:   miette::SourceSpan,
 }
 
 impl Span {
-    pub fn new(source: SourceId, span: miette::SourceSpan) -> Self {
+    pub fn new(source: SourceId,
+               span: miette::SourceSpan)
+               -> Self {
         Self { source, span }
     }
-    pub fn with_item<T>(self, item: T) -> SpannedItem<T> {
+
+    pub fn with_item<T>(self,
+                        item: T)
+                        -> SpannedItem<T> {
         SpannedItem(item, self)
     }
 
-    pub fn join(&self, after_span: Span) -> Span {
-        assert!(
-            self.source == after_span.source,
-            "cannot join spans from different files"
-        );
+    pub fn join(&self,
+                after_span: Span)
+                -> Span {
+        assert!(self.source == after_span.source,
+                "cannot join spans from different files");
 
         let (first_span, second_span) = if self.span.offset() < after_span.span.offset() {
             (self.span, after_span.span)
@@ -122,33 +131,27 @@ impl Span {
             (after_span.span, self.span)
         };
 
-        let (first_end, second_end) = (
-            first_span.len() + first_span.offset(),
-            second_span.len() + second_span.offset(),
-        );
+        let (first_end, second_end) =
+            (first_span.len() + first_span.offset(), second_span.len() + second_span.offset());
 
         let end = std::cmp::max(first_end, second_end);
 
         let length = end - first_span.offset();
 
-        Self {
-            source: self.source,
-            span: SourceSpan::new(first_span.offset().into(), length),
-        }
+        Self { source: self.source,
+               span:   SourceSpan::new(first_span.offset().into(), length), }
     }
 
     /// goes from the `hi` of self to the `hi` of `after_span`
-    pub fn hi_to_hi(&self, after_span: Span) -> Self {
-        assert!(
-            self.source == after_span.source,
-            "cannot join spans from different files"
-        );
+    pub fn hi_to_hi(&self,
+                    after_span: Span)
+                    -> Self {
+        assert!(self.source == after_span.source,
+                "cannot join spans from different files");
         let lo = self.span.offset() + self.span.len();
         let hi = after_span.span.offset() + after_span.span.len();
-        Self {
-            source: self.source,
-            span: SourceSpan::new(lo.into(), hi - lo),
-        }
+        Self { source: self.source,
+               span:   SourceSpan::new(lo.into(), hi - lo), }
     }
 
     pub fn span(&self) -> miette::SourceSpan {
@@ -162,8 +165,9 @@ impl Span {
 
 pub mod error_printing {
 
-    use crate::{IndexMap, SourceId, SpannedItem};
     use miette::{Diagnostic, LabeledSpan, Report};
+
+    use crate::{IndexMap, SourceId, SpannedItem};
 
     // #[derive(Error, Debug)]
     // struct ErrorWithSource<'a, T> where T: Diagnostic {
@@ -218,22 +222,18 @@ pub mod error_printing {
     //    pub type Source<'a> = &'a str;
     #[derive(Debug)]
     pub(crate) struct SourcedItem<T>
-    where
-        T: Diagnostic + std::error::Error + std::fmt::Debug,
+        where T: Diagnostic + std::error::Error + std::fmt::Debug
     {
         source: miette::NamedSource<&'static str>,
-        item: T,
+        item:   T,
     }
     impl<T: Diagnostic> SourcedItem<T> {
-        pub(crate) fn new(
-            name: impl Into<String>,
-            source: &'static str,
-            item: SpannedItem<T>,
-        ) -> SourcedItem<SpannedItem<T>> {
-            SourcedItem {
-                source: miette::NamedSource::new(name.into(), source),
-                item,
-            }
+        pub(crate) fn new(name: impl Into<String>,
+                          source: &'static str,
+                          item: SpannedItem<T>)
+                          -> SourcedItem<SpannedItem<T>> {
+            SourcedItem { source: miette::NamedSource::new(name.into(), source),
+                          item }
         }
     }
 
@@ -272,25 +272,24 @@ pub mod error_printing {
     }
 
     impl<T> std::fmt::Display for SourcedItem<T>
-    where
-        T: Diagnostic + std::error::Error + std::fmt::Debug,
+        where T: Diagnostic + std::error::Error + std::fmt::Debug
     {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fn fmt(&self,
+               f: &mut std::fmt::Formatter<'_>)
+               -> std::fmt::Result {
             write!(f, "{}", self.item)
         }
     }
 
-    impl<T: std::error::Error> std::error::Error for SourcedItem<T> where
-        T: Diagnostic + std::error::Error + std::fmt::Debug
+    impl<T: std::error::Error> std::error::Error for SourcedItem<T>
+        where T: Diagnostic + std::error::Error + std::fmt::Debug
     {
     }
 
-    pub fn render<T>(
-        sources: &IndexMap<SourceId, (&'static str, &'static str)>,
-        err: SpannedItem<T>,
-    ) -> Report
-    where
-        T: miette::Diagnostic + Send + Sync + 'static,
+    pub fn render<T>(sources: &IndexMap<SourceId, (&'static str, &'static str)>,
+                     err: SpannedItem<T>)
+                     -> Report
+        where T: miette::Diagnostic + Send + Sync + 'static
     {
         let span = err.span();
         let (name, source) = sources.get(span.source());

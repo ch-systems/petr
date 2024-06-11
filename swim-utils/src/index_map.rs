@@ -1,33 +1,30 @@
 use std::marker::PhantomData;
 
 pub struct IndexMap<K, V> {
-    _key: PhantomData<K>,
+    _key:    PhantomData<K>,
     entries: Vec<V>,
 }
 
-impl<K, V> std::fmt::Debug for IndexMap<K, V>
-where
-    V: std::fmt::Debug,
+impl<K, V> std::fmt::Debug for IndexMap<K, V> where V: std::fmt::Debug
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self,
+           f: &mut std::fmt::Formatter<'_>)
+           -> std::fmt::Result {
         {
             f.debug_struct("IndexMap")
-                .field("entries", &self.entries)
-                .finish()
+             .field("entries", &self.entries)
+             .finish()
         }
     }
 }
 
 impl<K, V> Clone for IndexMap<K, V>
-where
-    K: Clone,
-    V: Clone,
+    where K: Clone,
+          V: Clone
 {
     fn clone(&self) -> Self {
-        IndexMap {
-            _key: self._key,
-            entries: self.entries.clone(),
-        }
+        IndexMap { _key:    self._key,
+                   entries: self.entries.clone(), }
     }
 }
 
@@ -37,21 +34,15 @@ impl<K, V> IndexMap<K, V> {
     }
 }
 
-impl<K, V> Default for IndexMap<K, V>
-where
-    K: From<usize> + Into<usize>,
+impl<K, V> Default for IndexMap<K, V> where K: From<usize> + Into<usize>
 {
     fn default() -> Self {
-        Self {
-            entries: Default::default(),
-            _key: PhantomData,
-        }
+        Self { entries: Default::default(),
+               _key:    PhantomData, }
     }
 }
 
-impl<K, V> IndexMap<K, V>
-where
-    K: From<usize> + Into<usize>,
+impl<K, V> IndexMap<K, V> where K: From<usize> + Into<usize>
 {
     pub fn iter(&self) -> impl Iterator<Item = (K, &V)> {
         self.entries
@@ -59,21 +50,29 @@ where
             .enumerate()
             .map(|(k, v)| (K::from(k), v))
     }
-    pub fn insert(&mut self, value: V) -> K {
+
+    pub fn insert(&mut self,
+                  value: V)
+                  -> K {
         let key = self.entries.len();
         self.entries.push(value);
         key.into()
     }
 
-    pub fn get(&self, k: K) -> &V {
+    pub fn get(&self,
+               k: K)
+               -> &V {
         &self.entries[k.into()]
     }
 
-    pub fn get_mut(&mut self, k: K) -> &mut V {
+    pub fn get_mut(&mut self,
+                   k: K)
+                   -> &mut V {
         self.entries
             .get_mut(k.into())
             .expect("IDs are handed out by insertion, so this should never fail")
     }
+
     pub fn into_iter(self) -> impl Iterator<Item = (K, V)> {
         self.entries
             .into_iter()
@@ -83,11 +82,12 @@ where
 }
 
 impl<K, V> IndexMap<K, V>
-where
-    K: From<usize>,
-    V: PartialEq,
+    where K: From<usize>,
+          V: PartialEq
 {
-    pub fn contains_value(&self, value: V) -> Option<K> {
+    pub fn contains_value(&self,
+                          value: V)
+                          -> Option<K> {
         self.entries
             .iter()
             .position(|v| *v == value)

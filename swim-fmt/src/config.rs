@@ -59,19 +59,19 @@ impl FormatterConfig {
     }
 
     pub(crate) fn as_builder(&self) -> FormatterConfigBuilder {
-        FormatterConfigBuilder {
-            put_fn_params_on_new_lines: self.put_fn_params_on_new_lines,
-            use_set_notation_for_types: self.use_set_notation_for_types,
-            join_comments: self.join_comments,
-            newlines_between_items: self.newlines_between_items,
-            newlines_between_comment_and_item: self.newlines_between_comment_and_item,
-            put_variants_on_new_lines: self.put_variants_on_new_lines,
-            put_list_elements_on_new_lines: self.put_list_elements_on_new_lines,
-            put_fn_body_on_new_line: self.put_fn_body_on_new_line,
-            tab_size: self.tab_size,
-            max_line_length: self.max_line_length,
-            put_fn_args_on_new_lines: self.put_fn_args_on_new_lines,
-        }
+        FormatterConfigBuilder { put_fn_params_on_new_lines: self.put_fn_params_on_new_lines,
+                                 use_set_notation_for_types: self.use_set_notation_for_types,
+                                 join_comments: self.join_comments,
+                                 newlines_between_items: self.newlines_between_items,
+                                 newlines_between_comment_and_item:
+                                     self.newlines_between_comment_and_item,
+                                 put_variants_on_new_lines: self.put_variants_on_new_lines,
+                                 put_list_elements_on_new_lines:
+                                     self.put_list_elements_on_new_lines,
+                                 put_fn_body_on_new_line: self.put_fn_body_on_new_line,
+                                 tab_size: self.tab_size,
+                                 max_line_length: self.max_line_length,
+                                 put_fn_args_on_new_lines: self.put_fn_args_on_new_lines, }
     }
 }
 
@@ -96,114 +96,109 @@ pub struct FormatterConfigBuilder {
 }
 
 impl FormatterConfigBuilder {
-    pub fn put_fn_params_on_new_lines(self, put_fn_params_on_new_lines: bool) -> Self {
-        Self {
-            put_fn_params_on_new_lines,
-            ..self
-        }
+    pub fn put_fn_params_on_new_lines(self,
+                                      put_fn_params_on_new_lines: bool)
+                                      -> Self {
+        Self { put_fn_params_on_new_lines,
+               ..self }
     }
 
-    pub fn use_set_notation_for_types(self, use_set_notation_for_types: bool) -> Self {
-        Self {
-            use_set_notation_for_types,
-            ..self
-        }
+    pub fn use_set_notation_for_types(self,
+                                      use_set_notation_for_types: bool)
+                                      -> Self {
+        Self { use_set_notation_for_types,
+               ..self }
     }
 
-    pub fn join_comments(self, join_comments: bool) -> Self {
-        Self {
-            join_comments,
-            ..self
-        }
+    pub fn join_comments(self,
+                         join_comments: bool)
+                         -> Self {
+        Self { join_comments,
+               ..self }
     }
 
-    pub fn newlines_between_items(self, newlines_between_items: usize) -> Self {
-        Self {
-            newlines_between_items,
-            ..self
-        }
+    pub fn newlines_between_items(self,
+                                  newlines_between_items: usize)
+                                  -> Self {
+        Self { newlines_between_items,
+               ..self }
     }
 
-    pub fn newlines_between_comment_and_item(
-        self,
-        newlines_between_comment_and_item: usize,
-    ) -> Self {
-        Self {
-            newlines_between_comment_and_item,
-            ..self
-        }
+    pub fn newlines_between_comment_and_item(self,
+                                             newlines_between_comment_and_item: usize)
+                                             -> Self {
+        Self { newlines_between_comment_and_item,
+               ..self }
     }
 
-    pub fn put_variants_on_new_lines(self, put_variants_on_new_lines: bool) -> Self {
-        Self {
-            put_variants_on_new_lines,
-            ..self
-        }
+    pub fn put_variants_on_new_lines(self,
+                                     put_variants_on_new_lines: bool)
+                                     -> Self {
+        Self { put_variants_on_new_lines,
+               ..self }
     }
 
-    pub fn put_list_elements_on_new_lines(self, put_list_elements_on_new_lines: bool) -> Self {
-        Self {
-            put_list_elements_on_new_lines,
-            ..self
-        }
+    pub fn put_list_elements_on_new_lines(self,
+                                          put_list_elements_on_new_lines: bool)
+                                          -> Self {
+        Self { put_list_elements_on_new_lines,
+               ..self }
     }
 
-    pub fn put_fn_body_on_new_line(self, put_fn_body_on_new_line: bool) -> Self {
-        Self {
-            put_fn_body_on_new_line,
-            ..self
-        }
+    pub fn put_fn_body_on_new_line(self,
+                                   put_fn_body_on_new_line: bool)
+                                   -> Self {
+        Self { put_fn_body_on_new_line,
+               ..self }
     }
 
-    pub fn tab_size(self, tab_size: usize) -> Self {
+    pub fn tab_size(self,
+                    tab_size: usize)
+                    -> Self {
         Self { tab_size, ..self }
     }
 
-    pub fn max_line_length(self, max_line_length: usize) -> Self {
-        Self {
-            max_line_length,
-            ..self
-        }
+    pub fn max_line_length(self,
+                           max_line_length: usize)
+                           -> Self {
+        Self { max_line_length,
+               ..self }
     }
 
-    pub fn put_fn_args_on_new_lines(self, put_fn_args_on_new_lines: bool) -> Self {
-        Self {
-            put_fn_args_on_new_lines,
-            ..self
-        }
+    pub fn put_fn_args_on_new_lines(self,
+                                    put_fn_args_on_new_lines: bool)
+                                    -> Self {
+        Self { put_fn_args_on_new_lines,
+               ..self }
     }
 
     pub fn build(self) -> FormatterConfig {
-        FormatterConfig {
-            put_fn_params_on_new_lines: self.put_fn_params_on_new_lines,
-            use_set_notation_for_types: self.use_set_notation_for_types,
-            join_comments: self.join_comments,
-            newlines_between_items: self.newlines_between_items,
-            newlines_between_comment_and_item: self.newlines_between_comment_and_item,
-            put_variants_on_new_lines: self.put_variants_on_new_lines,
-            put_list_elements_on_new_lines: self.put_list_elements_on_new_lines,
-            put_fn_body_on_new_line: self.put_fn_body_on_new_line,
-            tab_size: self.tab_size,
-            max_line_length: self.max_line_length,
-            put_fn_args_on_new_lines: self.put_fn_args_on_new_lines,
-        }
+        FormatterConfig { put_fn_params_on_new_lines: self.put_fn_params_on_new_lines,
+                          use_set_notation_for_types: self.use_set_notation_for_types,
+                          join_comments: self.join_comments,
+                          newlines_between_items: self.newlines_between_items,
+                          newlines_between_comment_and_item: self.newlines_between_comment_and_item,
+                          put_variants_on_new_lines: self.put_variants_on_new_lines,
+                          put_list_elements_on_new_lines: self.put_list_elements_on_new_lines,
+                          put_fn_body_on_new_line: self.put_fn_body_on_new_line,
+                          tab_size: self.tab_size,
+                          max_line_length: self.max_line_length,
+                          put_fn_args_on_new_lines: self.put_fn_args_on_new_lines, }
     }
 }
 
 impl Default for FormatterConfigBuilder {
     fn default() -> Self {
-        Self {
-            put_fn_params_on_new_lines: true,
-            use_set_notation_for_types: true,
-            join_comments: true,
-            newlines_between_items: 1,
-            newlines_between_comment_and_item: 0,
-            put_variants_on_new_lines: true,
-            put_list_elements_on_new_lines: false,
-            put_fn_body_on_new_line: true,
-            tab_size: 2,
-            max_line_length: 80,
-            put_fn_args_on_new_lines: false,
-        }
+        Self { put_fn_params_on_new_lines: true,
+               use_set_notation_for_types: true,
+               join_comments: true,
+               newlines_between_items: 1,
+               newlines_between_comment_and_item: 0,
+               put_variants_on_new_lines: true,
+               put_list_elements_on_new_lines: false,
+               put_fn_body_on_new_line: true,
+               tab_size: 2,
+               max_line_length: 80,
+               put_fn_args_on_new_lines: false, }
     }
 }

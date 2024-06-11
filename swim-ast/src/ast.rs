@@ -1,7 +1,8 @@
 use std::rc::Rc;
 
-use crate::comments::Commented;
 use swim_utils::{Identifier, SpannedItem};
+
+use crate::comments::Commented;
 
 // NOTE:
 // for scopes, track scopes in a tree to know which scopes are parents of which ones
@@ -26,8 +27,8 @@ pub enum AstNode {
 
 #[derive(Clone)]
 pub struct TypeDeclaration {
-    pub name: Identifier,
-    pub variants: Box<[SpannedItem<TypeVariant>]>,
+    pub name:       Identifier,
+    pub variants:   Box<[SpannedItem<TypeVariant>]>,
     pub visibility: Visibility,
 }
 
@@ -39,17 +40,17 @@ pub enum Visibility {
 
 #[derive(Clone)]
 pub struct TypeVariant {
-    pub name: Identifier,
+    pub name:   Identifier,
     pub fields: Box<[Ty]>,
 }
 
 #[derive(Clone)]
 pub struct FunctionDeclaration {
-    pub name: Identifier,
-    pub parameters: Box<[FunctionParameter]>,
+    pub name:        Identifier,
+    pub parameters:  Box<[FunctionParameter]>,
     pub return_type: Ty,
-    pub body: SpannedItem<Expression>,
-    pub visibility: Visibility,
+    pub body:        SpannedItem<Expression>,
+    pub visibility:  Visibility,
 }
 
 #[derive(Clone)]
@@ -66,13 +67,15 @@ pub enum Expression {
 #[derive(Clone)]
 pub struct IntrinsicCall {
     pub intrinsic: Intrinsic,
-    pub args: Box<[Expression]>,
+    pub args:      Box<[Expression]>,
 }
 
 impl std::fmt::Display for Intrinsic {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self,
+           f: &mut std::fmt::Formatter<'_>)
+           -> std::fmt::Result {
         match self {
-            Intrinsic::Puts => write!(f, "puts"),
+            | Intrinsic::Puts => write!(f, "puts"),
         }
     }
 }
@@ -110,9 +113,9 @@ pub enum Literal {
 impl ToString for Literal {
     fn to_string(&self) -> String {
         match self {
-            Literal::Integer(i) => i.to_string(),
-            Literal::Boolean(b) => b.to_string(),
-            Literal::String(s) => format!("\"{s}\""),
+            | Literal::Integer(i) => i.to_string(),
+            | Literal::Boolean(b) => b.to_string(),
+            | Literal::String(s) => format!("\"{s}\""),
         }
     }
 }
@@ -121,13 +124,13 @@ impl ToString for Literal {
 pub struct OperatorExpression {
     pub lhs: SpannedItem<Expression>,
     pub rhs: SpannedItem<Expression>,
-    pub op: SpannedItem<Operator>,
+    pub op:  SpannedItem<Operator>,
 }
 
 #[derive(Clone, Debug, Copy)]
 pub struct FunctionParameter {
     pub name: Identifier,
-    pub ty: Ty,
+    pub ty:   Ty,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -150,10 +153,10 @@ pub enum Operator {
 impl Operator {
     pub fn as_str(&self) -> &'static str {
         match self {
-            Operator::Plus => "+",
-            Operator::Minus => "-",
-            Operator::Star => "*",
-            Operator::Slash => "/",
+            | Operator::Plus => "+",
+            | Operator::Minus => "-",
+            | Operator::Star => "*",
+            | Operator::Slash => "/",
         }
     }
 }
@@ -165,8 +168,6 @@ pub struct Comment {
 
 impl Comment {
     pub fn new(item: impl AsRef<str>) -> Self {
-        Self {
-            content: Rc::from(item.as_ref()),
-        }
+        Self { content: Rc::from(item.as_ref()), }
     }
 }

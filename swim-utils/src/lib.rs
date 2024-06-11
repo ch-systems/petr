@@ -11,18 +11,25 @@ mod pretty_print {
 
     use crate::{Identifier, SpannedItem, SymbolInterner};
     pub trait PrettyPrint {
-        fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String;
+        fn pretty_print(&self,
+                        interner: &SymbolInterner,
+                        indentation: usize)
+                        -> String;
     }
     impl PrettyPrint for Identifier {
-        fn pretty_print(&self, interner: &SymbolInterner, _: usize) -> String {
+        fn pretty_print(&self,
+                        interner: &SymbolInterner,
+                        _: usize)
+                        -> String {
             interner.get(self.id).to_string()
         }
     }
-    impl<T> PrettyPrint for SpannedItem<T>
-    where
-        T: PrettyPrint,
+    impl<T> PrettyPrint for SpannedItem<T> where T: PrettyPrint
     {
-        fn pretty_print(&self, interner: &SymbolInterner, indentation: usize) -> String {
+        fn pretty_print(&self,
+                        interner: &SymbolInterner,
+                        indentation: usize)
+                        -> String {
             self.item().pretty_print(interner, indentation)
         }
     }
