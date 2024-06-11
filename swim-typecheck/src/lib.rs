@@ -134,12 +134,12 @@ impl TypeChecker {
         let mut funcs_to_check = vec![];
         for (id, ty) in &self.type_map {
             match id {
-                | TypeOrFunctionId::FunctionId(func_id) => {
+                TypeOrFunctionId::FunctionId(func_id) => {
                     let function = resolved.get_function(*func_id);
                     let mut function = function.clone();
                     funcs_to_check.push(function);
                 },
-                | _ => {},
+                _ => {},
             }
         }
 
@@ -154,16 +154,15 @@ impl TypeChecker {
         // TODO -- should entry point be a str?
         // find function with entry point name and type check its body as a function call
         // Find the function with the entry point name
-        let function =
-            self.type_map
-                .keys()
-                .find_map(|key| match key {
-                    | TypeOrFunctionId::FunctionId(func_id) if *func_id == entry_point => {
-                        Some(resolved.get_function(*func_id))
-                    },
-                    | _ => None,
-                })
-                .expect("Entry point function not found");
+        let function = self.type_map
+                           .keys()
+                           .find_map(|key| match key {
+                               TypeOrFunctionId::FunctionId(func_id) if *func_id == entry_point => {
+                                   Some(resolved.get_function(*func_id))
+                               },
+                               _ => None,
+                           })
+                           .expect("Entry point function not found");
 
         // Type check the function body as a function call
         let mut function_call = swim_resolve::FunctionCall {
@@ -222,18 +221,18 @@ impl TypeChecker {
                        ty: &swim_resolve::Type)
                        -> TypeVariable {
         match ty {
-            | swim_resolve::Type::Integer => tp!(int),
-            | swim_resolve::Type::Bool => tp!(bool),
-            | swim_resolve::Type::Unit => tp!(unit),
-            | swim_resolve::Type::String => tp!(string),
-            | swim_resolve::Type::ErrorRecovery => {
+            swim_resolve::Type::Integer => tp!(int),
+            swim_resolve::Type::Bool => tp!(bool),
+            swim_resolve::Type::Unit => tp!(unit),
+            swim_resolve::Type::String => tp!(string),
+            swim_resolve::Type::ErrorRecovery => {
                 // unifies to anything, fresh var
                 self.fresh_ty_var()
             },
-            | swim_resolve::Type::Named(ty_id) => self.type_map
-                                                      .get(&ty_id.into())
-                                                      .expect("type did not exist in type map")
-                                                      .clone(),
+            swim_resolve::Type::Named(ty_id) => self.type_map
+                                                    .get(&ty_id.into())
+                                                    .expect("type did not exist in type map")
+                                                    .clone(),
         }
     }
 
@@ -250,9 +249,9 @@ impl TypeChecker {
                                -> TypeVariable {
         use swim_resolve::Literal::*;
         match literal {
-            | Integer(_) => tp!(int),
-            | Boolean(_) => tp!(bool),
-            | String(_) => tp!(string),
+            Integer(_) => tp!(int),
+            Boolean(_) => tp!(bool),
+            String(_) => tp!(string),
         }
     }
 
@@ -266,8 +265,8 @@ impl TypeChecker {
                  ty1: &TypeVariable,
                  ty2: &TypeVariable) {
         match self.ctx.unify(ty1, ty2) {
-            | Ok(_) => (),
-            | Err(e) => self.push_error(e),
+            Ok(_) => (),
+            Err(e) => self.push_error(e),
         }
     }
 }
@@ -279,21 +278,21 @@ impl TypeCheck for Expr {
                   ctx: &mut TypeChecker)
                   -> Self::Output {
         match &self.kind {
-            | ExprKind::Literal(lit) => ctx.convert_literal_to_type(&lit),
-            | ExprKind::List(exprs) => {
+            ExprKind::Literal(lit) => ctx.convert_literal_to_type(&lit),
+            ExprKind::List(exprs) => {
                 if exprs.is_empty() {
                     tp!(list(tp!(unit)))
                 } else {
                     todo!(" exprs.first().unwrap().kind.return_type()")
                 }
             },
-            | ExprKind::FunctionCall(call) => {
+            ExprKind::FunctionCall(call) => {
                 todo!()
             },
-            | ExprKind::Unit => tp!(unit),
-            | ExprKind::ErrorRecovery => ctx.fresh_ty_var(),
-            | ExprKind::Variable(item) => ctx.to_type_var(item),
-            | ExprKind::Intrinsic(intrinsic) => intrinsic.type_check(ctx),
+            ExprKind::Unit => tp!(unit),
+            ExprKind::ErrorRecovery => ctx.fresh_ty_var(),
+            ExprKind::Variable(item) => ctx.to_type_var(item),
+            ExprKind::Intrinsic(intrinsic) => intrinsic.type_check(ctx),
         }
     }
 }
@@ -306,7 +305,7 @@ impl TypeCheck for Intrinsic {
                   -> Self::Output {
         use swim_resolve::IntrinsicName::*;
         match self.intrinsic {
-            | Puts => {
+            Puts => {
                 if self.args.len() != 1 {
                     todo!("puts arg len check");
                     return ctx.fresh_ty_var();
@@ -415,13 +414,13 @@ mod tests {
         let mut s = String::new();
         for (id, ty) in &type_checker.type_map {
             let text = match id {
-                | TypeOrFunctionId::TypeId(id) => {
+                TypeOrFunctionId::TypeId(id) => {
                     let ty = resolved.get_type(*id);
 
                     let name = interner.get(ty.name.id);
                     format!("type {}", name)
                 },
-                | TypeOrFunctionId::FunctionId(id) => {
+                TypeOrFunctionId::FunctionId(id) => {
                     let func = resolved.get_function(*id);
 
                     let name = interner.get(func.name.id);

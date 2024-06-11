@@ -24,8 +24,8 @@ impl SymbolInterner {
                   v: Rc<str>)
                   -> SymbolId {
         match self.symbol_map.contains_value(v.clone()) {
-            | Some(k) => k,
-            | None => self.symbol_map.insert(v),
+            Some(k) => k,
+            None => self.symbol_map.insert(v),
         }
     }
 

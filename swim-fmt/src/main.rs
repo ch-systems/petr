@@ -208,7 +208,7 @@ impl Formattable for Expression {
               ctx: &mut FormatterContext)
               -> FormattedLines {
         match self {
-            | Expression::Operator(op) => {
+            Expression::Operator(op) => {
                 let mut buf = op.op.item().as_str().to_string();
                 buf.push(' ');
                 let (mut lhs, mut rhs) = ctx.indented(|ctx| {
@@ -230,17 +230,17 @@ impl Formattable for Expression {
                     FormattedLines::new(lines)
                 }
             },
-            | Expression::Literal(lit) => FormattedLines::new(vec![ctx.new_line(lit.to_string())]),
-            | Expression::Variable(var) => {
+            Expression::Literal(lit) => FormattedLines::new(vec![ctx.new_line(lit.to_string())]),
+            Expression::Variable(var) => {
                 let ident_as_string = ctx.interner.get(var.id);
                 FormattedLines::new(vec![ctx.new_line(ident_as_string)])
             },
-            | Expression::List(list) => list.format(ctx),
-            | Expression::TypeConstructor => unreachable!(
+            Expression::List(list) => list.format(ctx),
+            Expression::TypeConstructor => unreachable!(
                 "this is only constructed after binding, which the formatter doesn't do"
             ),
-            | Expression::FunctionCall(f) => f.format(ctx),
-            | Expression::IntrinsicCall(i) => i.format(ctx),
+            Expression::FunctionCall(f) => f.format(ctx),
+            Expression::IntrinsicCall(i) => i.format(ctx),
         }
     }
 }
@@ -363,8 +363,8 @@ impl Formattable for AstNode {
               ctx: &mut FormatterContext)
               -> FormattedLines {
         match self {
-            | AstNode::FunctionDeclaration(fd) => fd.format(ctx),
-            | AstNode::TypeDeclaration(ty) => ty.format(ctx),
+            AstNode::FunctionDeclaration(fd) => fd.format(ctx),
+            AstNode::TypeDeclaration(ty) => ty.format(ctx),
         }
     }
 }

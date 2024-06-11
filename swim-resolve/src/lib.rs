@@ -130,18 +130,18 @@ mod resolver {
                    scope_id: ScopeId)
                    -> Option<Type> {
             Some(match self {
-                     | swim_ast::Ty::Int => Type::Integer,
-                     | swim_ast::Ty::Bool => Type::Bool,
-                     | swim_ast::Ty::String => Type::String,
-                     | swim_ast::Ty::Unit => Type::Unit,
-                     | swim_ast::Ty::Named(name) => {
+                     swim_ast::Ty::Int => Type::Integer,
+                     swim_ast::Ty::Bool => Type::Bool,
+                     swim_ast::Ty::String => Type::String,
+                     swim_ast::Ty::Unit => Type::Unit,
+                     swim_ast::Ty::Named(name) => {
                          match binder.find_symbol_in_scope(name.id, scope_id) {
-                             | Some(Item::Type(id)) => Type::Named(*id),
-                             | Some(_) => {
+                             Some(Item::Type(id)) => Type::Named(*id),
+                             Some(_) => {
                                  todo!("push error -- symbol is not type");
                                  return None;
                              },
-                             | None => {
+                             None => {
                                  todo!("push error -- {} symbol not found", name.id);
                                  return None;
                              },
@@ -216,12 +216,12 @@ mod resolver {
                 for (_name, item) in scope.iter() {
                     use Item::*;
                     match item {
-                        | Function(func, func_scope) => {
+                        Function(func, func_scope) => {
                             self.resolve_function(binder, *func, *func_scope)
                         },
-                        | Expr(_expr) => todo!(),
-                        | Type(ty) => self.resolve_type(binder, *ty, scope_id),
-                        | FunctionParameter(_ty) => {
+                        Expr(_expr) => todo!(),
+                        Type(ty) => self.resolve_type(binder, *ty, scope_id),
+                        FunctionParameter(_ty) => {
                             // I don't think we have to do anything here but not sure
                         },
                     }
@@ -320,8 +320,8 @@ mod resolver {
                    scope_id: ScopeId)
                    -> Option<Expr> {
             Some(match self {
-                     | Expression::Literal(x) => Expr::new(ExprKind::Literal(x.clone())),
-                     | Expression::List(list) => {
+                     Expression::Literal(x) => Expr::new(ExprKind::Literal(x.clone())),
+                     Expression::List(list) => {
                          let list: Vec<Expr> = list.elements
                                                    .iter()
                                                    .map(|x| {
@@ -332,13 +332,13 @@ mod resolver {
                          // TODO: do list combination type if list of unit, which functions like a block
                          Expr::new(ExprKind::List(list.into_boxed_slice()))
                      },
-                     | Expression::Operator(_) => todo!("resolve into a function call to stdlib"),
-                     | Expression::FunctionCall(decl) => {
+                     Expression::Operator(_) => todo!("resolve into a function call to stdlib"),
+                     Expression::FunctionCall(decl) => {
                          let resolved_call = decl.resolve(resolver, binder, scope_id)?;
 
                          Expr::new(ExprKind::FunctionCall(resolved_call))
                      },
-                     | Expression::Variable(var) => {
+                     Expression::Variable(var) => {
                          let Some(Item::FunctionParameter(ty)) =
                              binder.find_symbol_in_scope(var.id, scope_id)
                          else {
@@ -349,8 +349,8 @@ mod resolver {
                          Expr::new(ExprKind::Variable(ty))
                      },
                      // TODO
-                     | Expression::TypeConstructor => Expr::error_recovery(),
-                     | Expression::IntrinsicCall(intrinsic) => {
+                     Expression::TypeConstructor => Expr::error_recovery(),
+                     Expression::IntrinsicCall(intrinsic) => {
                          let resolved = intrinsic.resolve(resolver, binder, scope_id)?;
                          Expr::new(ExprKind::Intrinsic(resolved))
                      },
@@ -495,12 +495,12 @@ mod resolver {
                                  interner: &SymbolInterner)
                                  -> String {
                     match self {
-                        | Type::Integer => "int".to_string(),
-                        | Type::Bool => "bool".to_string(),
-                        | Type::Unit => "()".to_string(),
-                        | Type::String => "string".to_string(),
-                        | Type::ErrorRecovery => "<error>".to_string(),
-                        | Type::Named(id) => {
+                        Type::Integer => "int".to_string(),
+                        Type::Bool => "bool".to_string(),
+                        Type::Unit => "()".to_string(),
+                        Type::String => "string".to_string(),
+                        Type::ErrorRecovery => "<error>".to_string(),
+                        Type::Named(id) => {
                             format!("named type {}",
                                     interner.get(resolver.get_type(*id).name.id))
                         },
@@ -514,27 +514,26 @@ mod resolver {
                                  interner: &SymbolInterner)
                                  -> String {
                     match self {
-                        | ExprKind::Literal(lit) => format!("Literal({:?})", lit),
-                        | ExprKind::List(exprs) => format!("[{}]",
-                                                           exprs.iter()
-                                                                .map(|x| x.to_string(resolver,
-                                                                                     interner))
-                                                                .collect::<Vec<_>>()
-                                                                .join(", ")),
-                        | ExprKind::FunctionCall(call) => {
+                        ExprKind::Literal(lit) => format!("Literal({:?})", lit),
+                        ExprKind::List(exprs) => format!("[{}]",
+                                                         exprs.iter()
+                                                              .map(|x| x.to_string(resolver,
+                                                                                   interner))
+                                                              .collect::<Vec<_>>()
+                                                              .join(", ")),
+                        ExprKind::FunctionCall(call) => {
                             format!("FunctionCall({})", call.function)
                         },
-                        | ExprKind::Unit => "Unit".to_string(),
-                        | ExprKind::ErrorRecovery => "<error>".to_string(),
-                        | ExprKind::Variable(_) => todo!(),
-                        | ExprKind::Intrinsic(x) => format!("@{}({})",
-                                                            x.intrinsic,
-                                                            x.args
-                                                             .iter()
-                                                             .map(|x| x.to_string(resolver,
-                                                                                  interner))
-                                                             .collect::<Vec<_>>()
-                                                             .join(", ")),
+                        ExprKind::Unit => "Unit".to_string(),
+                        ExprKind::ErrorRecovery => "<error>".to_string(),
+                        ExprKind::Variable(_) => todo!(),
+                        ExprKind::Intrinsic(x) => format!("@{}({})",
+                                                          x.intrinsic,
+                                                          x.args
+                                                           .iter()
+                                                           .map(|x| x.to_string(resolver, interner))
+                                                           .collect::<Vec<_>>()
+                                                           .join(", ")),
                     }
                 }
             }

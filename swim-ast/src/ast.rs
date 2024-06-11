@@ -75,7 +75,7 @@ impl std::fmt::Display for Intrinsic {
            f: &mut std::fmt::Formatter<'_>)
            -> std::fmt::Result {
         match self {
-            | Intrinsic::Puts => write!(f, "puts"),
+            Intrinsic::Puts => write!(f, "puts"),
         }
     }
 }
@@ -113,9 +113,9 @@ pub enum Literal {
 impl ToString for Literal {
     fn to_string(&self) -> String {
         match self {
-            | Literal::Integer(i) => i.to_string(),
-            | Literal::Boolean(b) => b.to_string(),
-            | Literal::String(s) => format!("\"{s}\""),
+            Literal::Integer(i) => i.to_string(),
+            Literal::Boolean(b) => b.to_string(),
+            Literal::String(s) => format!("\"{s}\""),
         }
     }
 }
@@ -153,10 +153,10 @@ pub enum Operator {
 impl Operator {
     pub fn as_str(&self) -> &'static str {
         match self {
-            | Operator::Plus => "+",
-            | Operator::Minus => "-",
-            | Operator::Star => "*",
-            | Operator::Slash => "/",
+            Operator::Plus => "+",
+            Operator::Minus => "-",
+            Operator::Star => "*",
+            Operator::Slash => "/",
         }
     }
 }

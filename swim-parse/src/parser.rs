@@ -236,8 +236,8 @@ impl Parser {
         loop {
             let item = P::parse(self);
             match item {
-                | Some(item) => buf.push(item),
-                | None => {
+                Some(item) => buf.push(item),
+                None => {
                     break;
                 },
             }
@@ -260,8 +260,8 @@ impl Parser {
         loop {
             let item = P::parse(self);
             match item {
-                | Some(item) => buf.push(item),
-                | None => {
+                Some(item) => buf.push(item),
+                None => {
                     break;
                 },
             }
@@ -284,14 +284,14 @@ impl Parser {
         }
         let next_tok = self.lexer.advance();
         match *next_tok.item() {
-            | Token::Newline => self.advance(),
-            | Token::Comment => {
+            Token::Newline => self.advance(),
+            Token::Comment => {
                 if let Some(comment) = self.parse::<SpannedItem<Comment>>() {
                     self.comments.push(comment);
                 }
                 self.advance()
             },
-            | _ => next_tok,
+            _ => next_tok,
         }
     }
 
@@ -329,8 +329,8 @@ impl Parser {
                                   toks: [Token; N])
                                   -> Option<SpannedItem<Token>> {
         match self.peek().item() {
-            | tok if toks.contains(tok) => self.token(*tok),
-            | tok => {
+            tok if toks.contains(tok) => self.token(*tok),
+            tok => {
                 let span = self.lexer.span();
                 if N == 1 {
                     self.push_error(span.with_item(ParseErrorKind::ExpectedToken(toks[0], *tok)));

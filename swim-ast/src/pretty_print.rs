@@ -23,8 +23,8 @@ impl PrettyPrint for AstNode {
                     indentation: usize)
                     -> String {
         let mut string = match self {
-            | AstNode::FunctionDeclaration(node) => node.pretty_print(interner, indentation),
-            | AstNode::TypeDeclaration(ty) => ty.pretty_print(interner, indentation),
+            AstNode::FunctionDeclaration(node) => node.pretty_print(interner, indentation),
+            AstNode::TypeDeclaration(ty) => ty.pretty_print(interner, indentation),
         };
         let indentation_str = "  ".repeat(indentation);
         string = format!("{indentation_str}{string}");
@@ -79,11 +79,11 @@ impl PrettyPrint for Ty {
                     _: usize)
                     -> String {
         let name = match self {
-            | Ty::Bool => "bool".to_string(),
-            | Ty::Int => "int".to_string(),
-            | Ty::String => "string".to_string(),
-            | Ty::Unit => "unit".to_string(),
-            | Ty::Named(name) => name.pretty_print(interner, 0),
+            Ty::Bool => "bool".to_string(),
+            Ty::Int => "int".to_string(),
+            Ty::String => "string".to_string(),
+            Ty::Unit => "unit".to_string(),
+            Ty::Named(name) => name.pretty_print(interner, 0),
         };
         format!("'{name}")
     }
@@ -107,15 +107,15 @@ impl PrettyPrint for Expression {
                     indentation: usize)
                     -> String {
         match self {
-            | Expression::Literal(Literal::Integer(i)) => i.to_string(),
-            | Expression::Literal(Literal::Boolean(b)) => b.to_string(),
-            | Expression::Literal(Literal::String(s)) => format!("\"{s}\""),
-            | Expression::List(list) => list.pretty_print(interner, indentation),
-            | Expression::Operator(op) => op.pretty_print(interner, indentation),
-            | Expression::TypeConstructor => "type constructor".to_string(),
-            | Expression::FunctionCall(call) => call.pretty_print(interner, indentation),
-            | Expression::Variable(v) => format!("var({})", interner.get(v.id)),
-            | Expression::IntrinsicCall(call) => call.pretty_print(interner, indentation),
+            Expression::Literal(Literal::Integer(i)) => i.to_string(),
+            Expression::Literal(Literal::Boolean(b)) => b.to_string(),
+            Expression::Literal(Literal::String(s)) => format!("\"{s}\""),
+            Expression::List(list) => list.pretty_print(interner, indentation),
+            Expression::Operator(op) => op.pretty_print(interner, indentation),
+            Expression::TypeConstructor => "type constructor".to_string(),
+            Expression::FunctionCall(call) => call.pretty_print(interner, indentation),
+            Expression::Variable(v) => format!("var({})", interner.get(v.id)),
+            Expression::IntrinsicCall(call) => call.pretty_print(interner, indentation),
         }
     }
 }
@@ -174,10 +174,10 @@ impl PrettyPrint for OperatorExpression {
         let lhs = self.lhs.pretty_print(interner, indentation);
         let rhs = self.rhs.pretty_print(interner, indentation);
         let op = match self.op.item() {
-            | Operator::Plus => "+",
-            | Operator::Minus => "-",
-            | Operator::Star => "*",
-            | Operator::Slash => "/",
+            Operator::Plus => "+",
+            Operator::Minus => "-",
+            Operator::Star => "*",
+            Operator::Slash => "/",
         };
         format!("{}({} {})", op, lhs, rhs)
     }

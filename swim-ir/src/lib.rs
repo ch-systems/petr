@@ -44,11 +44,11 @@ impl Lowerer {
                  -> Result<(), LoweringError> {
         for (id, item) in nodes {
             match id {
-                | TypeOrFunctionId::FunctionId(id) => {
+                TypeOrFunctionId::FunctionId(id) => {
                     let func = items.get_function(id);
                     self.lower_function(func, item);
                 },
-                | TypeOrFunctionId::TypeId(id) => {
+                TypeOrFunctionId::TypeId(id) => {
                     todo!()
                 },
             }

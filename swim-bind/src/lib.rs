@@ -19,14 +19,14 @@ mod impls {
                 binder: &mut Binder) {
             // only lists get their own scope for now
             match self {
-                | Expression::List(list) => {
+                Expression::List(list) => {
                     binder.with_scope(|binder, _scope_id| {
                               for item in list.elements.iter() {
                                   item.bind(binder);
                               }
                           });
                 },
-                | _ => self.bind(binder),
+                _ => self.bind(binder),
             }
         }
     }
@@ -299,8 +299,8 @@ mod binder {
             binder.with_scope(|binder, _scope_id| {
                       for node in &ast.nodes {
                           match node.item() {
-                              | swim_ast::AstNode::FunctionDeclaration(decl) => decl.bind(binder),
-                              | swim_ast::AstNode::TypeDeclaration(decl) => decl.bind(binder),
+                              swim_ast::AstNode::FunctionDeclaration(decl) => decl.bind(binder),
+                              swim_ast::AstNode::TypeDeclaration(decl) => decl.bind(binder),
                           }
                       }
                   });
@@ -344,12 +344,12 @@ mod binder {
                 for (symbol_id, item) in &scope.items {
                     let symbol_name = interner.get(*symbol_id);
                     let item_description = match item {
-                        | Item::Expr(expr_id) => format!("Expr {:?}", expr_id),
-                        | Item::Function(function_id, _function_scope) => {
+                        Item::Expr(expr_id) => format!("Expr {:?}", expr_id),
+                        Item::Function(function_id, _function_scope) => {
                             format!("Function {:?}", function_id)
                         },
-                        | Item::Type(type_id) => format!("Type {:?}", type_id),
-                        | Item::FunctionParameter(param) => {
+                        Item::Type(type_id) => format!("Type {:?}", type_id),
+                        Item::FunctionParameter(param) => {
                             format!("FunctionParameter {:?}", param)
                         },
                     };

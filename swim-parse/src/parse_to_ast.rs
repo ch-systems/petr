@@ -35,9 +35,9 @@ impl Parse for TypeDeclaration {
                     |p| -> Option<Self> {
                         let tok = p.one_of([Token::TypeKeyword, Token::ExportTypeKeyword])?;
                         let visibility = match tok.item() {
-                            | Token::TypeKeyword => Visibility::Local,
-                            | Token::ExportTypeKeyword => Visibility::Exported,
-                            | _ => unreachable!(),
+                            Token::TypeKeyword => Visibility::Local,
+                            Token::ExportTypeKeyword => Visibility::Exported,
+                            _ => unreachable!(),
                         };
                         let name = p.parse()?;
                         if *p.peek().item() != Token::Equals {
@@ -79,14 +79,14 @@ impl Parse for TypeVariant {
 impl Parse for AstNode {
     fn parse(p: &mut Parser) -> Option<Self> {
         match p.peek().item() {
-            | Token::FunctionKeyword | Token::ExportFunctionKeyword => {
+            Token::FunctionKeyword | Token::ExportFunctionKeyword => {
                 Some(AstNode::FunctionDeclaration(p.parse()?))
             },
-            | Token::TypeKeyword | Token::ExportTypeKeyword => {
+            Token::TypeKeyword | Token::ExportTypeKeyword => {
                 Some(AstNode::TypeDeclaration(p.parse()?))
             },
-            | Token::Eof => None,
-            | a => {
+            Token::Eof => None,
+            a => {
                 let span = p.peek().span();
                 p.push_error(span.with_item(ParseErrorKind::ExpectedOneOf(
                     vec![Token::FunctionKeyword, Token::TypeKeyword, Token::Eof],
@@ -103,9 +103,9 @@ impl Parse for FunctionDeclaration {
                     |p| -> Option<Self> {
                         let tok = p.one_of([Token::FunctionKeyword, Token::ExportFunctionKeyword])?;
                         let visibility = match tok.item() {
-                            | Token::FunctionKeyword => Visibility::Local,
-                            | Token::ExportFunctionKeyword => Visibility::Exported,
-                            | _ => unreachable!(),
+                            Token::FunctionKeyword => Visibility::Local,
+                            Token::ExportFunctionKeyword => Visibility::Exported,
+                            _ => unreachable!(),
                         };
                         let name = p.parse()?;
                         p.token(Token::OpenParen)?;
@@ -131,13 +131,13 @@ impl Parse for Literal {
     fn parse(p: &mut Parser) -> Option<Self> {
         let tok = p.advance();
         match tok.item() {
-            | Token::Integer => {
+            Token::Integer => {
                 Some(Literal::Integer(p.slice().parse().expect("lexer should have verified this")))
             },
-            | Token::String => Some(Literal::String(Rc::from(&p.slice()[1..p.slice().len() - 1]))),
-            | Token::True => Some(Literal::Boolean(true)),
-            | Token::False => Some(Literal::Boolean(false)),
-            | _ => {
+            Token::String => Some(Literal::String(Rc::from(&p.slice()[1..p.slice().len() - 1]))),
+            Token::True => Some(Literal::Boolean(true)),
+            Token::False => Some(Literal::Boolean(false)),
+            _ => {
                 p.push_error(p.span()
                               .with_item(ParseErrorKind::ExpectedToken(Token::Integer,
                                                                        *tok.item())));
@@ -166,11 +166,11 @@ impl Parse for Ty {
              p.token(Token::TyMarker)?;
              let next: Identifier = p.parse()?;
              let ty = match p.slice() {
-                 | "int" => Ty::Int,
-                 | "bool" => Ty::Bool,
-                 | "string" => Ty::String,
-                 | "unit" => Ty::Unit,
-                 | _ => Ty::Named(next),
+                 "int" => Ty::Int,
+                 "bool" => Ty::Bool,
+                 "string" => Ty::String,
+                 "unit" => Ty::Unit,
+                 _ => Ty::Named(next),
              };
 
              Some(ty)
@@ -181,11 +181,11 @@ impl Parse for Operator {
     fn parse(p: &mut Parser) -> Option<Self> {
         let tok = p.advance();
         match tok.item() {
-            | Token::Plus => Some(Operator::Plus),
-            | Token::Minus => Some(Operator::Minus),
-            | Token::Star => Some(Operator::Star),
-            | Token::Slash => Some(Operator::Slash),
-            | _ => {
+            Token::Plus => Some(Operator::Plus),
+            Token::Minus => Some(Operator::Minus),
+            Token::Star => Some(Operator::Star),
+            Token::Slash => Some(Operator::Slash),
+            _ => {
                 p.push_error(p.span()
                               .with_item(ParseErrorKind::ExpectedOneOf(vec![Token::Plus,
                                                                             Token::Minus,
@@ -233,7 +233,7 @@ impl<T> Parse for Commented<T> where T: Parse
 impl Parse for Expression {
     fn parse(p: &mut Parser) -> Option<Self> {
         match p.peek().item() {
-            | item if item.is_operator() => {
+            item if item.is_operator() => {
                 let op: SpannedItem<Operator> = p.parse()?;
                 // parse prefix notation operator expression
                 let lhs: SpannedItem<Expression> = p.parse()?;
@@ -242,14 +242,14 @@ impl Parse for Expression {
             },
             // TODO might not want to do variables this way
             // may have to advance and peek to see if its a fn call etc
-            | Token::Identifier => Some(Expression::Variable(p.parse()?)),
-            | Token::OpenBracket => Some(Expression::List(p.parse()?)),
-            | Token::Tilde => Some(Expression::FunctionCall(p.parse()?)),
-            | Token::True | Token::False | Token::String | Token::Integer => {
+            Token::Identifier => Some(Expression::Variable(p.parse()?)),
+            Token::OpenBracket => Some(Expression::List(p.parse()?)),
+            Token::Tilde => Some(Expression::FunctionCall(p.parse()?)),
+            Token::True | Token::False | Token::String | Token::Integer => {
                 Some(Expression::Literal(p.parse()?))
             },
-            | Token::Intrinsic => Some(Expression::IntrinsicCall(p.parse()?)),
-            | a => {
+            Token::Intrinsic => Some(Expression::IntrinsicCall(p.parse()?)),
+            a => {
                 println!("need to parse expr {a:?} {}", p.slice());
                 None
             },
@@ -263,8 +263,8 @@ impl Parse for IntrinsicCall {
                     |p| -> Option<Self> {
                         let name = p.slice().to_string();
                         let intrinsic = match &name[1..] {
-                            | "puts" => Intrinsic::Puts,
-                            | a => todo!("unrecognized intrinsic error: {a:?}"),
+                            "puts" => Intrinsic::Puts,
+                            a => todo!("unrecognized intrinsic error: {a:?}"),
                         };
                         p.token(Token::Intrinsic)?;
                         let open = p.try_token(Token::OpenParen);
