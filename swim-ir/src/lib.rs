@@ -12,6 +12,7 @@ mod opcodes;
 
 use error::*;
 use opcodes::*;
+pub use opcodes::{DataLabel, IrOpcode, Reg};
 
 // TODO: fully typed functions
 pub struct Function {
@@ -19,9 +20,10 @@ pub struct Function {
     body: Vec<IrOpcode>,
 }
 
+pub type DataSection = IndexMap<DataLabel, DataSectionEntry>;
 /// Lowers typed nodes into an IR suitable for code generation.
 pub struct Lowerer {
-    data_section: IndexMap<DataLabel, DataSectionEntry>,
+    data_section: DataSection,
     entry_point: Option<FunctionLabel>,
     function_definitions: BTreeMap<TypedFunctionId, Function>,
     reg_assigner: usize,
@@ -29,7 +31,7 @@ pub struct Lowerer {
     type_checker: TypeChecker,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum DataSectionEntry {
     Int64(i64),
     String(Rc<str>),
@@ -49,6 +51,26 @@ impl Lowerer {
         };
         lowerer.lower_all_functions();
         lowerer
+    }
+
+    pub fn finalize(&self) -> (DataSection, Vec<IrOpcode>) {
+        let mut program_section = vec![];
+
+        if let Some(entry_point) = self.entry_point {
+            // Add entry point function body to the program section
+            if let Some(entry_func) = self.function_definitions.get(todo!()) {
+                program_section.extend(entry_func.body.clone());
+            }
+        }
+
+        // Add other function bodies to the program section
+        for func in self.function_definitions.values() {
+            if func.label != FunctionLabel::from(0) {
+                program_section.extend(func.body.clone());
+            }
+        }
+
+        (self.data_section.clone(), program_section)
     }
 
     fn new_function_label(&mut self) -> FunctionLabel {

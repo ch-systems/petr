@@ -1,0 +1,8 @@
+[package]
+name = "swim-vm"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+swim-ir = { path = "../swim-ir" }
+swim-utils = { path = "../swim-utils" }

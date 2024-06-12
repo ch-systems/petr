@@ -30,7 +30,7 @@ mod resolved {
     /// immutable result of resolution, and resolved items can no longer be mutated.
     pub(crate) struct ResolvedItems {
         pub resolved_functions: BTreeMap<FunctionId, Function>,
-        pub resolved_types:     BTreeMap<TypeId, TypeDeclaration>,
+        pub resolved_types: BTreeMap<TypeId, TypeDeclaration>,
     }
 
     impl ResolvedItems {
@@ -53,15 +53,15 @@ mod resolved {
         pub(crate) fn new() -> Self {
             Self {
                 resolved_functions: Default::default(),
-                resolved_types:     Default::default(),
+                resolved_types: Default::default(),
             }
         }
     }
 
     pub struct QueryableResolvedItems {
         resolved_functions: BTreeMap<FunctionId, Function>,
-        resolved_types:     BTreeMap<TypeId, TypeDeclaration>,
-        pub interner:       SymbolInterner,
+        resolved_types: BTreeMap<TypeId, TypeDeclaration>,
+        pub interner: SymbolInterner,
     }
 
     impl QueryableResolvedItems {
@@ -125,7 +125,7 @@ mod resolver {
     pub(crate) struct Resolver {
         pub resolved: ResolvedItems,
         pub interner: SymbolInterner,
-        pub errs:     Vec<ResolutionError>,
+        pub errs: Vec<ResolutionError>,
     }
 
     /*
@@ -182,15 +182,15 @@ mod resolver {
     #[derive(Clone)]
     pub struct FunctionCall {
         pub function: FunctionId,
-        pub args:     Vec<Expr>,
+        pub args: Vec<Expr>,
     }
 
     #[derive(Clone)]
     pub struct Function {
-        pub name:        Identifier,
-        pub params:      Vec<(Identifier, Type)>,
+        pub name: Identifier,
+        pub params: Vec<(Identifier, Type)>,
         pub return_type: Type,
-        pub body:        Expr,
+        pub body: Expr,
     }
 
     #[derive(Clone)]
@@ -224,7 +224,7 @@ mod resolver {
     #[derive(Clone)]
     pub struct Intrinsic {
         pub intrinsic: swim_ast::Intrinsic,
-        pub args:      Box<[Expr]>,
+        pub args: Box<[Expr]>,
     }
 
     impl Resolver {
@@ -525,9 +525,8 @@ mod resolver {
                 pub fn to_string(
                     &self,
                     resolver: &QueryableResolvedItems,
-                    interner: &SymbolInterner,
                 ) -> String {
-                    self.kind.to_string(resolver, interner)
+                    self.kind.to_string(resolver)
                 }
             }
 
@@ -535,7 +534,6 @@ mod resolver {
                 pub fn to_string(
                     &self,
                     resolver: &QueryableResolvedItems,
-                    interner: &SymbolInterner,
                 ) -> String {
                     match self {
                         Type::Integer => "int".to_string(),
@@ -544,8 +542,9 @@ mod resolver {
                         Type::String => "string".to_string(),
                         Type::ErrorRecovery => "<error>".to_string(),
                         Type::Named(id) => {
-                            format!("named type {}", interner.get(resolver.get_type(*id).name.id))
+                            format!("named type {}", resolver.interner.get(resolver.get_type(*id).name.id))
                         },
+                        Type::Generic(a) => format!("generic type {}", resolver.interner.get(a.id)),
                     }
                 }
             }
@@ -554,14 +553,10 @@ mod resolver {
                 pub fn to_string(
                     &self,
                     resolver: &QueryableResolvedItems,
-                    interner: &SymbolInterner,
                 ) -> String {
                     match self {
                         ExprKind::Literal(lit) => format!("Literal({:?})", lit),
-                        ExprKind::List(exprs) => format!(
-                            "[{}]",
-                            exprs.iter().map(|x| x.to_string(resolver, interner)).collect::<Vec<_>>().join(", ")
-                        ),
+                        ExprKind::List(exprs) => format!("[{}]", exprs.iter().map(|x| x.to_string(resolver)).collect::<Vec<_>>().join(", ")),
                         ExprKind::FunctionCall(call) => {
                             format!("FunctionCall({})", call.function)
                         },
@@ -571,7 +566,7 @@ mod resolver {
                         ExprKind::Intrinsic(x) => format!(
                             "@{}({})",
                             x.intrinsic,
-                            x.args.iter().map(|x| x.to_string(resolver, interner)).collect::<Vec<_>>().join(", ")
+                            x.args.iter().map(|x| x.to_string(resolver)).collect::<Vec<_>>().join(", ")
                         ),
                     }
                 }
@@ -593,35 +588,32 @@ mod resolver {
                 errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
                 panic!("fmt failed: code didn't parse");
             }
-            let resolver = Resolver::new_from_single_ast(ast);
-            let queryable = resolver.resolved.into_queryable();
-            let result = pretty_print_resolution(&queryable, &interner);
+            let resolver = Resolver::new_from_single_ast(ast, interner);
+            let queryable = resolver.into_queryable();
+            let result = pretty_print_resolution(&queryable);
             expect.assert_eq(&result);
         }
 
-        fn pretty_print_resolution(
-            queryable: &QueryableResolvedItems,
-            interner: &swim_utils::SymbolInterner,
-        ) -> String {
+        fn pretty_print_resolution(queryable: &QueryableResolvedItems) -> String {
             let mut result = String::new();
             result.push_str("_____FUNCTIONS_____\n");
             for (func_id, func) in queryable.functions() {
-                result.push_str(&format!("#{} {}", Into::<usize>::into(*func_id), interner.get(func.name.id),));
+                result.push_str(&format!("#{} {}", Into::<usize>::into(func_id), queryable.interner.get(func.name.id),));
                 result.push('(');
                 for (name, ty) in &func.params {
-                    let name = interner.get(name.id);
-                    let ty = ty.to_string(queryable, interner);
+                    let name = queryable.interner.get(name.id);
+                    let ty = ty.to_string(queryable);
                     result.push_str(&format!("  {}: {}, ", name, ty));
                 }
                 result.push_str(") ");
-                let ty = func.return_type.to_string(queryable, interner);
+                let ty = func.return_type.to_string(queryable);
                 result.push_str(&format!("-> {} ", ty));
-                result.push_str(&format!("  {:?}\n", func.body.to_string(queryable, interner)));
+                result.push_str(&format!("  {:?}\n", func.body.to_string(queryable)));
             }
 
             result.push_str("_____TYPES_____\n");
             for (type_id, ty_decl) in queryable.types() {
-                result.push_str(&format!("#{} {}", Into::<usize>::into(*type_id), interner.get(ty_decl.name.id),));
+                result.push_str(&format!("#{} {}", Into::<usize>::into(type_id), queryable.interner.get(ty_decl.name.id),));
                 result.push_str("\n\n");
             }
 
