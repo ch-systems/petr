@@ -247,7 +247,7 @@ mod tests {
         for (id, func) in &lowerer.function_definitions {
             result.push_str(&format!("Function {:?}:\n", id));
             for opcode in &func.body {
-                result.push_str(&format!("  {:?}\n", opcode));
+                result.push_str(&format!("  {}\n", opcode));
             }
         }
         result
@@ -265,8 +265,8 @@ mod tests {
 
                 ; PROGRAM_SECTION
                 Function TypedFunctionId(0):
-                  LoadData(Virtual(0), DataLabel(0))
-                  StackPush(TypedReg { ty: Int64, reg: Virtual(0) })
+                  ld v0 datalabel0
+                  push v0
             "#]],
         );
     }
