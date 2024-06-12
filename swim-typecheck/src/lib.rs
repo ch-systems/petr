@@ -79,6 +79,7 @@ impl TypeChecker {
             _ => todo!(),
         }
     }
+
     fn fully_resolve(&mut self) {
         // TODO collects on these iters is not ideal
         for (id, _) in self.resolved.types() {
@@ -124,7 +125,7 @@ impl TypeChecker {
         // Type check the function body as a function call
         let mut function_call = swim_resolve::FunctionCall {
             function: entry_point,
-            args: vec![], // Populate with actual arguments if necessary
+            args:     vec![], // Populate with actual arguments if necessary
         };
         function_call.type_check(self);
         ()
@@ -272,15 +273,15 @@ pub enum TypedExpr {
     FunctionCall {
         func: FunctionId,
         args: Vec<(Identifier, TypedExpr)>,
-        ty: TypeVariable,
+        ty:   TypeVariable,
     },
     Literal {
         value: Literal,
-        ty: TypeVariable,
+        ty:    TypeVariable,
     },
     List {
         elements: Vec<TypedExpr>,
-        ty: TypeVariable,
+        ty:       TypeVariable,
     },
     Unit,
     Variable {
@@ -288,7 +289,7 @@ pub enum TypedExpr {
         // TODO name?
     },
     Intrinsic {
-        ty: TypeVariable,
+        ty:        TypeVariable,
         intrinsic: Intrinsic,
     },
     // TODO put a span here?
@@ -326,7 +327,7 @@ impl TypeCheck for Expr {
                 if exprs.is_empty() {
                     TypedExpr::List {
                         elements: vec![],
-                        ty: tp!(list(tp!(unit))),
+                        ty:       tp!(list(tp!(unit))),
                     }
                 } else {
                     todo!(" exprs.first().unwrap().kind.return_type()")
@@ -339,7 +340,7 @@ impl TypeCheck for Expr {
                 if call.args.len() != func_decl.params.len() {
                     ctx.push_error(TypeCheckErrorKind::ArgumentCountMismatch {
                         expected: func_decl.params.len(),
-                        got: call.args.len(),
+                        got:      call.args.len(),
                         function: ctx.realize_symbol(func_decl.name.id).to_string(),
                     });
                     return TypedExpr::ErrorRecovery;
@@ -384,7 +385,7 @@ impl TypeCheck for Intrinsic {
                 ctx.unify(&tp!(string), &type_of_arg.ty());
                 TypedExpr::Intrinsic {
                     intrinsic: self.clone(),
-                    ty: tp!(unit),
+                    ty:        tp!(unit),
                 }
             },
         }
@@ -401,8 +402,8 @@ trait TypeCheck {
 
 #[derive(Clone)]
 pub struct Function {
-    pub params: Vec<(Identifier, TypeVariable)>,
-    pub body: TypedExpr,
+    pub params:    Vec<(Identifier, TypeVariable)>,
+    pub body:      TypedExpr,
     pub return_ty: TypeVariable,
 }
 

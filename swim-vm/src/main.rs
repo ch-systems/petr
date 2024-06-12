@@ -11,7 +11,7 @@ fn main() {
 }
 
 struct Vm {
-    state: VmState,
+    state:        VmState,
     instructions: IndexMap<ProgramOffset, IrOpcode>,
 }
 
@@ -20,11 +20,11 @@ idx_map_key!(ProgramOffset);
 
 #[derive(Default)]
 pub struct VmState {
-    stack: Vec<Value>,
-    static_data: IndexMap<DataLabel, DataSectionEntry>,
-    registers: BTreeMap<Reg, Value>,
+    stack:           Vec<Value>,
+    static_data:     IndexMap<DataLabel, DataSectionEntry>,
+    registers:       BTreeMap<Reg, Value>,
     program_counter: ProgramOffset,
-    memory: Vec<usize>,
+    memory:          Vec<usize>,
 }
 
 impl Default for ProgramOffset {

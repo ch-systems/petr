@@ -30,7 +30,7 @@ mod resolved {
     /// immutable result of resolution, and resolved items can no longer be mutated.
     pub(crate) struct ResolvedItems {
         pub resolved_functions: BTreeMap<FunctionId, Function>,
-        pub resolved_types: BTreeMap<TypeId, TypeDeclaration>,
+        pub resolved_types:     BTreeMap<TypeId, TypeDeclaration>,
     }
 
     impl ResolvedItems {
@@ -53,15 +53,15 @@ mod resolved {
         pub(crate) fn new() -> Self {
             Self {
                 resolved_functions: Default::default(),
-                resolved_types: Default::default(),
+                resolved_types:     Default::default(),
             }
         }
     }
 
     pub struct QueryableResolvedItems {
         resolved_functions: BTreeMap<FunctionId, Function>,
-        resolved_types: BTreeMap<TypeId, TypeDeclaration>,
-        pub interner: SymbolInterner,
+        resolved_types:     BTreeMap<TypeId, TypeDeclaration>,
+        pub interner:       SymbolInterner,
     }
 
     impl QueryableResolvedItems {
@@ -125,7 +125,7 @@ mod resolver {
     pub(crate) struct Resolver {
         pub resolved: ResolvedItems,
         pub interner: SymbolInterner,
-        pub errs: Vec<ResolutionError>,
+        pub errs:     Vec<ResolutionError>,
     }
 
     /*
@@ -182,15 +182,15 @@ mod resolver {
     #[derive(Clone)]
     pub struct FunctionCall {
         pub function: FunctionId,
-        pub args: Vec<Expr>,
+        pub args:     Vec<Expr>,
     }
 
     #[derive(Clone)]
     pub struct Function {
-        pub name: Identifier,
-        pub params: Vec<(Identifier, Type)>,
+        pub name:        Identifier,
+        pub params:      Vec<(Identifier, Type)>,
         pub return_type: Type,
-        pub body: Expr,
+        pub body:        Expr,
     }
 
     #[derive(Clone)]
@@ -224,7 +224,7 @@ mod resolver {
     #[derive(Clone)]
     pub struct Intrinsic {
         pub intrinsic: swim_ast::Intrinsic,
-        pub args: Box<[Expr]>,
+        pub args:      Box<[Expr]>,
     }
 
     impl Resolver {

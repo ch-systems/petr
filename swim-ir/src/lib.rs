@@ -325,7 +325,6 @@ mod tests {
         check(
             r#"
                     function main() returns 'bool ~foo(123)
-
                     function foo(a in 'int) returns 'bool true
                     "#,
             expect![[r#"
