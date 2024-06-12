@@ -93,12 +93,17 @@ mod resolved {
             self.resolved_types.get(&id).expect("type IDs should always correspond to resolved types")
         }
 
-        pub fn functions(&self) -> impl Iterator<Item = (&FunctionId, &Function)> {
-            self.resolved_functions.iter()
+        pub fn functions(&self) -> impl Iterator<Item = (FunctionId, Function)> {
+            self.resolved_functions
+                .iter()
+                // TODO below clone is not ideal
+                .map(|(id, decl)| (*id, decl.clone()))
+                .collect::<Vec<_>>()
+                .into_iter()
         }
 
-        pub fn types(&self) -> impl Iterator<Item = (&TypeId, &TypeDeclaration)> {
-            self.resolved_types.iter()
+        pub fn types(&self) -> impl Iterator<Item = (TypeId, TypeDeclaration)> {
+            self.resolved_types.iter().map(|(id, decl)| (*id, *decl)).collect::<Vec<_>>().into_iter()
         }
     }
 }
@@ -130,7 +135,7 @@ mod resolver {
     }
     */
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone, Copy)]
     pub struct TypeDeclaration {
         pub name: Identifier,
     }
@@ -145,6 +150,7 @@ mod resolver {
         // like `Unit`, but doesn't throw additional type errors to prevent cascading errors.
         ErrorRecovery,
         Named(TypeId),
+        Generic(Identifier),
     }
 
     impl Resolve for swim_ast::Ty {
@@ -167,10 +173,7 @@ mod resolver {
                         todo!("push error -- symbol is not type");
                         return None;
                     },
-                    None => {
-                        todo!("push error -- {} symbol not found", name.id);
-                        return None;
-                    },
+                    None => Type::Generic(*name),
                 },
             })
         }

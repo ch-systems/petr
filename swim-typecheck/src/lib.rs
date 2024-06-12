@@ -60,13 +60,13 @@ pub type TypeVariable = Type<&'static str>;
 impl TypeChecker {
     fn fully_resolve(&mut self) {
         // TODO collects on these iters is not ideal
-        for (id, _) in self.resolved.types().collect::<Vec<_>>() {
-            let id = id.clone();
+        for (id, _) in self.resolved.types() {
             let ty = self.fresh_ty_var();
             self.type_map.insert(id.into(), ty);
-            todo!("type decl map?");
+            // todo!("type decl map?"); need to store the function types of type constructors
+            // and the parent type id here
         }
-        for (id, func) in self.resolved.functions().map(|(a, b)| (a.clone(), b.clone())).collect::<Vec<_>>() {
+        for (id, func) in self.resolved.functions() {
             let typed_function = func.type_check(self);
             self.type_map.insert(
                 id.into(),
@@ -103,7 +103,7 @@ impl TypeChecker {
         // Type check the function body as a function call
         let mut function_call = swim_resolve::FunctionCall {
             function: entry_point,
-            args: vec![], // Populate with actual arguments if necessary
+            args:     vec![], // Populate with actual arguments if necessary
         };
         function_call.type_check(self);
         ()
@@ -172,6 +172,10 @@ impl TypeChecker {
                 self.fresh_ty_var()
             },
             swim_resolve::Type::Named(ty_id) => self.type_map.get(&ty_id.into()).expect("type did not exist in type map").clone(),
+            swim_resolve::Type::Generic(generic_name) => {
+                // TODO I think this needs to be a qualifier
+                self.fresh_ty_var()
+            },
         }
     }
 
@@ -233,15 +237,15 @@ impl TypeChecker {
 pub enum TypedExpr {
     FunctionCall {
         arg_types: Vec<(Identifier, TypeVariable)>,
-        ty: TypeVariable,
+        ty:        TypeVariable,
     },
     Literal {
         value: Literal,
-        ty: TypeVariable,
+        ty:    TypeVariable,
     },
     List {
         elements: Vec<TypedExpr>,
-        ty: TypeVariable,
+        ty:       TypeVariable,
     },
     Unit,
     Variable {
@@ -249,7 +253,7 @@ pub enum TypedExpr {
         // TODO name?
     },
     Intrinsic {
-        ty: TypeVariable,
+        ty:        TypeVariable,
         intrinsic: Intrinsic,
     },
     // TODO put a span here?
@@ -287,7 +291,7 @@ impl TypeCheck for Expr {
                 if exprs.is_empty() {
                     TypedExpr::List {
                         elements: vec![],
-                        ty: tp!(list(tp!(unit))),
+                        ty:       tp!(list(tp!(unit))),
                     }
                 } else {
                     todo!(" exprs.first().unwrap().kind.return_type()")
@@ -300,7 +304,7 @@ impl TypeCheck for Expr {
                 if call.args.len() != func_decl.params.len() {
                     ctx.push_error(TypeCheckErrorKind::ArgumentCountMismatch {
                         expected: func_decl.params.len(),
-                        got: call.args.len(),
+                        got:      call.args.len(),
                         function: ctx.realize_symbol(func_decl.name.id).to_string(),
                     });
                     return TypedExpr::ErrorRecovery;
@@ -344,7 +348,7 @@ impl TypeCheck for Intrinsic {
                 ctx.unify(&tp!(string), &type_of_arg.ty());
                 TypedExpr::Intrinsic {
                     intrinsic: self.clone(),
-                    ty: tp!(unit),
+                    ty:        tp!(unit),
                 }
             },
         }
@@ -360,7 +364,7 @@ trait TypeCheck {
 }
 
 pub struct Function {
-    params: Vec<(Identifier, TypeVariable)>,
+    params:    Vec<(Identifier, TypeVariable)>,
     return_ty: TypeVariable,
 }
 
@@ -626,6 +630,29 @@ mod tests {
 
                 Errors:
                 Failed to unify types: Failure(string, bool)
+            "#]],
+        );
+    }
+
+    // TODO this will work when generics work
+    #[test]
+    fn multiple_calls_to_fn_dont_unify_params_themselves() {
+        check(
+            r#"
+        function bool_literal(a in 'A, b in 'B) returns 'bool
+            true
+
+        function my_func() returns 'bool
+            ~bool_literal(1, 2)
+
+        {- should not unify the parameter types of bool_literal -}
+        function my_second_func() returns 'bool
+            ~bool_literal(true, false)
+        "#,
+            expect![[r#"
+                function bool_literal → (t0 → t1) → bool
+                function my_func → bool
+                function my_second_func → bool
             "#]],
         );
     }

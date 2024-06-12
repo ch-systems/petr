@@ -49,7 +49,7 @@ mod opcodes {
 
     #[derive(Debug)]
     pub struct TypedReg {
-        pub ty: IrTy,
+        pub ty:  IrTy,
         pub reg: Reg,
     }
 
@@ -79,8 +79,8 @@ pub struct Function {
 /// Lowers typed nodes into an IR suitable for code generation.
 pub struct Lowerer {
     data_section: IndexMap<DataLabel, DataSectionEntry>,
-    entry_point: FunctionLabel,
-    functions: BTreeMap<FunctionId, Function>,
+    entry_point:  FunctionLabel,
+    functions:    BTreeMap<FunctionId, Function>,
     //    resolved_items: QueryableResolvedItems,
     reg_assigner: usize,
     type_checker: TypeChecker,
@@ -141,7 +141,7 @@ impl Lowerer {
                 // load from stack into register
                 let param_reg = self.fresh_reg();
                 let ty_reg = TypedReg {
-                    ty: self.to_ir_type(param_ty),
+                    ty:  self.to_ir_type(param_ty),
                     reg: param_reg,
                 };
                 buf.push(IrOpcode::StackPop(ty_reg));
