@@ -23,9 +23,10 @@ mod error {
     }
 
     impl std::fmt::Display for IrError {
-        fn fmt(&self,
-               f: &mut std::fmt::Formatter<'_>)
-               -> std::fmt::Result {
+        fn fmt(
+            &self,
+            f: &mut std::fmt::Formatter<'_>,
+        ) -> std::fmt::Result {
             write!(f, "{:?}", self.kind)
         }
     }
@@ -65,11 +66,12 @@ impl IrContext {
         Ok(Self { module })
     }
 
-    pub fn insert_data(&mut self,
-                       data: Box<[u8]>,
-                       data_name: &str,
-                       is_writable: bool)
-                       -> Result<DataId, IrError> {
+    pub fn insert_data(
+        &mut self,
+        data: Box<[u8]>,
+        data_name: &str,
+        is_writable: bool,
+    ) -> Result<DataId, IrError> {
         // Define the data section with "Hello, world!\n"
         let mut data_ctx = cranelift_module::DataDescription::new();
         data_ctx.define(data);
@@ -79,14 +81,16 @@ impl IrContext {
     }
 
     // TODO: lowered function type?
-    pub fn add_function(&mut self,
-                        func_name: &str,
-                        function: swim_ir::Function)
-                        -> Result<(), IrError> {
+    pub fn add_function(
+        &mut self,
+        func_name: &str,
+        function: swim_ir::Function,
+    ) -> Result<(), IrError> {
         let sig = self.module.make_signature();
-        let func_id = self.module
-                          .declare_function(func_name, Linkage::Local, &sig)
-                          .map_err(|e| IrErrorKind::GenericIRError(e.to_string()))?;
+        let func_id = self
+            .module
+            .declare_function(func_name, Linkage::Local, &sig)
+            .map_err(|e| IrErrorKind::GenericIRError(e.to_string()))?;
         // func_sig
         //     .returns
         //     .push(AbiParam::new(cranelift::codegen::ir::types::I32));
@@ -119,10 +123,11 @@ impl IrContext {
         todo!()
     }
 
-    fn lower_function_body(&self,
-                           function: &swim_ir::Function,
-                           builder: &mut FunctionBuilder)
-                           -> Result<(), IrError> {
+    fn lower_function_body(
+        &self,
+        function: &swim_ir::Function,
+        builder: &mut FunctionBuilder,
+    ) -> Result<(), IrError> {
         todo!()
         // let entry_block = builder.create_block();
         // builder.switch_to_block(entry_block);
@@ -149,9 +154,10 @@ impl IrContext {
     }
 }
 
-fn write_obj_file(file_name: &str,
-                  obj: Object)
-                  -> Result<(), IrError> {
+fn write_obj_file(
+    file_name: &str,
+    obj: Object,
+) -> Result<(), IrError> {
     let mut file = std::fs::File::create(file_name).expect("TODO errs");
     use std::io::Write;
 
@@ -159,18 +165,20 @@ fn write_obj_file(file_name: &str,
     Ok(())
 }
 
-fn link_for_mac(obj_file_name: &str,
-                output_file_name: &str)
-                -> Result<(), IrError> {
+fn link_for_mac(
+    obj_file_name: &str,
+    output_file_name: &str,
+) -> Result<(), IrError> {
     // Link the object file using clang
-    Command::new("clang").arg("output.o")
-                         .arg("-o")
-                         .arg("output")
-                         .arg("-Wl")
-                         .arg("-ld_classic")
-                         .arg("-v")
-                         .status()
-                         .expect("TODO errs");
+    Command::new("clang")
+        .arg("output.o")
+        .arg("-o")
+        .arg("output")
+        .arg("-Wl")
+        .arg("-ld_classic")
+        .arg("-v")
+        .status()
+        .expect("TODO errs");
     use std::{fs, os::unix::fs::PermissionsExt};
 
     // Set the output file to be executable
@@ -259,13 +267,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     use std::process::Command;
 
     // Link the object file using clang
-    Command::new("clang").arg("output.o")
-                         .arg("-o")
-                         .arg("output")
-                         .arg("-Wl")
-                         .arg("-ld_classic")
-                         .arg("-v")
-                         .status()?;
+    Command::new("clang")
+        .arg("output.o")
+        .arg("-o")
+        .arg("output")
+        .arg("-Wl")
+        .arg("-ld_classic")
+        .arg("-v")
+        .status()?;
 
     use std::{fs, os::unix::fs::PermissionsExt};
 

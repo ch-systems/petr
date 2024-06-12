@@ -71,9 +71,10 @@ pub struct IntrinsicCall {
 }
 
 impl std::fmt::Display for Intrinsic {
-    fn fmt(&self,
-           f: &mut std::fmt::Formatter<'_>)
-           -> std::fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         match self {
             Intrinsic::Puts => write!(f, "puts"),
         }
@@ -168,6 +169,8 @@ pub struct Comment {
 
 impl Comment {
     pub fn new(item: impl AsRef<str>) -> Self {
-        Self { content: Rc::from(item.as_ref()), }
+        Self {
+            content: Rc::from(item.as_ref()),
+        }
     }
 }

@@ -3,16 +3,19 @@ use swim_utils::{render_error, PrettyPrint};
 
 use super::Parser;
 
-fn check<T: Into<String>>(sources: Vec<T>,
-                          expected: expect_test::Expect) {
+fn check<T: Into<String>>(
+    sources: Vec<T>,
+    expected: expect_test::Expect,
+) {
     let parser = Parser::new(sources.into_iter().map(|s| ("test", s)));
     let (ast, errs, interner, source_map) = parser.into_result();
 
     let pretty_printed_ast = ast.pretty_print(&interner, 0);
-    let errs = errs.into_iter()
-                   .map(|err| format!("{:?}", render_error(&source_map, err)))
-                   .collect::<Vec<_>>()
-                   .join("\n");
+    let errs = errs
+        .into_iter()
+        .map(|err| format!("{:?}", render_error(&source_map, err)))
+        .collect::<Vec<_>>()
+        .join("\n");
     let errors_str = if errs.is_empty() {
         String::new()
     } else {
@@ -25,8 +28,8 @@ fn check<T: Into<String>>(sources: Vec<T>,
 #[test]
 fn prefix_operator_expression() {
     check(
-          vec!["function addToFive() returns 'Integer + 4 1"],
-          expect![[r#"
+        vec!["function addToFive() returns 'Integer + 4 1"],
+        expect![[r#"
             AST
             ____
             Func addToFive() -> 'Integer +(4 1)
@@ -37,8 +40,8 @@ fn prefix_operator_expression() {
 #[test]
 fn parse_parameters() {
     check(
-          vec!["function addTwoNums(a ∈ 'Integer, b ∈ 'Integer) returns 'Integer + a b"],
-          expect![[r#"
+        vec!["function addTwoNums(a ∈ 'Integer, b ∈ 'Integer) returns 'Integer + a b"],
+        expect![[r#"
             AST
             ____
             Func addTwoNums(
@@ -67,8 +70,8 @@ fn parse_parameters_in_keyword_identical_to_symbol() {
 #[test]
 fn commented_function() {
     check(
-          vec![r#"{- this is a comment -} function addTwoNums(a in 'A, b in 'B) returns 'B + a b    "#],
-          expect![[r#"
+        vec![r#"{- this is a comment -} function addTwoNums(a in 'A, b in 'B) returns 'B + a b    "#],
+        expect![[r#"
             AST
             ____
             {- this is a comment -}
@@ -83,8 +86,8 @@ fn commented_function() {
 #[test]
 fn multi_commented_function() {
     check(
-          vec![r#" {- comment one -} {- comment two -} function addTwoNums(a in 'A, b in 'B) returns 'B + a b    "#],
-          expect![[r#"
+        vec![r#" {- comment one -} {- comment two -} function addTwoNums(a in 'A, b in 'B) returns 'B + a b    "#],
+        expect![[r#"
             AST
             ____
             {- comment one -}
@@ -100,8 +103,8 @@ fn multi_commented_function() {
 #[test]
 fn list_expr() {
     check(
-          vec!["function list_to_three() returns 'intlist [1, 2, 3]"],
-          expect![[r#"
+        vec!["function list_to_three() returns 'intlist [1, 2, 3]"],
+        expect![[r#"
             AST
             ____
             Func list_to_three() -> 'intlist [1, 2, 3]
@@ -112,8 +115,8 @@ fn list_expr() {
 #[test]
 fn list_with_nested_exprs() {
     check(
-          vec!["function list_to_three() returns 'intlist [+ 1 2 , 2, + 1 + 2 3]"],
-          expect![[r#"
+        vec!["function list_to_three() returns 'intlist [+ 1 2 , 2, + 1 + 2 3]"],
+        expect![[r#"
             AST
             ____
             Func list_to_three() -> 'intlist [+(1 2), 2, +(1 +(2 3))]
@@ -124,8 +127,8 @@ fn list_with_nested_exprs() {
 #[test]
 fn nested_list() {
     check(
-          vec!["function list_to_three() returns 'intlist [[1, 2], [3, 4, + 1 2]]"],
-          expect![[r#"
+        vec!["function list_to_three() returns 'intlist [[1, 2], [3, 4, + 1 2]]"],
+        expect![[r#"
             AST
             ____
             Func list_to_three() -> 'intlist [[1, 2], [3, 4, +(1 2)]]
@@ -136,8 +139,8 @@ fn nested_list() {
 #[test]
 fn fn_call() {
     check(
-          vec!["function makes_function_call() returns 'unit ~fn_call a, b, c"],
-          expect![[r#"
+        vec!["function makes_function_call() returns 'unit ~fn_call a, b, c"],
+        expect![[r#"
             AST
             ____
             Func makes_function_call() -> 'unit call fn_call(var(a), var(b), var(c))

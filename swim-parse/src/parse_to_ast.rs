@@ -12,64 +12,72 @@ use crate::{
 impl Parse for FunctionCall {
     fn parse(p: &mut Parser) -> Option<Self> {
         p.with_help("encountered while parsing function call", |p| -> Option<Self> {
-             p.token(Token::Tilde)?;
-             let func_name = p.parse()?;
-             // optionally, args can be in parens to resolve ambiguity
-             // like if they're in a list
-             let open = p.try_token(Token::OpenParen);
-             let args = p.sequence_zero_or_more(Token::Comma)?;
-             if open.is_some() {
-                 p.token(Token::CloseParen)?;
-             }
-             Some(Self { func_name,
-                         args: args.into_boxed_slice(),
-                         args_were_parenthesized: open.is_some() })
-         })
+            p.token(Token::Tilde)?;
+            let func_name = p.parse()?;
+            // optionally, args can be in parens to resolve ambiguity
+            // like if they're in a list
+            let open = p.try_token(Token::OpenParen);
+            let args = p.sequence_zero_or_more(Token::Comma)?;
+            if open.is_some() {
+                p.token(Token::CloseParen)?;
+            }
+            Some(Self {
+                func_name,
+                args: args.into_boxed_slice(),
+                args_were_parenthesized: open.is_some(),
+            })
+        })
     }
 }
 
 impl Parse for TypeDeclaration {
     fn parse(p: &mut Parser) -> Option<Self> {
         p.with_help("encountered while parsing type declaration", |p| -> Option<Self> {
-             let tok = p.one_of([Token::TypeKeyword, Token::ExportTypeKeyword])?;
-             let visibility = match tok.item() {
-                 Token::TypeKeyword => Visibility::Local,
-                 Token::ExportTypeKeyword => Visibility::Exported,
-                 _ => unreachable!(),
-             };
-             let name = p.parse()?;
-             if *p.peek().item() != Token::Equals {
-                 // if there's no equals, then this is a type with no variants
-                 return Some(Self { name,
-                                    variants: vec![].into_boxed_slice(),
-                                    visibility });
-             }
-             p.token(Token::Equals)?;
-             let variants = p.sequence(Token::Pipe)?;
-             Some(Self { name,
-                         variants: variants.into_boxed_slice(),
-                         visibility })
-         })
+            let tok = p.one_of([Token::TypeKeyword, Token::ExportTypeKeyword])?;
+            let visibility = match tok.item() {
+                Token::TypeKeyword => Visibility::Local,
+                Token::ExportTypeKeyword => Visibility::Exported,
+                _ => unreachable!(),
+            };
+            let name = p.parse()?;
+            if *p.peek().item() != Token::Equals {
+                // if there's no equals, then this is a type with no variants
+                return Some(Self {
+                    name,
+                    variants: vec![].into_boxed_slice(),
+                    visibility,
+                });
+            }
+            p.token(Token::Equals)?;
+            let variants = p.sequence(Token::Pipe)?;
+            Some(Self {
+                name,
+                variants: variants.into_boxed_slice(),
+                visibility,
+            })
+        })
     }
 }
 
 impl Parse for TypeVariant {
     fn parse(p: &mut Parser) -> Option<Self> {
         p.with_help("encountered while parsing type variant", |p| -> Option<Self> {
-             let mut buf = vec![];
-             let name = p.parse()?;
-             loop {
-                 let peek = *p.peek().item();
-                 if peek == Token::TyMarker {
-                     let field: Ty = p.parse()?;
-                     buf.push(field);
-                 } else {
-                     break;
-                 }
-             }
-             Some(Self { name,
-                         fields: buf.into_boxed_slice() })
-         })
+            let mut buf = vec![];
+            let name = p.parse()?;
+            loop {
+                let peek = *p.peek().item();
+                if peek == Token::TyMarker {
+                    let field: Ty = p.parse()?;
+                    buf.push(field);
+                } else {
+                    break;
+                }
+            }
+            Some(Self {
+                name,
+                fields: buf.into_boxed_slice(),
+            })
+        })
     }
 }
 
@@ -81,7 +89,10 @@ impl Parse for AstNode {
             Token::Eof => None,
             a => {
                 let span = p.peek().span();
-                p.push_error(span.with_item(ParseErrorKind::ExpectedOneOf(vec![Token::FunctionKeyword, Token::TypeKeyword, Token::Eof], *a)));
+                p.push_error(span.with_item(ParseErrorKind::ExpectedOneOf(
+                    vec![Token::FunctionKeyword, Token::TypeKeyword, Token::Eof],
+                    *a,
+                )));
                 None
             },
         }
@@ -90,30 +101,32 @@ impl Parse for AstNode {
 impl Parse for FunctionDeclaration {
     fn parse(p: &mut Parser) -> Option<Self> {
         p.with_help("encountered while parsing function declaration", |p| -> Option<Self> {
-             let tok = p.one_of([Token::FunctionKeyword, Token::ExportFunctionKeyword])?;
-             let visibility = match tok.item() {
-                 Token::FunctionKeyword => Visibility::Local,
-                 Token::ExportFunctionKeyword => Visibility::Exported,
-                 _ => unreachable!(),
-             };
-             let name = p.parse()?;
-             p.token(Token::OpenParen)?;
-             let parameters = if p.try_token(Token::CloseParen).is_some() {
-                 vec![].into_boxed_slice()
-             } else {
-                 let seq = p.sequence(Token::Comma)?.into_boxed_slice();
-                 p.token(Token::CloseParen)?;
-                 seq
-             };
-             p.token(Token::ReturnsKeyword)?;
-             let return_type = p.parse()?;
-             let body = p.parse()?;
-             Some(Self { name,
-                         parameters,
-                         return_type,
-                         body,
-                         visibility })
-         })
+            let tok = p.one_of([Token::FunctionKeyword, Token::ExportFunctionKeyword])?;
+            let visibility = match tok.item() {
+                Token::FunctionKeyword => Visibility::Local,
+                Token::ExportFunctionKeyword => Visibility::Exported,
+                _ => unreachable!(),
+            };
+            let name = p.parse()?;
+            p.token(Token::OpenParen)?;
+            let parameters = if p.try_token(Token::CloseParen).is_some() {
+                vec![].into_boxed_slice()
+            } else {
+                let seq = p.sequence(Token::Comma)?.into_boxed_slice();
+                p.token(Token::CloseParen)?;
+                seq
+            };
+            p.token(Token::ReturnsKeyword)?;
+            let return_type = p.parse()?;
+            let body = p.parse()?;
+            Some(Self {
+                name,
+                parameters,
+                return_type,
+                body,
+                visibility,
+            })
+        })
     }
 }
 impl Parse for Literal {
@@ -134,11 +147,11 @@ impl Parse for Literal {
 impl Parse for FunctionParameter {
     fn parse(p: &mut Parser) -> Option<Self> {
         p.with_help("encountered while parsing function parameter", |p| -> Option<Self> {
-             let name: Identifier = p.parse()?;
-             p.one_of([Token::InKeyword, Token::IsInSymbol])?;
-             let ty: Ty = p.parse()?;
-             Some(FunctionParameter { name, ty })
-         })
+            let name: Identifier = p.parse()?;
+            p.one_of([Token::InKeyword, Token::IsInSymbol])?;
+            let ty: Ty = p.parse()?;
+            Some(FunctionParameter { name, ty })
+        })
     }
 }
 
@@ -147,18 +160,18 @@ impl Parse for Ty {
     // they can be more than that
     fn parse(p: &mut Parser) -> Option<Self> {
         p.with_help("while parsing type", |p| -> Option<Self> {
-             p.token(Token::TyMarker)?;
-             let next: Identifier = p.parse()?;
-             let ty = match p.slice() {
-                 "int" => Ty::Int,
-                 "bool" => Ty::Bool,
-                 "string" => Ty::String,
-                 "unit" => Ty::Unit,
-                 _ => Ty::Named(next),
-             };
+            p.token(Token::TyMarker)?;
+            let next: Identifier = p.parse()?;
+            let ty = match p.slice() {
+                "int" => Ty::Int,
+                "bool" => Ty::Bool,
+                "string" => Ty::String,
+                "unit" => Ty::Unit,
+                _ => Ty::Named(next),
+            };
 
-             Some(ty)
-         })
+            Some(ty)
+        })
     }
 }
 impl Parse for Operator {
@@ -170,8 +183,10 @@ impl Parse for Operator {
             Token::Star => Some(Operator::Star),
             Token::Slash => Some(Operator::Slash),
             _ => {
-                p.push_error(p.span()
-                              .with_item(ParseErrorKind::ExpectedOneOf(vec![Token::Plus, Token::Minus, Token::Star, Token::Slash], *tok.item())));
+                p.push_error(p.span().with_item(ParseErrorKind::ExpectedOneOf(
+                    vec![Token::Plus, Token::Minus, Token::Star, Token::Slash],
+                    *tok.item(),
+                )));
                 None
             },
         }
@@ -200,7 +215,9 @@ impl Parse for Comment {
     }
 }
 
-impl<T> Parse for Commented<T> where T: Parse
+impl<T> Parse for Commented<T>
+where
+    T: Parse,
 {
     fn parse(p: &mut crate::parser::Parser) -> Option<Self> {
         let item: T = p.parse()?;
@@ -237,20 +254,20 @@ impl Parse for Expression {
 impl Parse for IntrinsicCall {
     fn parse(p: &mut Parser) -> Option<Self> {
         p.with_help("encountered while parsing intrinsic call", |p| -> Option<Self> {
-             let name = p.slice().to_string();
-             let intrinsic = match &name[1..] {
-                 "puts" => Intrinsic::Puts,
-                 a => todo!("unrecognized intrinsic error: {a:?}"),
-             };
-             p.token(Token::Intrinsic)?;
-             let open = p.try_token(Token::OpenParen);
-             let args = p.sequence_zero_or_more(Token::Comma)?;
-             let args = args.into_boxed_slice();
+            let name = p.slice().to_string();
+            let intrinsic = match &name[1..] {
+                "puts" => Intrinsic::Puts,
+                a => todo!("unrecognized intrinsic error: {a:?}"),
+            };
+            p.token(Token::Intrinsic)?;
+            let open = p.try_token(Token::OpenParen);
+            let args = p.sequence_zero_or_more(Token::Comma)?;
+            let args = args.into_boxed_slice();
 
-             if open.is_some() {
-                 p.token(Token::CloseParen)?;
-             }
-             Some(Self { intrinsic, args })
-         })
+            if open.is_some() {
+                p.token(Token::CloseParen)?;
+            }
+            Some(Self { intrinsic, args })
+        })
     }
 }

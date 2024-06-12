@@ -20,18 +20,20 @@ pub struct SymbolInterner {
 }
 
 impl SymbolInterner {
-    pub fn insert(&mut self,
-                  v: Rc<str>)
-                  -> SymbolId {
+    pub fn insert(
+        &mut self,
+        v: Rc<str>,
+    ) -> SymbolId {
         match self.symbol_map.contains_value(v.clone()) {
             Some(k) => k,
             None => self.symbol_map.insert(v),
         }
     }
 
-    pub fn get(&self,
-               id: SymbolId)
-               -> Rc<str> {
+    pub fn get(
+        &self,
+        id: SymbolId,
+    ) -> Rc<str> {
         self.symbol_map.get(id).clone()
     }
 }

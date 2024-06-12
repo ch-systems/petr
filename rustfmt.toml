@@ -3,7 +3,6 @@ reorder_imports = true
 reorder_modules = true
 blank_lines_upper_bound = 1
 fn_params_layout = "Vertical"
-indent_style = "Visual"
 match_arm_leading_pipes = "Never"
 match_block_trailing_comma = true
 reorder_impl_items = true

@@ -11,9 +11,10 @@ mod error {
     }
 
     impl std::fmt::Display for TypeCheckError {
-        fn fmt(&self,
-               f: &mut std::fmt::Formatter<'_>)
-               -> std::fmt::Result {
+        fn fmt(
+            &self,
+            f: &mut std::fmt::Formatter<'_>,
+        ) -> std::fmt::Result {
             write!(f, "{}", self.kind)
         }
     }
@@ -30,9 +31,10 @@ mod error {
     }
 
     impl TypeCheckError {
-        pub fn with_help(mut self,
-                         help: impl Into<String>)
-                         -> Self {
+        pub fn with_help(
+            mut self,
+            help: impl Into<String>,
+        ) -> Self {
             self.help = Some(help.into());
             self
         }
@@ -126,8 +128,10 @@ pub struct TypeChecker {
 pub type TypeVariable = Type<&'static str>;
 
 impl TypeChecker {
-    fn fully_resolve(&mut self,
-                     resolved: &QueryableResolvedItems) {
+    fn fully_resolve(
+        &mut self,
+        resolved: &QueryableResolvedItems,
+    ) {
         // for each function, resolve its body
         let mut funcs_to_check = vec![];
         for (id, ty) in &self.type_map {
@@ -146,24 +150,27 @@ impl TypeChecker {
         }
     }
 
-    fn resolve_from_entry(&mut self,
-                          entry_point: FunctionId,
-                          resolved: &swim_resolve::QueryableResolvedItems) {
+    fn resolve_from_entry(
+        &mut self,
+        entry_point: FunctionId,
+        resolved: &swim_resolve::QueryableResolvedItems,
+    ) {
         // TODO -- should entry point be a str?
         // find function with entry point name and type check its body as a function call
         // Find the function with the entry point name
-        let function = self.type_map
-                           .keys()
-                           .find_map(|key| match key {
-                               TypeOrFunctionId::FunctionId(func_id) if *func_id == entry_point => Some(resolved.get_function(*func_id)),
-                               _ => None,
-                           })
-                           .expect("Entry point function not found");
+        let function = self
+            .type_map
+            .keys()
+            .find_map(|key| match key {
+                TypeOrFunctionId::FunctionId(func_id) if *func_id == entry_point => Some(resolved.get_function(*func_id)),
+                _ => None,
+            })
+            .expect("Entry point function not found");
 
         // Type check the function body as a function call
         let mut function_call = swim_resolve::FunctionCall {
             function: entry_point,
-            args: vec![], // Populate with actual arguments if necessary
+            args:     vec![], // Populate with actual arguments if necessary
         };
         function_call.type_check(self);
         ()
@@ -171,9 +178,11 @@ impl TypeChecker {
 
     fn from_resolved(resolved: &swim_resolve::QueryableResolvedItems) -> Self {
         let mut ctx = polytype::Context::default();
-        let mut type_checker = TypeChecker { ctx,
-                                             type_map: Default::default(),
-                                             errors: Default::default() };
+        let mut type_checker = TypeChecker {
+            ctx,
+            type_map: Default::default(),
+            errors: Default::default(),
+        };
 
         for (id, _ty) in resolved.types() {
             let ty = type_checker.fresh_ty_var();
@@ -213,9 +222,10 @@ impl TypeChecker {
         ty
     }
 
-    pub fn to_type_var(&mut self,
-                       ty: &swim_resolve::Type)
-                       -> TypeVariable {
+    pub fn to_type_var(
+        &mut self,
+        ty: &swim_resolve::Type,
+    ) -> TypeVariable {
         match ty {
             swim_resolve::Type::Integer => tp!(int),
             swim_resolve::Type::Bool => tp!(bool),
@@ -229,15 +239,17 @@ impl TypeChecker {
         }
     }
 
-    pub fn get_type(&self,
-                    key: impl Into<TypeOrFunctionId>)
-                    -> &TypeVariable {
+    pub fn get_type(
+        &self,
+        key: impl Into<TypeOrFunctionId>,
+    ) -> &TypeVariable {
         self.type_map.get(&key.into()).expect("type did not exist in type map")
     }
 
-    fn convert_literal_to_type(&self,
-                               literal: &swim_resolve::Literal)
-                               -> TypeVariable {
+    fn convert_literal_to_type(
+        &self,
+        literal: &swim_resolve::Literal,
+    ) -> TypeVariable {
         use swim_resolve::Literal::*;
         match literal {
             Integer(_) => tp!(int),
@@ -246,15 +258,19 @@ impl TypeChecker {
         }
     }
 
-    fn push_error(&mut self,
-                  e: impl Into<TypeCheckErrorKind>) {
+    fn push_error(
+        &mut self,
+        e: impl Into<TypeCheckErrorKind>,
+    ) {
         let kind = e.into();
         self.errors.push(kind.into());
     }
 
-    pub fn unify(&mut self,
-                 ty1: &TypeVariable,
-                 ty2: &TypeVariable) {
+    pub fn unify(
+        &mut self,
+        ty1: &TypeVariable,
+        ty2: &TypeVariable,
+    ) {
         match self.ctx.unify(ty1, ty2) {
             Ok(_) => (),
             Err(e) => self.push_error(e),
@@ -265,9 +281,10 @@ impl TypeChecker {
 impl TypeCheck for Expr {
     type Output = TypeVariable;
 
-    fn type_check(&self,
-                  ctx: &mut TypeChecker)
-                  -> Self::Output {
+    fn type_check(
+        &self,
+        ctx: &mut TypeChecker,
+    ) -> Self::Output {
         match &self.kind {
             ExprKind::Literal(lit) => ctx.convert_literal_to_type(&lit),
             ExprKind::List(exprs) => {
@@ -291,9 +308,10 @@ impl TypeCheck for Expr {
 impl TypeCheck for Intrinsic {
     type Output = TypeVariable;
 
-    fn type_check(&self,
-                  ctx: &mut TypeChecker)
-                  -> Self::Output {
+    fn type_check(
+        &self,
+        ctx: &mut TypeChecker,
+    ) -> Self::Output {
         use swim_resolve::IntrinsicName::*;
         match self.intrinsic {
             Puts => {
@@ -312,9 +330,10 @@ impl TypeCheck for Intrinsic {
 
 trait TypeCheck {
     type Output;
-    fn type_check(&self,
-                  ctx: &mut TypeChecker)
-                  -> Self::Output;
+    fn type_check(
+        &self,
+        ctx: &mut TypeChecker,
+    ) -> Self::Output;
 }
 
 pub struct Function {
@@ -325,9 +344,10 @@ pub struct Function {
 impl TypeCheck for swim_resolve::Function {
     type Output = Function;
 
-    fn type_check(&self,
-                  ctx: &mut TypeChecker)
-                  -> Self::Output {
+    fn type_check(
+        &self,
+        ctx: &mut TypeChecker,
+    ) -> Self::Output {
         let params = self.params.iter().map(|(name, ty)| (*name, ctx.to_type_var(ty)));
 
         // unify types within the body with the parameter
@@ -337,8 +357,10 @@ impl TypeCheck for swim_resolve::Function {
 
         ctx.unify(&declared_return_type, &return_type_of_body_expr);
 
-        Function { params:    params.collect(),
-                   return_ty: declared_return_type, }
+        Function {
+            params:    params.collect(),
+            return_ty: declared_return_type,
+        }
         // in a scope that contains the above names to type variables, check the body
         // TODO: introduce scopes here, like in the binder, except with type variables
     }
@@ -347,9 +369,10 @@ impl TypeCheck for swim_resolve::Function {
 impl TypeCheck for swim_resolve::FunctionCall {
     type Output = ();
 
-    fn type_check(&self,
-                  ctx: &mut TypeChecker)
-                  -> Self::Output {
+    fn type_check(
+        &self,
+        ctx: &mut TypeChecker,
+    ) -> Self::Output {
         // use polytype::Type::substitute to sub in the types of the arg exprs
         // and then unify with the function's type
         // get the function type
@@ -383,8 +406,10 @@ mod tests {
     use swim_utils::{render_error, SourceId, SymbolInterner};
 
     use super::*;
-    fn check(input: impl Into<String>,
-             expect: Expect) {
+    fn check(
+        input: impl Into<String>,
+        expect: Expect,
+    ) {
         let input = input.into();
         let parser = swim_parse::Parser::new(vec![("test", input)]);
         let (ast, errs, interner, source_map) = parser.into_result();
@@ -400,11 +425,12 @@ mod tests {
         expect.assert_eq(&res);
     }
 
-    fn pretty_print_type_checker(interner: &SymbolInterner,
-                                 source_map: &IndexMap<SourceId, (&str, &str)>,
-                                 type_checker: TypeChecker,
-                                 resolved: &QueryableResolvedItems)
-                                 -> String {
+    fn pretty_print_type_checker(
+        interner: &SymbolInterner,
+        source_map: &IndexMap<SourceId, (&str, &str)>,
+        type_checker: TypeChecker,
+        resolved: &QueryableResolvedItems,
+    ) -> String {
         let mut s = String::new();
         for (id, ty) in &type_checker.type_map {
             let text = match id {
@@ -439,10 +465,10 @@ mod tests {
     #[test]
     fn identity_resolution_concrete_type() {
         check(
-              r#"
+            r#"
             function foo(x in 'int) returns 'int x
             "#,
-              expect![[r#"
+            expect![[r#"
                 function foo → int → int
             "#]],
         );
@@ -463,11 +489,11 @@ mod tests {
     #[test]
     fn identity_resolution_custom_type() {
         check(
-              r#"
+            r#"
             type MyType = A | B
             function foo(x in 'MyType) returns 'MyType x
             "#,
-              expect![[r#"
+            expect![[r#"
                 type MyType → t0
                 function A → t0
                 function B → t0
@@ -479,11 +505,11 @@ mod tests {
     #[test]
     fn literal_unification_fail() {
         check(
-              r#"
+            r#"
             function foo() returns 'int 5
             function bar() returns 'bool 5
             "#,
-              expect![[r#"
+            expect![[r#"
                 function foo → int
                 function bar → bool
 
@@ -496,11 +522,11 @@ mod tests {
     #[test]
     fn literal_unification_success() {
         check(
-              r#"
+            r#"
             function foo() returns 'int 5
             function bar() returns 'bool true
             "#,
-              expect![[r#"
+            expect![[r#"
                 function foo → int
                 function bar → bool
             "#]],
@@ -510,46 +536,46 @@ mod tests {
     #[test]
     fn pass_zero_arity_func_to_intrinsic() {
         check(
-              r#"
+            r#"
         function string_literal() returns 'string
           "This is a string literal."
 
         function my_func() returns 'unit
           @puts(~string_literal)"#,
-              expect![[r#""#]],
+            expect![[r#""#]],
         );
     }
 
     #[test]
     fn pass_literal_string_to_intrinsic() {
         check(
-              r#"
+            r#"
         function my_func() returns 'unit
           @puts("test")"#,
-              expect![[r#""#]],
+            expect![[r#""#]],
         );
     }
 
     #[test]
     fn pass_wrong_type_literal_to_intrinsic() {
         check(
-              r#"
+            r#"
         function my_func() returns 'unit
           @puts(bool)"#,
-              expect![[r#""#]],
+            expect![[r#""#]],
         );
     }
 
     #[test]
     fn pass_wrong_type_fn_call_to_intrinsic() {
         check(
-              r#"
+            r#"
         function bool_literal() returns 'bool
             true
 
         function my_func() returns 'unit
           @puts(~bool_literal)"#,
-              expect![[r#""#]],
+            expect![[r#""#]],
         );
     }
 }

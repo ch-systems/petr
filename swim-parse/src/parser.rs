@@ -24,9 +24,10 @@ impl From<ParseErrorKind> for ParseError {
 }
 
 impl ParseError {
-    pub fn with_help(mut self,
-                     help: Option<impl Into<String>>)
-                     -> Self {
+    pub fn with_help(
+        mut self,
+        help: Option<impl Into<String>>,
+    ) -> Self {
         self.help = help.map(Into::into);
         self
     }
@@ -67,9 +68,10 @@ impl Diagnostic for ParseError {
 }
 
 impl std::fmt::Display for ParseError {
-    fn fmt(&self,
-           f: &mut std::fmt::Formatter<'_>)
-           -> std::fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         write!(f, "{}", self.kind)
     }
 }
@@ -115,8 +117,10 @@ pub struct Parser {
 }
 
 impl Parser {
-    pub fn push_error(&mut self,
-                      err: SpannedItem<ParseErrorKind>) {
+    pub fn push_error(
+        &mut self,
+        err: SpannedItem<ParseErrorKind>,
+    ) {
         if self.help.is_empty() {
             return self.errors.push(err.map(|err| err.into_err()));
         }
@@ -135,9 +139,10 @@ impl Parser {
         self.lexer.slice()
     }
 
-    pub fn intern(&mut self,
-                  internee: Rc<str>)
-                  -> SymbolId {
+    pub fn intern(
+        &mut self,
+        internee: Rc<str>,
+    ) -> SymbolId {
         self.interner.insert(internee)
     }
 
@@ -158,27 +163,30 @@ impl Parser {
     pub fn new<'a>(sources: impl IntoIterator<Item = (impl Into<String>, impl Into<String>)>) -> Self {
         // TODO we hold two copies of the source for now: one in source_maps, and one outside the parser
         // for the lexer to hold on to and not have to do self-referential pointers.
-        let sources = sources.into_iter()
-                             .map(|(name, source)| -> (&'static str, &'static str) {
-                                 let name = name.into();
-                                 let source = source.into();
-                                 (Box::leak(name.into_boxed_str()), Box::leak(source.into_boxed_str()))
-                             })
-                             .collect::<Vec<_>>();
+        let sources = sources
+            .into_iter()
+            .map(|(name, source)| -> (&'static str, &'static str) {
+                let name = name.into();
+                let source = source.into();
+                (Box::leak(name.into_boxed_str()), Box::leak(source.into_boxed_str()))
+            })
+            .collect::<Vec<_>>();
         let sources_for_lexer = sources.iter().map(|(_, source)| *source);
-        Self { interner:   SymbolInterner::default(),
-               lexer:      Lexer::new(sources_for_lexer),
-               errors:     Default::default(),
-               comments:   Default::default(),
-               peek:       None,
-               source_map: {
-                   let mut source_map = IndexMap::default();
-                   for (name, source) in sources.into_iter() {
-                       source_map.insert((name, source));
-                   }
-                   source_map
-               },
-               help:       Default::default(), }
+        Self {
+            interner:   SymbolInterner::default(),
+            lexer:      Lexer::new(sources_for_lexer),
+            errors:     Default::default(),
+            comments:   Default::default(),
+            peek:       None,
+            source_map: {
+                let mut source_map = IndexMap::default();
+                for (name, source) in sources.into_iter() {
+                    source_map.insert((name, source));
+                }
+                source_map
+            },
+            help:       Default::default(),
+        }
     }
 
     pub fn drain_comments(&mut self) -> Vec<Comment> {
@@ -186,7 +194,14 @@ impl Parser {
     }
 
     /// consume tokens until a node is produced
-    pub fn into_result(mut self) -> (Ast, Vec<SpannedItem<ParseError>>, SymbolInterner, IndexMap<SourceId, (&'static str, &'static str)>) {
+    pub fn into_result(
+        mut self
+    ) -> (
+        Ast,
+        Vec<SpannedItem<ParseError>>,
+        SymbolInterner,
+        IndexMap<SourceId, (&'static str, &'static str)>,
+    ) {
         let nodes: Vec<SpannedItem<AstNode>> = self.many::<SpannedItem<AstNode>>();
         // drop the lexers from the source map
         (Ast::new(nodes), self.errors, self.interner, self.source_map)
@@ -211,9 +226,10 @@ impl Parser {
     /// parses a sequence separated by `separator`
     /// e.g. if separator is `Token::Comma`, can parse `a, b, c, d`
     /// NOTE: this parses zero or more items. Will not reject zero items.
-    pub fn sequence_zero_or_more<P: Parse>(&mut self,
-                                           separator: Token)
-                                           -> Option<Vec<P>> {
+    pub fn sequence_zero_or_more<P: Parse>(
+        &mut self,
+        separator: Token,
+    ) -> Option<Vec<P>> {
         let mut buf = vec![];
         loop {
             let item = P::parse(self);
@@ -235,9 +251,10 @@ impl Parser {
     /// parses a sequence separated by `separator`
     /// e.g. if separator is `Token::Comma`, can parse `a, b, c, d`
     /// NOTE: this parses one or more items. Will reject zero items.
-    pub fn sequence<P: Parse>(&mut self,
-                              separator: Token)
-                              -> Option<Vec<P>> {
+    pub fn sequence<P: Parse>(
+        &mut self,
+        separator: Token,
+    ) -> Option<Vec<P>> {
         let mut buf = vec![];
         loop {
             let item = P::parse(self);
@@ -278,9 +295,10 @@ impl Parser {
     }
 
     /// doesn't push the error to the error list and doesn't advance if the token is not found
-    pub fn try_token(&mut self,
-                     tok: Token)
-                     -> Option<SpannedItem<Token>> {
+    pub fn try_token(
+        &mut self,
+        tok: Token,
+    ) -> Option<SpannedItem<Token>> {
         let peeked_token = self.peek();
         if *peeked_token.item() == tok {
             Some(self.advance())
@@ -289,9 +307,10 @@ impl Parser {
         }
     }
 
-    pub fn token(&mut self,
-                 tok: Token)
-                 -> Option<SpannedItem<Token>> {
+    pub fn token(
+        &mut self,
+        tok: Token,
+    ) -> Option<SpannedItem<Token>> {
         let peeked_token = self.peek();
         if *peeked_token.item() == tok {
             Some(self.advance())
@@ -306,9 +325,10 @@ impl Parser {
         P::parse(self)
     }
 
-    pub fn one_of<const N: usize>(&mut self,
-                                  toks: [Token; N])
-                                  -> Option<SpannedItem<Token>> {
+    pub fn one_of<const N: usize>(
+        &mut self,
+        toks: [Token; N],
+    ) -> Option<SpannedItem<Token>> {
         match self.peek().item() {
             tok if toks.contains(tok) => self.token(*tok),
             tok => {
@@ -327,11 +347,13 @@ impl Parser {
         &self.errors
     }
 
-    pub fn with_help<F, T>(&mut self,
-                           help_text: impl Into<String>,
-                           f: F)
-                           -> T
-        where F: Fn(&mut Parser) -> T
+    pub fn with_help<F, T>(
+        &mut self,
+        help_text: impl Into<String>,
+        f: F,
+    ) -> T
+    where
+        F: Fn(&mut Parser) -> T,
     {
         self.push_help(help_text);
         let res = f(self);
@@ -339,8 +361,10 @@ impl Parser {
         res
     }
 
-    fn push_help(&mut self,
-                 arg: impl Into<String>) {
+    fn push_help(
+        &mut self,
+        arg: impl Into<String>,
+    ) {
         self.help.push(arg.into())
     }
 
@@ -353,7 +377,9 @@ pub trait Parse: Sized {
     fn parse(p: &mut Parser) -> Option<Self>;
 }
 
-impl<T> Parse for SpannedItem<T> where T: Parse
+impl<T> Parse for SpannedItem<T>
+where
+    T: Parse,
 {
     fn parse(p: &mut Parser) -> Option<Self> {
         let before_span = p.lexer.span();
@@ -370,6 +396,8 @@ impl Parse for List {
         p.try_token(Token::OpenBracket)?;
         let elements = p.sequence(Token::Comma)?;
         p.token(Token::CloseBracket)?;
-        Some(List { elements: elements.into_boxed_slice(), })
+        Some(List {
+            elements: elements.into_boxed_slice(),
+        })
     }
 }

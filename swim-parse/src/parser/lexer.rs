@@ -83,9 +83,10 @@ impl Token {
 }
 
 impl std::fmt::Display for Token {
-    fn fmt(&self,
-           f: &mut std::fmt::Formatter<'_>)
-           -> std::fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         use Token::*;
         match self {
             OpenParen => write!(f, "("),
@@ -138,8 +139,10 @@ impl Lexer {
             let lexer = Token::lexer(source);
             map.insert(lexer);
         }
-        Self { sources: map,
-               source:  0.into(), }
+        Self {
+            sources: map,
+            source:  0.into(),
+        }
     }
 
     pub fn span(&self) -> Span {

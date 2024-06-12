@@ -8,23 +8,27 @@ mod impls {
     use crate::{Bind, Binder};
 
     impl Bind for TypeDeclaration {
-        fn bind(&self,
-                binder: &mut Binder) {
+        fn bind(
+            &self,
+            binder: &mut Binder,
+        ) {
             binder.insert_type(self);
         }
     }
 
     impl Bind for Expression {
-        fn bind(&self,
-                binder: &mut Binder) {
+        fn bind(
+            &self,
+            binder: &mut Binder,
+        ) {
             // only lists get their own scope for now
             match self {
                 Expression::List(list) => {
                     binder.with_scope(|binder, _scope_id| {
-                              for item in list.elements.iter() {
-                                  item.bind(binder);
-                              }
-                          });
+                        for item in list.elements.iter() {
+                            item.bind(binder);
+                        }
+                    });
                 },
                 _ => self.bind(binder),
             }
@@ -32,21 +36,27 @@ mod impls {
     }
 
     impl<T: Bind> Bind for Commented<T> {
-        fn bind(&self,
-                binder: &mut Binder) {
+        fn bind(
+            &self,
+            binder: &mut Binder,
+        ) {
             self.item().bind(binder)
         }
     }
 
     impl<T: Bind> Bind for SpannedItem<T> {
-        fn bind(&self,
-                binder: &mut Binder) {
+        fn bind(
+            &self,
+            binder: &mut Binder,
+        ) {
             self.item().bind(binder)
         }
     }
     impl Bind for FunctionDeclaration {
-        fn bind(&self,
-                binder: &mut Binder) {
+        fn bind(
+            &self,
+            binder: &mut Binder,
+        ) {
             binder.insert_function(self);
         }
     }
@@ -139,13 +149,17 @@ mod binder {
 
     impl<T> Scope<T> {
         pub fn new() -> Self {
-            Self { parent: None,
-                   items:  BTreeMap::new(), }
+            Self {
+                parent: None,
+                items:  BTreeMap::new(),
+            }
         }
 
-        pub fn insert(&mut self,
-                      k: SymbolId,
-                      v: T) {
+        pub fn insert(
+            &mut self,
+            k: SymbolId,
+            v: T,
+        ) {
             self.items.insert(k, v);
         }
 
@@ -160,31 +174,36 @@ mod binder {
 
     impl Binder {
         fn new() -> Self {
-            Self { scopes:          IndexMap::default(),
-                   scope_chain:     Vec::new(),
-                   functions:       IndexMap::default(),
-                   types:           IndexMap::default(),
-                   nodes:           IndexMap::default(),
-                   func_parameters: IndexMap::default(), }
+            Self {
+                scopes:          IndexMap::default(),
+                scope_chain:     Vec::new(),
+                functions:       IndexMap::default(),
+                types:           IndexMap::default(),
+                nodes:           IndexMap::default(),
+                func_parameters: IndexMap::default(),
+            }
         }
 
-        pub fn get_function(&self,
-                            function_id: FunctionId)
-                            -> &FunctionDeclaration {
+        pub fn get_function(
+            &self,
+            function_id: FunctionId,
+        ) -> &FunctionDeclaration {
             self.functions.get(function_id)
         }
 
-        pub fn get_type(&self,
-                        type_id: TypeId)
-                        -> &TypeDeclaration {
+        pub fn get_type(
+            &self,
+            type_id: TypeId,
+        ) -> &TypeDeclaration {
             self.types.get(type_id)
         }
 
         /// Searches for a symbol in a scope or any of its parents
-        pub fn find_symbol_in_scope(&self,
-                                    name: SymbolId,
-                                    scope_id: ScopeId)
-                                    -> Option<&Item> {
+        pub fn find_symbol_in_scope(
+            &self,
+            name: SymbolId,
+            scope_id: ScopeId,
+        ) -> Option<&Item> {
             let scope = self.scopes.get(scope_id);
             if let Some(item) = scope.items.get(&name) {
                 return Some(item);
@@ -202,9 +221,11 @@ mod binder {
             self.scopes.iter()
         }
 
-        pub fn insert_into_current_scope(&mut self,
-                                         name: SymbolId,
-                                         item: Item) {
+        pub fn insert_into_current_scope(
+            &mut self,
+            name: SymbolId,
+            item: Item,
+        ) {
             let scope_id = self.scope_chain.last().expect("there's always at least one scope");
             self.scopes.get_mut(*scope_id).insert(name, item);
         }
@@ -212,8 +233,10 @@ mod binder {
         fn push_scope(&mut self) -> ScopeId {
             let parent_id = self.scope_chain.last().cloned();
 
-            let id = self.scopes.insert(Scope { parent: parent_id,
-                                                ..Scope::new() });
+            let id = self.scopes.insert(Scope {
+                parent: parent_id,
+                ..Scope::new()
+            });
 
             self.scope_chain.push(id);
 
@@ -224,10 +247,12 @@ mod binder {
             let _ = self.scope_chain.pop();
         }
 
-        pub fn with_scope<F, R>(&mut self,
-                                f: F)
-                                -> R
-            where F: FnOnce(&mut Self, ScopeId) -> R
+        pub fn with_scope<F, R>(
+            &mut self,
+            f: F,
+        ) -> R
+        where
+            F: FnOnce(&mut Self, ScopeId) -> R,
         {
             let id = self.push_scope();
             let res = f(self, id);
@@ -235,48 +260,59 @@ mod binder {
             res
         }
 
-        pub(crate) fn insert_type(&mut self,
-                                  ty_decl: &TypeDeclaration) {
+        pub(crate) fn insert_type(
+            &mut self,
+            ty_decl: &TypeDeclaration,
+        ) {
             // insert a function binding for every constructor
             // and a type binding for the parent type
             let type_id = self.types.insert(ty_decl.clone());
             self.insert_into_current_scope(ty_decl.name.id, Item::Type(type_id));
 
             ty_decl.variants.iter().for_each(|variant| {
-                                       let span = variant.span();
-                                       let variant = variant.item();
-                                       let (fields_as_parameters, func_scope) = self.with_scope(|_, scope| {
-                                                                                        (variant.fields
-                                                                                                .iter()
-                                                                                                .map(|field| {
-                                                                                                    swim_ast::FunctionParameter { // TODO: don't just use the parent variant name
-                                                                                                                                  name: variant.name,
-                                                                                                                                  ty:   *field, }
-                                                                                                })
-                                                                                                .collect::<Vec<_>>(),
-                                                                                         scope)
-                                                                                    });
+                let span = variant.span();
+                let variant = variant.item();
+                let (fields_as_parameters, func_scope) = self.with_scope(|_, scope| {
+                    (
+                        variant
+                            .fields
+                            .iter()
+                            .map(|field| {
+                                swim_ast::FunctionParameter {
+                                    // TODO: don't just use the parent variant name
+                                    name: variant.name,
+                                    ty:   *field,
+                                }
+                            })
+                            .collect::<Vec<_>>(),
+                        scope,
+                    )
+                });
 
-                                       let function = FunctionDeclaration { name:        variant.name,
-                                                                            parameters:  fields_as_parameters.into_boxed_slice(),
-                                                                            return_type: Ty::Named(ty_decl.name),
-                                                                            body:        span.with_item(Expression::TypeConstructor),
-                                                                            visibility:  ty_decl.visibility, };
+                let function = FunctionDeclaration {
+                    name:        variant.name,
+                    parameters:  fields_as_parameters.into_boxed_slice(),
+                    return_type: Ty::Named(ty_decl.name),
+                    body:        span.with_item(Expression::TypeConstructor),
+                    visibility:  ty_decl.visibility,
+                };
 
-                                       let function_id = self.functions.insert(function);
-                                       self.insert_into_current_scope(variant.name.id, Item::Function(function_id, func_scope));
-                                   });
+                let function_id = self.functions.insert(function);
+                self.insert_into_current_scope(variant.name.id, Item::Function(function_id, func_scope));
+            });
         }
 
-        pub(crate) fn insert_function(&mut self,
-                                      arg: &FunctionDeclaration) {
+        pub(crate) fn insert_function(
+            &mut self,
+            arg: &FunctionDeclaration,
+        ) {
             let function_id = self.functions.insert(arg.clone());
             let func_body_scope = self.with_scope(|binder, function_body_scope| {
-                                          for param in arg.parameters.iter() {
-                                              binder.insert_into_current_scope(param.name.id, Item::FunctionParameter(param.ty));
-                                          }
-                                          function_body_scope
-                                      });
+                for param in arg.parameters.iter() {
+                    binder.insert_into_current_scope(param.name.id, Item::FunctionParameter(param.ty));
+                }
+                function_body_scope
+            });
             self.insert_into_current_scope(arg.name.id, Item::Function(function_id, func_body_scope));
         }
     }
@@ -286,27 +322,31 @@ mod binder {
             let mut binder = Self::new();
 
             binder.with_scope(|binder, _scope_id| {
-                      for node in &ast.nodes {
-                          match node.item() {
-                              swim_ast::AstNode::FunctionDeclaration(decl) => decl.bind(binder),
-                              swim_ast::AstNode::TypeDeclaration(decl) => decl.bind(binder),
-                          }
-                      }
-                  });
+                for node in &ast.nodes {
+                    match node.item() {
+                        swim_ast::AstNode::FunctionDeclaration(decl) => decl.bind(binder),
+                        swim_ast::AstNode::TypeDeclaration(decl) => decl.bind(binder),
+                    }
+                }
+            });
 
             binder
         }
     }
 
     pub trait Bind {
-        fn bind(&self,
-                binder: &mut Binder);
+        fn bind(
+            &self,
+            binder: &mut Binder,
+        );
     }
 
     #[cfg(test)]
     mod tests {
-        fn check(input: impl Into<String>,
-                 expect: Expect) {
+        fn check(
+            input: impl Into<String>,
+            expect: Expect,
+        ) {
             let input = input.into();
             let parser = swim_parse::Parser::new(vec![("test", input)]);
             let (ast, errs, interner, source_map) = parser.into_result();
@@ -323,9 +363,10 @@ mod binder {
         use swim_utils::{render_error, SymbolInterner};
 
         use super::*;
-        fn pretty_print_bindings(binder: &Binder,
-                                 interner: &SymbolInterner)
-                                 -> String {
+        fn pretty_print_bindings(
+            binder: &Binder,
+            interner: &SymbolInterner,
+        ) -> String {
             let mut result = String::new();
             for (scope_id, scope) in binder.scopes.iter() {
                 result.push_str(&format!("Scope {:?}:\n", scope_id));
@@ -350,8 +391,8 @@ mod binder {
         #[test]
         fn bind_type_decl() {
             check(
-                  "type trinary_boolean = True | False | maybe ",
-                  expect![[r#"
+                "type trinary_boolean = True | False | maybe ",
+                expect![[r#"
                     Scope ScopeId(0):
                       trinary_boolean: Type TypeId(0)
                       True: Function FunctionId(0)
@@ -366,8 +407,8 @@ mod binder {
         #[test]
         fn bind_function_decl() {
             check(
-                  "function add(a in 'Int, b in 'Int) returns 'Int + 1 2",
-                  expect![[r#"
+                "function add(a in 'Int, b in 'Int) returns 'Int + 1 2",
+                expect![[r#"
                     Scope ScopeId(0):
                       add: Function FunctionId(0)
                     Scope ScopeId(1):
@@ -380,8 +421,8 @@ mod binder {
         #[test]
         fn bind_list_new_scope() {
             check(
-                  "function add(a in 'Int, b in  'Int) returns 'Int [ 1, 2, 3, 4, 5, 6 ]",
-                  expect![[r#"
+                "function add(a in 'Int, b in  'Int) returns 'Int [ 1, 2, 3, 4, 5, 6 ]",
+                expect![[r#"
                     Scope ScopeId(0):
                       add: Function FunctionId(0)
                     Scope ScopeId(1):
