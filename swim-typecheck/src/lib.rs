@@ -8,8 +8,8 @@ use std::{
 use error::{TypeCheckError, TypeCheckErrorKind};
 use polytype::{tp, Type};
 use swim_bind::{FunctionId, TypeId};
-pub use swim_resolve::Literal;
-use swim_resolve::{Expr, ExprKind, Intrinsic, QueryableResolvedItems, Ty};
+use swim_resolve::{Expr, ExprKind, QueryableResolvedItems, Ty};
+pub use swim_resolve::{Intrinsic, IntrinsicName, Literal};
 use swim_utils::{idx_map_key, Identifier, IndexMap, SymbolInterner};
 
 idx_map_key!(

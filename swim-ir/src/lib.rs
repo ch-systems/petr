@@ -151,7 +151,7 @@ impl Lowerer {
             List { elements, ty } => todo!(),
             Unit => todo!(),
             Variable { ty } => todo!(),
-            Intrinsic { ty, intrinsic } => todo!(),
+            Intrinsic { ty, intrinsic } => todo!(), //self.lower_intrinsic(intrinsic, return_destination),
             ErrorRecovery => todo!(),
         }
     }
@@ -188,6 +188,30 @@ impl Lowerer {
             self.lower_function(id, func)?;
         }
         Ok(())
+    }
+
+    fn lower_intrinsic(
+        &mut self,
+        intrinsic: swim_typecheck::Intrinsic,
+        return_destination: ReturnDestination,
+    ) -> Result<Vec<IrOpcode>, LoweringError> {
+        let instr = match intrinsic.intrinsic {
+            swim_typecheck::IntrinsicName::Puts => {
+                // puts takes one arg and it is a string
+                //let arg_reg = self.fresh_reg();
+                todo!("type checking should produce a type checked intrinsic");
+                // self.lower_expr(intrinsic.args[0], todo!("scoped param_to_reg mapping in ctx"), arg_reg)?;
+                // IrOpcode::Intrinsic(Intrinsic::Puts)
+            },
+        };
+
+        Ok(match return_destination {
+            ReturnDestination::Reg(reg) => vec![instr, IrOpcode::LoadImmediate(reg, 0)],
+            ReturnDestination::Stack => {
+                let reg = self.fresh_reg();
+                vec![instr, IrOpcode::StackPush(TypedReg { ty: IrTy::Unit, reg })]
+            },
+        })
     }
 }
 
@@ -268,6 +292,42 @@ mod tests {
                   ld v0 datalabel0
                   push v0
             "#]],
+        );
+    }
+    #[test]
+    fn func_calls_intrinsic() {
+        check(
+            r#"
+                function main() returns 'unit @puts("hello")
+                "#,
+            expect![[r#"
+                    ; DATA_SECTION
+                    0: Int64(42)
+
+                    ; PROGRAM_SECTION
+                    Function TypedFunctionId(0):
+                      ld v0 datalabel0
+                      push v0
+                "#]],
+        );
+    }
+    #[test]
+    fn func_calls_other_func() {
+        check(
+            r#"
+                    function main() returns 'bool ~foo(123)
+
+                    function foo(a in 'int) returns 'bool true
+                    "#,
+            expect![[r#"
+                        ; DATA_SECTION
+                        0: Int64(42)
+
+                        ; PROGRAM_SECTION
+                        Function TypedFunctionId(0):
+                            ld v0 datalabel0
+                            push v0
+                        "#]],
         );
     }
 }
