@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use swim_ir::{DataLabel, DataSectionEntry, IrOpcode, Reg};
+use swim_ir::{DataLabel, DataSectionEntry, Intrinsic, IrOpcode, Reg};
 use swim_utils::{idx_map_key, IndexMap};
 
 fn main() {
@@ -24,6 +24,7 @@ pub struct VmState {
     static_data: IndexMap<DataLabel, DataSectionEntry>,
     registers: BTreeMap<Reg, Value>,
     program_counter: ProgramOffset,
+    memory: Vec<usize>,
 }
 
 impl Default for ProgramOffset {
@@ -50,6 +51,7 @@ impl Vm {
                 static_data,
                 registers: Default::default(),
                 program_counter: 0.into(),
+                memory: Vec::with_capacity(100),
             },
             instructions,
         }
@@ -71,10 +73,14 @@ impl Vm {
     ) -> Result<()> {
         match opcode {
             IrOpcode::JumpToFunction(label) => {
-                let Some((place_to_jump_to, _)) = self.instructions.iter().find(|(position, op)| **op == IrOpcode::FunctionLabel(label)) else {
+                let Some(offset) = self
+                    .instructions
+                    .iter()
+                    .find_map(|(position, op)| if *op == IrOpcode::FunctionLabel(label) { Some(position) } else { None })
+                else {
                     return Err(VmError);
                 };
-                self.state.program_counter = place_to_jump_to;
+                self.state.program_counter = offset;
                 Ok(())
             },
             IrOpcode::Add(dest, lhs, rhs) => {
@@ -83,10 +89,33 @@ impl Vm {
                 self.set_register(dest, Value(lhs.0 + rhs.0));
                 Ok(())
             },
-            IrOpcode::LoadData(_, _) => todo!(),
-            IrOpcode::StackPop(_) => todo!(),
-            IrOpcode::StackPush(_) => todo!(),
-            IrOpcode::Intrinsic(_) => todo!(),
+            IrOpcode::LoadData(_dest, _data_label) => todo!(),
+            IrOpcode::StackPop(dest) => {
+                let Some(data) = self.state.stack.pop() else {
+                    return Err(VmError);
+                };
+                self.set_register(dest.reg, data);
+                Ok(())
+            },
+            IrOpcode::StackPush(val) => {
+                let data = self.get_register(val.reg)?;
+                self.state.stack.push(data);
+                Ok(())
+            },
+            IrOpcode::Intrinsic(intrinsic) => {
+                match intrinsic {
+                    Intrinsic::Puts(reg) => {
+                        let ptr = self.get_register(reg.reg)?.0;
+                        let len = self.state.memory[ptr];
+                        let str = &self.state.memory[ptr + 1..ptr + 1 + len];
+                        let str = str.iter().flat_map(|num| num.to_ne_bytes()).collect::<Vec<u8>>();
+                        // convert vec of usizes to string
+                        let string: String = str.iter().map(|&c| c as u8 as char).collect();
+                        println!("{}", string);
+                    },
+                };
+                Ok(())
+            },
             IrOpcode::FunctionLabel(_) => Ok(()),
         }
     }

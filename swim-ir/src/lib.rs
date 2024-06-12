@@ -12,7 +12,7 @@ mod opcodes;
 
 use error::*;
 use opcodes::*;
-pub use opcodes::{DataLabel, IrOpcode, Reg};
+pub use opcodes::{DataLabel, Intrinsic, IrOpcode, Reg};
 
 // TODO: fully typed functions
 pub struct Function {
