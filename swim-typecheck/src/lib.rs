@@ -1,93 +1,20 @@
-mod error {
-    use std::os;
+mod error;
 
-    use miette::Diagnostic;
-    use thiserror::Error;
-
-    #[derive(Error, Debug, PartialEq)]
-    pub struct TypeCheckError {
-        kind: TypeCheckErrorKind,
-        help: Option<String>,
-    }
-
-    impl std::fmt::Display for TypeCheckError {
-        fn fmt(
-            &self,
-            f: &mut std::fmt::Formatter<'_>,
-        ) -> std::fmt::Result {
-            write!(f, "{}", self.kind)
-        }
-    }
-    #[derive(Error, Debug, Diagnostic, PartialEq)]
-    pub enum TypeCheckErrorKind {
-        #[error("Failed to unify types: {0}")]
-        UnificationFailure(#[from] polytype::UnificationError),
-    }
-
-    impl TypeCheckErrorKind {
-        pub fn into_err(self) -> TypeCheckError {
-            self.into()
-        }
-    }
-
-    impl TypeCheckError {
-        pub fn with_help(
-            mut self,
-            help: impl Into<String>,
-        ) -> Self {
-            self.help = Some(help.into());
-            self
-        }
-    }
-
-    impl From<TypeCheckErrorKind> for TypeCheckError {
-        fn from(kind: TypeCheckErrorKind) -> Self {
-            Self { kind, help: None }
-        }
-    }
-
-    impl Diagnostic for TypeCheckError {
-        fn help<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
-            self.help.as_ref().map(|x| -> Box<dyn std::fmt::Display> { Box::new(x) })
-        }
-
-        fn code<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
-            self.kind.code()
-        }
-
-        fn severity(&self) -> Option<miette::Severity> {
-            self.kind.severity()
-        }
-
-        fn url<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
-            self.kind.url()
-        }
-
-        fn source_code(&self) -> Option<&dyn miette::SourceCode> {
-            self.kind.source_code()
-        }
-
-        fn labels(&self) -> Option<Box<dyn Iterator<Item = miette::LabeledSpan> + '_>> {
-            self.kind.labels()
-        }
-
-        fn related<'a>(&'a self) -> Option<Box<dyn Iterator<Item = &'a dyn Diagnostic> + 'a>> {
-            self.kind.related()
-        }
-
-        fn diagnostic_source(&self) -> Option<&dyn Diagnostic> {
-            self.kind.diagnostic_source()
-        }
-    }
-}
-
-use std::collections::BTreeMap;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    rc::Rc,
+};
 
 use error::{TypeCheckError, TypeCheckErrorKind};
 use polytype::{tp, Type};
 use swim_bind::{FunctionId, TypeId};
 use swim_resolve::{Expr, ExprKind, Intrinsic, Literal, QueryableResolvedItems, Ty};
-use swim_utils::{Identifier, IndexMap};
+use swim_utils::{idx_map_key, Identifier, IndexMap, SymbolInterner};
+
+idx_map_key!(
+    /// A type-checked function declaration
+    TypedFunctionId
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TypeOrFunctionId {
@@ -120,33 +47,39 @@ impl From<&FunctionId> for TypeOrFunctionId {
 }
 
 pub struct TypeChecker {
-    ctx:      polytype::Context,
+    ctx: polytype::Context,
     type_map: BTreeMap<TypeOrFunctionId, TypeVariable>,
-    errors:   Vec<TypeCheckError>,
+    functions: IndexMap<TypedFunctionId, Function>,
+    function_name_map: BTreeMap<Identifier, TypedFunctionId>,
+    errors: Vec<TypeCheckError>,
+    resolved: QueryableResolvedItems,
 }
 
 pub type TypeVariable = Type<&'static str>;
 
 impl TypeChecker {
-    fn fully_resolve(
-        &mut self,
-        resolved: &QueryableResolvedItems,
-    ) {
-        // for each function, resolve its body
-        let mut funcs_to_check = vec![];
-        for (id, ty) in &self.type_map {
-            match id {
-                TypeOrFunctionId::FunctionId(func_id) => {
-                    let function = resolved.get_function(*func_id);
-                    let mut function = function.clone();
-                    funcs_to_check.push(function);
-                },
-                _ => {},
-            }
+    fn fully_resolve(&mut self) {
+        // TODO collects on these iters is not ideal
+        for (id, _) in self.resolved.types().collect::<Vec<_>>() {
+            let id = id.clone();
+            let ty = self.fresh_ty_var();
+            self.type_map.insert(id.into(), ty);
+            todo!("type decl map?");
         }
-
-        for mut func in funcs_to_check {
-            func.type_check(self);
+        for (id, func) in self.resolved.functions().map(|(a, b)| (a.clone(), b.clone())).collect::<Vec<_>>() {
+            let typed_function = func.type_check(self);
+            self.type_map.insert(
+                id.into(),
+                TypeChecker::arrow_type(
+                    [
+                        typed_function.params.iter().map(|(_, b)| b.clone()).collect(),
+                        vec![typed_function.return_ty.clone()],
+                    ]
+                    .concat(),
+                ),
+            );
+            let typed_function_id = self.functions.insert(typed_function);
+            self.function_name_map.insert(func.name, typed_function_id);
         }
     }
 
@@ -170,34 +103,37 @@ impl TypeChecker {
         // Type check the function body as a function call
         let mut function_call = swim_resolve::FunctionCall {
             function: entry_point,
-            args:     vec![], // Populate with actual arguments if necessary
+            args: vec![], // Populate with actual arguments if necessary
         };
         function_call.type_check(self);
         ()
     }
 
-    fn from_resolved(resolved: &swim_resolve::QueryableResolvedItems) -> Self {
+    fn new(resolved: QueryableResolvedItems) -> Self {
         let mut ctx = polytype::Context::default();
         let mut type_checker = TypeChecker {
             ctx,
             type_map: Default::default(),
             errors: Default::default(),
+            functions: Default::default(),
+            function_name_map: Default::default(),
+            resolved,
         };
 
-        for (id, _ty) in resolved.types() {
-            let ty = type_checker.fresh_ty_var();
-            type_checker.type_map.insert(id.into(), ty);
-        }
+        // for (id, _ty) in type_checker.resolved_items.types() {
+        //     let ty = type_checker.fresh_ty_var();
+        //     type_checker.type_map.insert(id.into(), ty);
+        // }
 
-        for (id, func) in resolved.functions() {
-            let mut func_type = Vec::with_capacity(func.params.len() + 1);
-            for (_, ty) in &func.params {
-                func_type.push(type_checker.to_type_var(ty));
-            }
-            func_type.push(type_checker.to_type_var(&func.return_type));
-            let func_type = TypeChecker::arrow_type(func_type);
-            type_checker.type_map.insert(id.into(), func_type);
-        }
+        // for (id, func) in resolved.functions() {
+        //     let mut func_type = Vec::with_capacity(func.params.len() + 1);
+        //     for (_, ty) in &func.params {
+        //         func_type.push(type_checker.to_type_var(ty));
+        //     }
+        //     func_type.push(type_checker.to_type_var(&func.return_type));
+        //     let func_type = TypeChecker::arrow_type(func_type);
+        //     type_checker.type_map.insert(id.into(), func_type);
+        // }
 
         type_checker
     }
@@ -276,37 +212,122 @@ impl TypeChecker {
             Err(e) => self.push_error(e),
         }
     }
+
+    fn get_untyped_function(
+        &self,
+        function: FunctionId,
+    ) -> &swim_resolve::Function {
+        self.resolved.get_function(function)
+    }
+
+    /// Given a symbol ID, look it up in the interner and realize it as a
+    /// string.
+    fn realize_symbol(
+        &self,
+        id: swim_utils::SymbolId,
+    ) -> Rc<str> {
+        self.resolved.interner.get(id)
+    }
+}
+
+pub enum TypedExpr {
+    FunctionCall {
+        arg_types: Vec<(Identifier, TypeVariable)>,
+        ty: TypeVariable,
+    },
+    Literal {
+        value: Literal,
+        ty: TypeVariable,
+    },
+    List {
+        elements: Vec<TypedExpr>,
+        ty: TypeVariable,
+    },
+    Unit,
+    Variable {
+        ty: TypeVariable,
+        // TODO name?
+    },
+    Intrinsic {
+        ty: TypeVariable,
+        intrinsic: Intrinsic,
+    },
+    // TODO put a span here?
+    ErrorRecovery,
+}
+
+impl TypedExpr {
+    pub fn ty(&self) -> TypeVariable {
+        use TypedExpr::*;
+        match self {
+            FunctionCall { ty, .. } => ty.clone(),
+            Literal { ty, .. } => ty.clone(),
+            List { ty, .. } => ty.clone(),
+            Unit => tp!(unit),
+            Variable { ty, .. } => ty.clone(),
+            Intrinsic { ty, .. } => ty.clone(),
+            ErrorRecovery => tp!(error),
+        }
+    }
 }
 
 impl TypeCheck for Expr {
-    type Output = TypeVariable;
+    type Output = TypedExpr;
 
     fn type_check(
         &self,
         ctx: &mut TypeChecker,
     ) -> Self::Output {
         match &self.kind {
-            ExprKind::Literal(lit) => ctx.convert_literal_to_type(&lit),
+            ExprKind::Literal(lit) => {
+                let ty = ctx.convert_literal_to_type(&lit);
+                TypedExpr::Literal { value: lit.clone(), ty }
+            },
             ExprKind::List(exprs) => {
                 if exprs.is_empty() {
-                    tp!(list(tp!(unit)))
+                    TypedExpr::List {
+                        elements: vec![],
+                        ty: tp!(list(tp!(unit))),
+                    }
                 } else {
                     todo!(" exprs.first().unwrap().kind.return_type()")
                 }
             },
             ExprKind::FunctionCall(call) => {
-                todo!()
+                // unify args with params
+                // return the func return type
+                let func_decl = ctx.get_untyped_function(call.function).clone();
+                if call.args.len() != func_decl.params.len() {
+                    ctx.push_error(TypeCheckErrorKind::ArgumentCountMismatch {
+                        expected: func_decl.params.len(),
+                        got: call.args.len(),
+                        function: ctx.realize_symbol(func_decl.name.id).to_string(),
+                    });
+                    return TypedExpr::ErrorRecovery;
+                }
+                let mut arg_types = Vec::with_capacity(call.args.len());
+
+                for (arg, (param_name, param)) in call.args.iter().zip(func_decl.params.iter()) {
+                    let arg_ty = arg.type_check(ctx);
+                    let param_ty = ctx.to_type_var(param);
+                    ctx.unify(&arg_ty.ty(), &param_ty);
+                    arg_types.push((*param_name, param_ty));
+                }
+                TypedExpr::FunctionCall {
+                    arg_types,
+                    ty: ctx.to_type_var(&func_decl.return_type),
+                }
             },
-            ExprKind::Unit => tp!(unit),
-            ExprKind::ErrorRecovery => ctx.fresh_ty_var(),
-            ExprKind::Variable(item) => ctx.to_type_var(item),
+            ExprKind::Unit => TypedExpr::Unit,
+            ExprKind::ErrorRecovery => TypedExpr::ErrorRecovery,
+            ExprKind::Variable(item) => TypedExpr::Variable { ty: ctx.to_type_var(item) },
             ExprKind::Intrinsic(intrinsic) => intrinsic.type_check(ctx),
         }
     }
 }
 
 impl TypeCheck for Intrinsic {
-    type Output = TypeVariable;
+    type Output = TypedExpr;
 
     fn type_check(
         &self,
@@ -317,12 +338,14 @@ impl TypeCheck for Intrinsic {
             Puts => {
                 if self.args.len() != 1 {
                     todo!("puts arg len check");
-                    return ctx.fresh_ty_var();
                 }
                 // puts takes a single string and returns unit
                 let type_of_arg = self.args[0].type_check(ctx);
-                ctx.unify(&tp!(string), &type_of_arg);
-                tp!(unit)
+                ctx.unify(&tp!(string), &type_of_arg.ty());
+                TypedExpr::Intrinsic {
+                    intrinsic: self.clone(),
+                    ty: tp!(unit),
+                }
             },
         }
     }
@@ -337,7 +360,7 @@ trait TypeCheck {
 }
 
 pub struct Function {
-    params:    Vec<(Identifier, TypeVariable)>,
+    params: Vec<(Identifier, TypeVariable)>,
     return_ty: TypeVariable,
 }
 
@@ -348,17 +371,17 @@ impl TypeCheck for swim_resolve::Function {
         &self,
         ctx: &mut TypeChecker,
     ) -> Self::Output {
-        let params = self.params.iter().map(|(name, ty)| (*name, ctx.to_type_var(ty)));
+        let params = self.params.iter().map(|(name, ty)| (*name, ctx.to_type_var(ty))).collect::<Vec<_>>();
 
         // unify types within the body with the parameter
         let return_type_of_body_expr = self.body.type_check(ctx);
 
         let declared_return_type = ctx.to_type_var(&self.return_type);
 
-        ctx.unify(&declared_return_type, &return_type_of_body_expr);
+        ctx.unify(&declared_return_type, &return_type_of_body_expr.ty());
 
         Function {
-            params:    params.collect(),
+            params,
             return_ty: declared_return_type,
         }
         // in a scope that contains the above names to type variables, check the body
@@ -379,7 +402,7 @@ impl TypeCheck for swim_resolve::FunctionCall {
         let func_type = ctx.get_type(self.function).clone();
         let arg_types = self.args.iter().map(|arg| arg.type_check(ctx)).collect::<Vec<_>>();
 
-        let arg_type = TypeChecker::arrow_type(arg_types);
+        let arg_type = TypeChecker::arrow_type(arg_types.iter().map(TypedExpr::ty).collect());
 
         ctx.unify(&func_type, &arg_type);
 
@@ -401,8 +424,7 @@ impl TypeCheck for swim_resolve::FunctionCall {
 mod tests {
 
     use expect_test::{expect, Expect};
-    use miette::Error;
-    use swim_resolve::QueryableResolvedItems;
+    use swim_resolve::{resolve_symbols, QueryableResolvedItems};
     use swim_utils::{render_error, SourceId, SymbolInterner};
 
     use super::*;
@@ -417,33 +439,31 @@ mod tests {
             errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
             panic!("fmt failed: code didn't parse");
         }
-        let resolved = QueryableResolvedItems::new_from_single_ast(ast);
-        let mut type_checker = TypeChecker::from_resolved(&resolved);
-        type_checker.fully_resolve(&resolved);
-        let res = pretty_print_type_checker(&interner, &source_map, type_checker, &resolved);
+        let resolved = resolve_symbols(ast, interner);
+        let mut type_checker = TypeChecker::new(resolved);
+        type_checker.fully_resolve();
+        let res = pretty_print_type_checker(&source_map, type_checker);
 
         expect.assert_eq(&res);
     }
 
     fn pretty_print_type_checker(
-        interner: &SymbolInterner,
         source_map: &IndexMap<SourceId, (&str, &str)>,
         type_checker: TypeChecker,
-        resolved: &QueryableResolvedItems,
     ) -> String {
         let mut s = String::new();
         for (id, ty) in &type_checker.type_map {
             let text = match id {
                 TypeOrFunctionId::TypeId(id) => {
-                    let ty = resolved.get_type(*id);
+                    let ty = type_checker.resolved.get_type(*id);
 
-                    let name = interner.get(ty.name.id);
+                    let name = type_checker.resolved.interner.get(ty.name.id);
                     format!("type {}", name)
                 },
                 TypeOrFunctionId::FunctionId(id) => {
-                    let func = resolved.get_function(*id);
+                    let func = type_checker.resolved.get_function(*id);
 
-                    let name = interner.get(func.name.id);
+                    let name = type_checker.resolved.interner.get(func.name.id);
                     format!("function {}", name)
                 },
             };
@@ -542,7 +562,10 @@ mod tests {
 
         function my_func() returns 'unit
           @puts(~string_literal)"#,
-            expect![[r#""#]],
+            expect![[r#"
+                function string_literal → string
+                function my_func → unit
+            "#]],
         );
     }
 
@@ -552,7 +575,9 @@ mod tests {
             r#"
         function my_func() returns 'unit
           @puts("test")"#,
-            expect![[r#""#]],
+            expect![[r#"
+                function my_func → unit
+            "#]],
         );
     }
 
@@ -562,7 +587,27 @@ mod tests {
             r#"
         function my_func() returns 'unit
           @puts(bool)"#,
-            expect![[r#""#]],
+            expect![[r#"
+                function my_func → unit
+
+                Errors:
+                Failed to unify types: Failure(string, error)
+            "#]],
+        );
+    }
+
+    #[test]
+    fn intrinsic_and_return_ty_dont_match() {
+        check(
+            r#"
+        function my_func() returns 'bool
+          @puts("test")"#,
+            expect![[r#"
+                function my_func → bool
+
+                Errors:
+                Failed to unify types: Failure(bool, unit)
+            "#]],
         );
     }
 
@@ -575,7 +620,13 @@ mod tests {
 
         function my_func() returns 'unit
           @puts(~bool_literal)"#,
-            expect![[r#""#]],
+            expect![[r#"
+                function bool_literal → bool
+                function my_func → unit
+
+                Errors:
+                Failed to unify types: Failure(string, bool)
+            "#]],
         );
     }
 }

@@ -967,6 +967,7 @@ dependencies = [
  "swim-bind",
  "swim-parse",
  "swim-utils",
+ "thiserror",
 ]
 
 [[package]]

@@ -2,14 +2,25 @@
 //! This crate's job is to tee up the type checker for the next stage of compilation.
 
 pub use resolved::QueryableResolvedItems;
+use resolver::Resolver;
 pub use resolver::{Expr, ExprKind, Function, FunctionCall, Intrinsic, Type};
 pub use swim_ast::{Intrinsic as IntrinsicName, Literal, Ty};
+use swim_utils::SymbolInterner;
+
+pub fn resolve_symbols(
+    ast: swim_ast::Ast,
+    interner: SymbolInterner,
+) -> QueryableResolvedItems {
+    let resolver = Resolver::new_from_single_ast(ast, interner);
+    resolver.into_queryable()
+}
 
 mod resolved {
     use std::collections::BTreeMap;
 
     use swim_ast::Ast;
     use swim_bind::{FunctionId, TypeId};
+    use swim_utils::SymbolInterner;
 
     use crate::resolver::{Function, Resolver, TypeDeclaration};
     /// Contains things that have already been resolved.
@@ -18,8 +29,8 @@ mod resolved {
     /// the [QueryableResolved] to get the resolved items -- [QueryableResolvedItems] is the
     /// immutable result of resolution, and resolved items can no longer be mutated.
     pub(crate) struct ResolvedItems {
-        resolved_functions: BTreeMap<FunctionId, Function>,
-        resolved_types:     BTreeMap<TypeId, TypeDeclaration>,
+        pub resolved_functions: BTreeMap<FunctionId, Function>,
+        pub resolved_types: BTreeMap<TypeId, TypeDeclaration>,
     }
 
     impl ResolvedItems {
@@ -42,27 +53,28 @@ mod resolved {
         pub(crate) fn new() -> Self {
             Self {
                 resolved_functions: Default::default(),
-                resolved_types:     Default::default(),
-            }
-        }
-
-        pub fn into_queryable(self) -> QueryableResolvedItems {
-            QueryableResolvedItems {
-                resolved_functions: self.resolved_functions,
-                resolved_types:     self.resolved_types,
+                resolved_types: Default::default(),
             }
         }
     }
 
     pub struct QueryableResolvedItems {
         resolved_functions: BTreeMap<FunctionId, Function>,
-        resolved_types:     BTreeMap<TypeId, TypeDeclaration>,
+        resolved_types: BTreeMap<TypeId, TypeDeclaration>,
+        pub interner: SymbolInterner,
     }
 
     impl QueryableResolvedItems {
-        pub fn new_from_single_ast(ast: Ast) -> Self {
-            let resolver = Resolver::new_from_single_ast(ast);
-            resolver.into_queryable()
+        pub fn new(
+            resolved_functions: BTreeMap<FunctionId, Function>,
+            resolved_types: BTreeMap<TypeId, TypeDeclaration>,
+            interner: SymbolInterner,
+        ) -> Self {
+            Self {
+                resolved_functions,
+                resolved_types,
+                interner,
+            }
         }
 
         pub fn get_function(
@@ -95,14 +107,20 @@ mod resolver {
 
     use swim_ast::{Ast, Commented, Expression, FunctionDeclaration, FunctionParameter};
     use swim_bind::{Binder, FunctionId, Item, ScopeId, TypeId};
-    use swim_utils::{Identifier, SpannedItem};
+    use swim_utils::{Identifier, SpannedItem, SymbolInterner};
+    use thiserror::Error;
 
     use crate::resolved::{QueryableResolvedItems, ResolvedItems};
-    pub struct ResolutionError;
+    #[derive(Debug, Error)]
+    pub enum ResolutionError {
+        #[error("Function parameter not found: {0}")]
+        FunctionParameterNotFound(String),
+    }
 
-    pub struct Resolver {
-        resolved: ResolvedItems,
-        errs:     Vec<ResolutionError>,
+    pub(crate) struct Resolver {
+        pub resolved: ResolvedItems,
+        pub interner: SymbolInterner,
+        pub errs: Vec<ResolutionError>,
     }
 
     /*
@@ -161,15 +179,15 @@ mod resolver {
     #[derive(Clone)]
     pub struct FunctionCall {
         pub function: FunctionId,
-        pub args:     Vec<Expr>,
+        pub args: Vec<Expr>,
     }
 
     #[derive(Clone)]
     pub struct Function {
-        pub name:        Identifier,
-        pub params:      Vec<(Identifier, Type)>,
+        pub name: Identifier,
+        pub params: Vec<(Identifier, Type)>,
         pub return_type: Type,
-        pub body:        Expr,
+        pub body: Expr,
     }
 
     #[derive(Clone)]
@@ -203,16 +221,20 @@ mod resolver {
     #[derive(Clone)]
     pub struct Intrinsic {
         pub intrinsic: swim_ast::Intrinsic,
-        pub args:      Box<[Expr]>,
+        pub args: Box<[Expr]>,
     }
 
     impl Resolver {
         // TODO: one for dependencies/packages which creates more scopes in the same binder
-        pub fn new_from_single_ast(ast: Ast) -> Self {
+        pub fn new_from_single_ast(
+            ast: Ast,
+            interner: SymbolInterner,
+        ) -> Self {
             let binder = Binder::from_ast(&ast);
             let mut resolver = Self {
-                errs:     Vec::new(),
+                errs: Vec::new(),
                 resolved: ResolvedItems::new(),
+                interner,
             };
             resolver.add_package(ast, &binder);
             resolver
@@ -276,7 +298,7 @@ mod resolver {
         }
 
         pub fn into_queryable(self) -> QueryableResolvedItems {
-            self.resolved.into_queryable()
+            QueryableResolvedItems::new(self.resolved.resolved_functions, self.resolved.resolved_types, self.interner)
         }
     }
 
@@ -354,7 +376,9 @@ mod resolver {
                 },
                 Expression::Variable(var) => {
                     let Some(Item::FunctionParameter(ty)) = binder.find_symbol_in_scope(var.id, scope_id) else {
-                        todo!("push error and return")
+                        let var_name = resolver.interner.get(var.id);
+                        resolver.errs.push(ResolutionError::FunctionParameterNotFound(var_name.to_string()));
+                        return None;
                     };
                     let ty = ty.resolve(resolver, binder, scope_id).unwrap_or(Type::ErrorRecovery);
                     Expr::new(ExprKind::Variable(ty))

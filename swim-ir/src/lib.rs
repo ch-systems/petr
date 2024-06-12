@@ -49,7 +49,7 @@ mod opcodes {
 
     #[derive(Debug)]
     pub struct TypedReg {
-        pub ty:  IrTy,
+        pub ty: IrTy,
         pub reg: Reg,
     }
 
@@ -78,12 +78,12 @@ pub struct Function {
 
 /// Lowers typed nodes into an IR suitable for code generation.
 pub struct Lowerer {
-    data_section:   IndexMap<DataLabel, DataSectionEntry>,
-    entry_point:    FunctionLabel,
-    functions:      BTreeMap<FunctionId, Function>,
-    resolved_items: QueryableResolvedItems,
-    reg_assigner:   usize,
-    type_checker:   TypeChecker,
+    data_section: IndexMap<DataLabel, DataSectionEntry>,
+    entry_point: FunctionLabel,
+    functions: BTreeMap<FunctionId, Function>,
+    //    resolved_items: QueryableResolvedItems,
+    reg_assigner: usize,
+    type_checker: TypeChecker,
 }
 
 pub enum DataSectionEntry {
@@ -94,7 +94,7 @@ pub enum DataSectionEntry {
 
 impl Lowerer {
     pub fn new(
-        resolved_items: QueryableResolvedItems,
+        //resolved_items: QueryableResolvedItems,
         type_checker: TypeChecker,
     ) -> Self {
         todo!("Remove the resolved items, the type checker should be able to provide all necessary information");
@@ -102,7 +102,7 @@ impl Lowerer {
             data_section: IndexMap::default(),
             entry_point: todo!(),
             functions: BTreeMap::default(),
-            resolved_items,
+            // resolved_items,
             reg_assigner: 0,
             type_checker,
         }
@@ -141,7 +141,7 @@ impl Lowerer {
                 // load from stack into register
                 let param_reg = self.fresh_reg();
                 let ty_reg = TypedReg {
-                    ty:  self.to_ir_type(param_ty),
+                    ty: self.to_ir_type(param_ty),
                     reg: param_reg,
                 };
                 buf.push(IrOpcode::StackPop(ty_reg));

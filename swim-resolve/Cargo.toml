@@ -9,6 +9,7 @@ edition = "2021"
 swim-ast = { path = "../swim-ast" }
 swim-bind = { path = "../swim-bind" }
 swim-utils = { path = "../swim-utils" }
+thiserror = "1.0.61"
 
 [dev-dependencies]
 swim-parse = { path = "../swim-parse" }
