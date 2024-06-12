@@ -31,17 +31,11 @@ fn main() -> io::Result<()> {
     let opt = Opt::from_args();
 
     // read sources from disk
-    let sources = opt.input
-                     .iter()
-                     .map(fs::read_to_string)
-                     .collect::<Result<Vec<_>, _>>()?;
+    let sources = opt.input.iter().map(fs::read_to_string).collect::<Result<Vec<_>, _>>()?;
 
     let sources = opt.input.into_iter().zip(sources).collect::<Vec<_>>();
 
-    let longest_source_name = sources.iter()
-                                     .map(|(path, _)| path.display().to_string().len())
-                                     .max()
-                                     .unwrap_or(0);
+    let longest_source_name = sources.iter().map(|(path, _)| path.display().to_string().len()).max().unwrap_or(0);
 
     let distance_to_check = longest_source_name + 5;
 
@@ -53,8 +47,7 @@ fn main() -> io::Result<()> {
         let (ast, errs, interner, source_map) = parser.into_result();
         print!("{}", ".".repeat(num_dots_to_display));
         if !errs.is_empty() {
-            errs.into_iter()
-                .for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
+            errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
             panic!("fmt failed: code didn't parse");
         }
         let mut ctx = FormatterContext::from_interner(interner).with_config(Default::default());
@@ -105,9 +98,7 @@ impl<T> Formattable for Commented<T> where T: Formattable
             if !lines.is_empty() {
                 buf.push_str(&" ".repeat(OPEN_COMMENT_STR.len()));
             }
-            buf.push_str(&comments.last()
-                                  .expect("invariant: is_empty() checked above")
-                                  .content);
+            buf.push_str(&comments.last().expect("invariant: is_empty() checked above").content);
             buf.push_str(CLOSE_COMMENT_STR);
             lines.push(ctx.new_line(buf));
         } else {
@@ -162,8 +153,7 @@ impl Formattable for FunctionDeclaration {
            });
         buf.push_str(") returns ");
 
-        buf.push_str(&self.return_type
-                          .pretty_print(&ctx.interner, ctx.indentation()));
+        buf.push_str(&self.return_type.pretty_print(&ctx.interner, ctx.indentation()));
 
         lines.push(ctx.new_line(buf));
 
@@ -173,9 +163,7 @@ impl Formattable for FunctionDeclaration {
             lines.append(&mut body.lines);
         } else {
             let first_line_of_body = body.lines.remove(0);
-            lines.last_mut()
-                 .expect("invariant")
-                 .join_with_line(first_line_of_body, " ");
+            lines.last_mut().expect("invariant").join_with_line(first_line_of_body, " ");
             lines.append(&mut body.lines);
         }
 
@@ -190,11 +178,7 @@ impl Formattable for FunctionParameter {
         let mut buf = String::new();
         buf.push_str(&ctx.interner.get(self.name.id));
 
-        let ty_in = if ctx.config.use_set_notation_for_types() {
-            "∈"
-        } else {
-            "in"
-        };
+        let ty_in = if ctx.config.use_set_notation_for_types() { "∈" } else { "in" };
 
         buf.push_str(&format!(" {ty_in} "));
         buf.push_str(&self.ty.pretty_print(&ctx.interner, ctx.indentation()));
@@ -236,9 +220,7 @@ impl Formattable for Expression {
                 FormattedLines::new(vec![ctx.new_line(ident_as_string)])
             },
             Expression::List(list) => list.format(ctx),
-            Expression::TypeConstructor => unreachable!(
-                "this is only constructed after binding, which the formatter doesn't do"
-            ),
+            Expression::TypeConstructor => unreachable!("this is only constructed after binding, which the formatter doesn't do"),
             Expression::FunctionCall(f) => f.format(ctx),
             Expression::IntrinsicCall(i) => i.format(ctx),
         }
@@ -374,11 +356,7 @@ impl Formattable for TypeDeclaration {
               ctx: &mut FormatterContext)
               -> FormattedLines {
         let mut lines = Vec::new();
-        let mut buf: String = if self.visibility == Visibility::Exported {
-                                  "Type "
-                              } else {
-                                  "type "
-                              }.to_string();
+        let mut buf: String = if self.visibility == Visibility::Exported { "Type " } else { "type " }.to_string();
         buf.push_str(&ctx.interner.get(self.name.id));
         let mut variants = self.variants.iter();
         if let Some(first_variant) = variants.next() {
@@ -460,10 +438,7 @@ impl Formattable for List {
             }
             lines.push(ctx.new_line("]"));
         } else {
-            let text = item_buf.iter()
-                               .map(|item| item.content.trim())
-                               .collect::<Vec<_>>()
-                               .join(", ");
+            let text = item_buf.iter().map(|item| item.content.trim()).collect::<Vec<_>>().join(", ");
             lines.push(ctx.new_line(format!("[{}]", text)));
         }
 
@@ -501,9 +476,7 @@ impl FormattedLines {
 
     pub fn render(&self) -> String {
         let mut buf = String::new();
-        for Line { indentation,
-                   content, } in &self.lines
-        {
+        for Line { indentation, content } in &self.lines {
             // don't print indentation if the line is empty
             // it would just be trailing whitespace
             if content.trim().is_empty() {
@@ -512,9 +485,7 @@ impl FormattedLines {
             }
 
             // the line has non-whitespace content, so we indent and print it
-            buf.push_str(&format!("{}{}\n",
-                                  INDENTATION_CHARACTER.repeat(*indentation),
-                                  content));
+            buf.push_str(&format!("{}{}\n", INDENTATION_CHARACTER.repeat(*indentation), content));
         }
         buf
     }
@@ -525,11 +496,7 @@ impl FormattedLines {
             return Line { indentation: 0,
                           content:     Rc::from(""), };
         };
-        let content = self.lines
-                          .into_iter()
-                          .map(|line| line.content)
-                          .collect::<Vec<_>>()
-                          .join(" ");
+        let content = self.lines.into_iter().map(|line| line.content).collect::<Vec<_>>().join(" ");
         Line { indentation,
                content: Rc::from(content) }
     }
@@ -561,10 +528,7 @@ pub trait Formattable {
         let base_result = self.format(ctx);
         // try the first configs, then the later ones
         // these are in order of preference
-        let configs = vec![ctx.config
-                              .as_builder()
-                              .put_fn_params_on_new_lines(true)
-                              .build(),
+        let configs = vec![ctx.config.as_builder().put_fn_params_on_new_lines(true).build(),
                            ctx.config
                               .as_builder()
                               .put_fn_params_on_new_lines(true)
@@ -575,10 +539,7 @@ pub trait Formattable {
                               .put_fn_params_on_new_lines(true)
                               .put_fn_body_on_new_line(true)
                               .build(),
-                           ctx.config
-                              .as_builder()
-                              .put_list_elements_on_new_lines(true)
-                              .build(),
+                           ctx.config.as_builder().put_list_elements_on_new_lines(true).build(),
                            ctx.config
                               .as_builder()
                               .put_fn_params_on_new_lines(true)
@@ -602,8 +563,7 @@ pub trait Formattable {
 
         // if none of the above were good enough, pick the shortest one
         vec![base_result].into_iter()
-                         .chain(configs.into_iter()
-                                       .map(|config| self.try_config(ctx, config)))
+                         .chain(configs.into_iter().map(|config| self.try_config(ctx, config)))
                          .min_by_key(|fl| fl.max_length())
                          .unwrap()
     }

@@ -122,8 +122,7 @@ impl Span {
     pub fn join(&self,
                 after_span: Span)
                 -> Span {
-        assert!(self.source == after_span.source,
-                "cannot join spans from different files");
+        assert!(self.source == after_span.source, "cannot join spans from different files");
 
         let (first_span, second_span) = if self.span.offset() < after_span.span.offset() {
             (self.span, after_span.span)
@@ -131,8 +130,7 @@ impl Span {
             (after_span.span, self.span)
         };
 
-        let (first_end, second_end) =
-            (first_span.len() + first_span.offset(), second_span.len() + second_span.offset());
+        let (first_end, second_end) = (first_span.len() + first_span.offset(), second_span.len() + second_span.offset());
 
         let end = std::cmp::max(first_end, second_end);
 
@@ -146,8 +144,7 @@ impl Span {
     pub fn hi_to_hi(&self,
                     after_span: Span)
                     -> Self {
-        assert!(self.source == after_span.source,
-                "cannot join spans from different files");
+        assert!(self.source == after_span.source, "cannot join spans from different files");
         let lo = self.span.offset() + self.span.len();
         let hi = after_span.span.offset() + after_span.span.len();
         Self { source: self.source,
@@ -271,8 +268,7 @@ pub mod error_printing {
         }
     }
 
-    impl<T> std::fmt::Display for SourcedItem<T>
-        where T: Diagnostic + std::error::Error + std::fmt::Debug
+    impl<T> std::fmt::Display for SourcedItem<T> where T: Diagnostic + std::error::Error + std::fmt::Debug
     {
         fn fmt(&self,
                f: &mut std::fmt::Formatter<'_>)
@@ -281,10 +277,7 @@ pub mod error_printing {
         }
     }
 
-    impl<T: std::error::Error> std::error::Error for SourcedItem<T>
-        where T: Diagnostic + std::error::Error + std::fmt::Debug
-    {
-    }
+    impl<T: std::error::Error> std::error::Error for SourcedItem<T> where T: Diagnostic + std::error::Error + std::fmt::Debug {}
 
     pub fn render<T>(sources: &IndexMap<SourceId, (&'static str, &'static str)>,
                      err: SpannedItem<T>)

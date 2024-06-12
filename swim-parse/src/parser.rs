@@ -34,9 +34,7 @@ impl ParseError {
 
 impl Diagnostic for ParseError {
     fn help<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
-        self.help
-            .as_ref()
-            .map(|x| -> Box<dyn std::fmt::Display> { Box::new(x) })
+        self.help.as_ref().map(|x| -> Box<dyn std::fmt::Display> { Box::new(x) })
     }
 
     fn code<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
@@ -94,11 +92,7 @@ impl ParseErrorKind {
 }
 
 fn format_toks(toks: &[Token]) -> String {
-    let mut buf = toks.iter()
-                      .take(toks.len() - 1)
-                      .map(|t| format!("{}", t))
-                      .collect::<Vec<_>>()
-                      .join(", ");
+    let mut buf = toks.iter().take(toks.len() - 1).map(|t| format!("{}", t)).collect::<Vec<_>>().join(", ");
     if toks.len() == 2 {
         buf.push_str(&format!(" or {}", toks.last().unwrap()));
     } else if toks.len() > 2 {
@@ -129,9 +123,7 @@ impl Parser {
         let mut help_text = Vec::with_capacity(self.help.len());
         let mut indentation = 0;
         for help in &self.help {
-            let text = format!("{}{}{help}",
-                               "  ".repeat(indentation),
-                               if indentation == 0 { "" } else { "↪ " });
+            let text = format!("{}{}{help}", "  ".repeat(indentation), if indentation == 0 { "" } else { "↪ " });
             help_text.push(text);
             indentation += 1;
         }
@@ -163,16 +155,14 @@ impl Parser {
         }
     }
 
-    pub fn new<'a>(sources: impl IntoIterator<Item = (impl Into<String>, impl Into<String>)>)
-                   -> Self {
+    pub fn new<'a>(sources: impl IntoIterator<Item = (impl Into<String>, impl Into<String>)>) -> Self {
         // TODO we hold two copies of the source for now: one in source_maps, and one outside the parser
         // for the lexer to hold on to and not have to do self-referential pointers.
         let sources = sources.into_iter()
                              .map(|(name, source)| -> (&'static str, &'static str) {
                                  let name = name.into();
                                  let source = source.into();
-                                 (Box::leak(name.into_boxed_str()),
-                                  Box::leak(source.into_boxed_str()))
+                                 (Box::leak(name.into_boxed_str()), Box::leak(source.into_boxed_str()))
                              })
                              .collect::<Vec<_>>();
         let sources_for_lexer = sources.iter().map(|(_, source)| *source);
@@ -192,19 +182,11 @@ impl Parser {
     }
 
     pub fn drain_comments(&mut self) -> Vec<Comment> {
-        self.comments
-            .drain(..)
-            .map(|spanned_item| spanned_item.into_item())
-            .collect()
+        self.comments.drain(..).map(|spanned_item| spanned_item.into_item()).collect()
     }
 
     /// consume tokens until a node is produced
-    pub fn into_result(
-        mut self)
-        -> (Ast,
-            Vec<SpannedItem<ParseError>>,
-            SymbolInterner,
-            IndexMap<SourceId, (&'static str, &'static str)>) {
+    pub fn into_result(mut self) -> (Ast, Vec<SpannedItem<ParseError>>, SymbolInterner, IndexMap<SourceId, (&'static str, &'static str)>) {
         let nodes: Vec<SpannedItem<AstNode>> = self.many::<SpannedItem<AstNode>>();
         // drop the lexers from the source map
         (Ast::new(nodes), self.errors, self.interner, self.source_map)
@@ -315,8 +297,7 @@ impl Parser {
             Some(self.advance())
         } else {
             let span = self.lexer.span();
-            self.push_error(span.with_item(ParseErrorKind::ExpectedToken(tok,
-                                                                         *peeked_token.item())));
+            self.push_error(span.with_item(ParseErrorKind::ExpectedToken(tok, *peeked_token.item())));
             None
         }
     }
@@ -335,8 +316,7 @@ impl Parser {
                 if N == 1 {
                     self.push_error(span.with_item(ParseErrorKind::ExpectedToken(toks[0], *tok)));
                 } else {
-                    self.push_error(span.with_item(ParseErrorKind::ExpectedOneOf(toks.to_vec(),
-                                                                                 *tok)));
+                    self.push_error(span.with_item(ParseErrorKind::ExpectedOneOf(toks.to_vec(), *tok)));
                 }
                 None
             },

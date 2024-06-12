@@ -3,9 +3,7 @@ use expect_test::expect;
 use super::*;
 fn check<T: Into<String>>(sources: Vec<T>,
                           expected: expect_test::Expect) {
-    let mut lexer =
-        Lexer::new(sources.into_iter()
-                          .map(|s| -> &'static str { Box::leak(s.into().into_boxed_str()) }));
+    let mut lexer = Lexer::new(sources.into_iter().map(|s| -> &'static str { Box::leak(s.into().into_boxed_str()) }));
     let mut toks = vec![];
     loop {
         let next_tok = lexer.advance();

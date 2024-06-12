@@ -68,9 +68,7 @@ mod resolved {
         pub fn get_type(&self,
                         id: TypeId)
                         -> &TypeDeclaration {
-            self.resolved_types
-                .get(&id)
-                .expect("type IDs should always correspond to resolved types")
+            self.resolved_types.get(&id).expect("type IDs should always correspond to resolved types")
         }
 
         pub fn functions(&self) -> impl Iterator<Item = (&FunctionId, &Function)> {
@@ -134,18 +132,16 @@ mod resolver {
                      swim_ast::Ty::Bool => Type::Bool,
                      swim_ast::Ty::String => Type::String,
                      swim_ast::Ty::Unit => Type::Unit,
-                     swim_ast::Ty::Named(name) => {
-                         match binder.find_symbol_in_scope(name.id, scope_id) {
-                             Some(Item::Type(id)) => Type::Named(*id),
-                             Some(_) => {
-                                 todo!("push error -- symbol is not type");
-                                 return None;
-                             },
-                             None => {
-                                 todo!("push error -- {} symbol not found", name.id);
-                                 return None;
-                             },
-                         }
+                     swim_ast::Ty::Named(name) => match binder.find_symbol_in_scope(name.id, scope_id) {
+                         Some(Item::Type(id)) => Type::Named(*id),
+                         Some(_) => {
+                             todo!("push error -- symbol is not type");
+                             return None;
+                         },
+                         None => {
+                             todo!("push error -- {} symbol not found", name.id);
+                             return None;
+                         },
                      },
                  })
         }
@@ -216,9 +212,7 @@ mod resolver {
                 for (_name, item) in scope.iter() {
                     use Item::*;
                     match item {
-                        Function(func, func_scope) => {
-                            self.resolve_function(binder, *func, *func_scope)
-                        },
+                        Function(func, func_scope) => self.resolve_function(binder, *func, *func_scope),
                         Expr(_expr) => todo!(),
                         Type(ty) => self.resolve_type(binder, *ty, scope_id),
                         FunctionParameter(_ty) => {
@@ -296,13 +290,9 @@ mod resolver {
                 params_buf.push((*name, ty));
             }
 
-            let return_type = self.return_type
-                                  .resolve(resolver, binder, scope_id)
-                                  .unwrap_or(Type::Unit);
+            let return_type = self.return_type.resolve(resolver, binder, scope_id).unwrap_or(Type::Unit);
 
-            let body = self.body
-                           .resolve(resolver, binder, scope_id)
-                           .unwrap_or(Expr::error_recovery());
+            let body = self.body.resolve(resolver, binder, scope_id).unwrap_or(Expr::error_recovery());
 
             Some(Function { name: self.name,
                             params: params_buf,
@@ -324,10 +314,7 @@ mod resolver {
                      Expression::List(list) => {
                          let list: Vec<Expr> = list.elements
                                                    .iter()
-                                                   .map(|x| {
-                                                       x.resolve(resolver, binder, scope_id)
-                                                        .unwrap_or_else(Expr::error_recovery)
-                                                   })
+                                                   .map(|x| x.resolve(resolver, binder, scope_id).unwrap_or_else(Expr::error_recovery))
                                                    .collect();
                          // TODO: do list combination type if list of unit, which functions like a block
                          Expr::new(ExprKind::List(list.into_boxed_slice()))
@@ -339,13 +326,10 @@ mod resolver {
                          Expr::new(ExprKind::FunctionCall(resolved_call))
                      },
                      Expression::Variable(var) => {
-                         let Some(Item::FunctionParameter(ty)) =
-                             binder.find_symbol_in_scope(var.id, scope_id)
-                         else {
+                         let Some(Item::FunctionParameter(ty)) = binder.find_symbol_in_scope(var.id, scope_id) else {
                              todo!("push error and return")
                          };
-                         let ty = ty.resolve(resolver, binder, scope_id)
-                                    .unwrap_or(Type::ErrorRecovery);
+                         let ty = ty.resolve(resolver, binder, scope_id).unwrap_or(Type::ErrorRecovery);
                          Expr::new(ExprKind::Variable(ty))
                      },
                      // TODO
@@ -368,10 +352,7 @@ mod resolver {
                    -> Option<Self::Resolved> {
             let args = self.args
                            .iter()
-                           .map(|x| {
-                               x.resolve(resolver, binder, scope_id)
-                                .unwrap_or_else(Expr::error_recovery)
-                           })
+                           .map(|x| x.resolve(resolver, binder, scope_id).unwrap_or_else(Expr::error_recovery))
                            .collect();
             Some(Intrinsic { intrinsic: self.intrinsic.clone(),
                              args })
@@ -411,19 +392,14 @@ mod resolver {
                    scope_id: ScopeId)
                    -> Option<Self::Resolved> {
             let func_name = self.func_name;
-            let Some(Item::Function(resolved_id, _func_scope)) =
-                binder.find_symbol_in_scope(func_name.id, scope_id)
-            else {
+            let Some(Item::Function(resolved_id, _func_scope)) = binder.find_symbol_in_scope(func_name.id, scope_id) else {
                 todo!("push error");
                 panic!()
             };
 
             let args = self.args
                            .iter()
-                           .map(|x| {
-                               x.resolve(resolver, binder, scope_id)
-                                .unwrap_or_else(Expr::error_recovery)
-                           })
+                           .map(|x| x.resolve(resolver, binder, scope_id).unwrap_or_else(Expr::error_recovery))
                            .collect();
 
             Some(FunctionCall { function: *resolved_id,
@@ -501,8 +477,7 @@ mod resolver {
                         Type::String => "string".to_string(),
                         Type::ErrorRecovery => "<error>".to_string(),
                         Type::Named(id) => {
-                            format!("named type {}",
-                                    interner.get(resolver.get_type(*id).name.id))
+                            format!("named type {}", interner.get(resolver.get_type(*id).name.id))
                         },
                     }
                 }
@@ -516,11 +491,7 @@ mod resolver {
                     match self {
                         ExprKind::Literal(lit) => format!("Literal({:?})", lit),
                         ExprKind::List(exprs) => format!("[{}]",
-                                                         exprs.iter()
-                                                              .map(|x| x.to_string(resolver,
-                                                                                   interner))
-                                                              .collect::<Vec<_>>()
-                                                              .join(", ")),
+                                                         exprs.iter().map(|x| x.to_string(resolver, interner)).collect::<Vec<_>>().join(", ")),
                         ExprKind::FunctionCall(call) => {
                             format!("FunctionCall({})", call.function)
                         },
@@ -529,11 +500,7 @@ mod resolver {
                         ExprKind::Variable(_) => todo!(),
                         ExprKind::Intrinsic(x) => format!("@{}({})",
                                                           x.intrinsic,
-                                                          x.args
-                                                           .iter()
-                                                           .map(|x| x.to_string(resolver, interner))
-                                                           .collect::<Vec<_>>()
-                                                           .join(", ")),
+                                                          x.args.iter().map(|x| x.to_string(resolver, interner)).collect::<Vec<_>>().join(", ")),
                     }
                 }
             }
@@ -549,8 +516,7 @@ mod resolver {
             let parser = swim_parse::Parser::new(vec![("test", input)]);
             let (ast, errs, interner, source_map) = parser.into_result();
             if !errs.is_empty() {
-                errs.into_iter()
-                    .for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
+                errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
                 panic!("fmt failed: code didn't parse");
             }
             let resolver = Resolver::new_from_single_ast(ast);
@@ -565,9 +531,7 @@ mod resolver {
             let mut result = String::new();
             result.push_str("_____FUNCTIONS_____\n");
             for (func_id, func) in queryable.functions() {
-                result.push_str(&format!("#{} {}",
-                                         Into::<usize>::into(*func_id),
-                                         interner.get(func.name.id),));
+                result.push_str(&format!("#{} {}", Into::<usize>::into(*func_id), interner.get(func.name.id),));
                 result.push('(');
                 for (name, ty) in &func.params {
                     let name = interner.get(name.id);
@@ -582,9 +546,7 @@ mod resolver {
 
             result.push_str("_____TYPES_____\n");
             for (type_id, ty_decl) in queryable.types() {
-                result.push_str(&format!("#{} {}",
-                                         Into::<usize>::into(*type_id),
-                                         interner.get(ty_decl.name.id),));
+                result.push_str(&format!("#{} {}", Into::<usize>::into(*type_id), interner.get(ty_decl.name.id),));
                 result.push_str("\n\n");
             }
 

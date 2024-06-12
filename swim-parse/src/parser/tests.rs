@@ -51,14 +51,8 @@ fn parse_parameters() {
 
 #[test]
 fn parse_parameters_in_keyword_identical_to_symbol() {
-    let parser_one = Parser::new(vec![(
-        "test",
-        "function addTwoNums(a ∈ 'Integer, b ∈ 'Integer) returns 'Integer + a b",
-    )]);
-    let parser_two = Parser::new(vec![(
-        "test",
-        "function addTwoNums(a in 'Integer, b in 'Integer) returns 'Integer + a b",
-    )]);
+    let parser_one = Parser::new(vec![("test", "function addTwoNums(a ∈ 'Integer, b ∈ 'Integer) returns 'Integer + a b")]);
+    let parser_two = Parser::new(vec![("test", "function addTwoNums(a in 'Integer, b in 'Integer) returns 'Integer + a b")]);
     let (ast_one, errs_one, interner_one, _) = parser_one.into_result();
 
     let (ast_two, errs_two, interner_two, _) = parser_two.into_result();
@@ -73,9 +67,7 @@ fn parse_parameters_in_keyword_identical_to_symbol() {
 #[test]
 fn commented_function() {
     check(
-          vec![
-        r#"{- this is a comment -} function addTwoNums(a in 'A, b in 'B) returns 'B + a b    "#,
-    ],
+          vec![r#"{- this is a comment -} function addTwoNums(a in 'A, b in 'B) returns 'B + a b    "#],
           expect![[r#"
             AST
             ____
@@ -91,9 +83,7 @@ fn commented_function() {
 #[test]
 fn multi_commented_function() {
     check(
-          vec![
-        r#" {- comment one -} {- comment two -} function addTwoNums(a in 'A, b in 'B) returns 'B + a b    "#,
-    ],
+          vec![r#" {- comment one -} {- comment two -} function addTwoNums(a in 'A, b in 'B) returns 'B + a b    "#],
           expect![[r#"
             AST
             ____

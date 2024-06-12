@@ -13,8 +13,7 @@ fn check(config: FormatterConfig,
     let parser = swim_parse::Parser::new(vec![("test", input)]);
     let (ast, errs, interner, source_map) = parser.into_result();
     if !errs.is_empty() {
-        errs.into_iter()
-            .for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
+        errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
         panic!("fmt failed: code didn't parse");
     }
     let mut ctx = FormatterContext::from_interner(interner).with_config(config);
@@ -71,9 +70,9 @@ fn commented_fn_decl() {
 #[test]
 fn multiple_comments_before_fn() {
     check(
-        Default::default(),
-        "{- comment one -} {- comment two -} function foo(a in 'int, b in 'int) returns 'int + 2 3",
-        expect![[r#"
+          Default::default(),
+          "{- comment one -} {- comment two -} function foo(a in 'int, b in 'int) returns 'int + 2 3",
+          expect![[r#"
             {- comment one
                comment two -}
             function foo(
@@ -87,9 +86,9 @@ fn multiple_comments_before_fn() {
 #[test]
 fn multiple_comments_before_fn_no_join() {
     check(
-        FCB::default().join_comments(false).build(),
-        "{- comment one -} {- comment two -} function foo(a in 'int, b in 'int) returns 'int + 2 3",
-        expect![[r#"
+          FCB::default().join_comments(false).build(),
+          "{- comment one -} {- comment two -} function foo(a in 'int, b in 'int) returns 'int + 2 3",
+          expect![[r#"
             {- comment one -}
             {- comment two -}
             function foo(
@@ -104,9 +103,9 @@ fn multiple_comments_before_fn_no_join() {
 #[test]
 fn extract_comments_from_within_decl() {
     check(
-        FormatterConfig::default(),
-        "function {- this comment should get moved to a more normal location -} foo(a in 'int, b in 'int) returns 'int + 2 3",
-        expect![[r#"
+          FormatterConfig::default(),
+          "function {- this comment should get moved to a more normal location -} foo(a in 'int, b in 'int) returns 'int + 2 3",
+          expect![[r#"
             {- this comment should get moved to a more normal location -}
             function foo(
               a ∈ 'int,
@@ -228,9 +227,7 @@ fn multiple_functions_newlines_between_comment_and_item() {
 #[test]
 fn multiple_functions_newlines_between_comment_and_item_unjoined() {
     check(
-          FCB::default().newlines_between_comment_and_item(1)
-                        .join_comments(false)
-                        .build(),
+          FCB::default().newlines_between_comment_and_item(1).join_comments(false).build(),
           r#"
 
         function {- this function is called foo -} foo(a in 'int, b in 'int) returns 'int + 2 3
@@ -357,14 +354,14 @@ fn format_list() {
 #[test]
 fn long_line_forces_newlines() {
     check(
-        Default::default(),
-        "function returns_list() returns 'list [1, 2, 3]
+          Default::default(),
+          "function returns_list() returns 'list [1, 2, 3]
 
         function returns_list(a in 'a, b in 'b, c in 'c, d in 'd, e in 'e, f in 'f) returns 'list [1, 2, 3, 4, 5]
 
         function returns_list() returns 'list [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]
         ",
-        expect![[r#"
+          expect![[r#"
             function returns_list() returns 'list
               [
                 1,
@@ -420,9 +417,9 @@ fn long_line_forces_newlines() {
 #[test]
 fn put_only_params_on_newlines_if_necessary() {
     check(
-        Default::default(),
-        "function returns_list(a in 'a, b in 'b, c in 'c, d in 'd, e in 'e, f in 'f) returns 'list [1, 2, 3, 4]",
-        expect![[r#"
+          Default::default(),
+          "function returns_list(a in 'a, b in 'b, c in 'c, d in 'd, e in 'e, f in 'f) returns 'list [1, 2, 3, 4]",
+          expect![[r#"
             function returns_list(
               a ∈ 'a,
               b ∈ 'b,
@@ -439,9 +436,9 @@ fn put_only_params_on_newlines_if_necessary() {
 #[test]
 fn put_only_params_and_body_on_newlines_if_necessary() {
     check(
-        FCB::default().max_line_length(54).build(),
-        "function returns_list(a in 'a) returns 'aaaaaaaaaaaaaaaa [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]",
-        expect![[r#"
+          FCB::default().max_line_length(54).build(),
+          "function returns_list(a in 'a) returns 'aaaaaaaaaaaaaaaa [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]",
+          expect![[r#"
             function returns_list(
               a ∈ 'a,
             ) returns 'aaaaaaaaaaaaaaaa
@@ -453,9 +450,9 @@ fn put_only_params_and_body_on_newlines_if_necessary() {
 #[test]
 fn no_matter_what_the_line_is_too_long_use_shortest_config_best_attempt() {
     check(
-        FCB::default().max_line_length(1).build(),
-        "function returns_list(a in 'a) returns 'aaaaaaaaaaaaaaaaaaaaaaaaaaaa [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]",
-        expect![[r#"
+          FCB::default().max_line_length(1).build(),
+          "function returns_list(a in 'a) returns 'aaaaaaaaaaaaaaaaaaaaaaaaaaaa [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]",
+          expect![[r#"
             function returns_list(
               a ∈ 'a,
             ) returns 'aaaaaaaaaaaaaaaaaaaaaaaaaaaa

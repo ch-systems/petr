@@ -39,16 +39,10 @@ impl PrettyPrint for TypeDeclaration {
                     interner: &SymbolInterner,
                     indentation: usize)
                     -> String {
-        let TypeDeclaration { name,
-                              variants,
-                              visibility, } = self;
+        let TypeDeclaration { name, variants, visibility } = self;
         format!("{}{}type {} =\n{}",
                 "  ".repeat(indentation),
-                if *visibility == Visibility::Exported {
-                    "exported "
-                } else {
-                    ""
-                },
+                if *visibility == Visibility::Exported { "exported " } else { "" },
                 name.pretty_print(interner, 0),
                 variants.iter()
                         .map(|field| field.pretty_print(interner, indentation + 1))
@@ -195,11 +189,7 @@ impl PrettyPrint for FunctionDeclaration {
                                   visibility, } = self;
         format!("{}{}Func {}({}{}{}) -> {} {}",
                 "  ".repeat(indentation),
-                if *visibility == Visibility::Exported {
-                    "exported "
-                } else {
-                    ""
-                },
+                if *visibility == Visibility::Exported { "exported " } else { "" },
                 name.pretty_print(interner, 0),
                 if parameters.is_empty() { "" } else { "\n" },
                 parameters.iter()

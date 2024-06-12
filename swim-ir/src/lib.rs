@@ -175,8 +175,7 @@ impl Lowerer {
                     ReturnDestination::Reg(reg) => vec![IrOpcode::LoadData(reg, data_label)],
                     ReturnDestination::Stack => {
                         let reg = self.fresh_reg();
-                        vec![IrOpcode::LoadData(reg, data_label),
-                             IrOpcode::StackPush(TypedReg { ty, reg }),]
+                        vec![IrOpcode::LoadData(reg, data_label), IrOpcode::StackPush(TypedReg { ty, reg })]
                     },
                 })
             },
@@ -193,12 +192,11 @@ impl Lowerer {
                            lit: &swim_resolve::Literal)
                            -> DataLabel {
         use swim_resolve::Literal::*;
-        let label =
-            self.data_section.insert(match lit {
-                                         Integer(val) => DataSectionEntry::Int64(*val),
-                                         Boolean(val) => DataSectionEntry::Bool(*val),
-                                         String(val) => DataSectionEntry::String(val.clone()),
-                                     });
+        let label = self.data_section.insert(match lit {
+                                                 Integer(val) => DataSectionEntry::Int64(*val),
+                                                 Boolean(val) => DataSectionEntry::Bool(*val),
+                                                 String(val) => DataSectionEntry::String(val.clone()),
+                                             });
         label
     }
 

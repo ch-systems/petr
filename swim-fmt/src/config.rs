@@ -63,11 +63,9 @@ impl FormatterConfig {
                                  use_set_notation_for_types: self.use_set_notation_for_types,
                                  join_comments: self.join_comments,
                                  newlines_between_items: self.newlines_between_items,
-                                 newlines_between_comment_and_item:
-                                     self.newlines_between_comment_and_item,
+                                 newlines_between_comment_and_item: self.newlines_between_comment_and_item,
                                  put_variants_on_new_lines: self.put_variants_on_new_lines,
-                                 put_list_elements_on_new_lines:
-                                     self.put_list_elements_on_new_lines,
+                                 put_list_elements_on_new_lines: self.put_list_elements_on_new_lines,
                                  put_fn_body_on_new_line: self.put_fn_body_on_new_line,
                                  tab_size: self.tab_size,
                                  max_line_length: self.max_line_length,
@@ -113,8 +111,7 @@ impl FormatterConfigBuilder {
     pub fn join_comments(self,
                          join_comments: bool)
                          -> Self {
-        Self { join_comments,
-               ..self }
+        Self { join_comments, ..self }
     }
 
     pub fn newlines_between_items(self,
@@ -161,8 +158,7 @@ impl FormatterConfigBuilder {
     pub fn max_line_length(self,
                            max_line_length: usize)
                            -> Self {
-        Self { max_line_length,
-               ..self }
+        Self { max_line_length, ..self }
     }
 
     pub fn put_fn_args_on_new_lines(self,

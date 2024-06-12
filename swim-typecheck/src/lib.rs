@@ -46,9 +46,7 @@ mod error {
 
     impl Diagnostic for TypeCheckError {
         fn help<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
-            self.help
-                .as_ref()
-                .map(|x| -> Box<dyn std::fmt::Display> { Box::new(x) })
+            self.help.as_ref().map(|x| -> Box<dyn std::fmt::Display> { Box::new(x) })
         }
 
         fn code<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
@@ -157,9 +155,7 @@ impl TypeChecker {
         let function = self.type_map
                            .keys()
                            .find_map(|key| match key {
-                               TypeOrFunctionId::FunctionId(func_id) if *func_id == entry_point => {
-                                   Some(resolved.get_function(*func_id))
-                               },
+                               TypeOrFunctionId::FunctionId(func_id) if *func_id == entry_point => Some(resolved.get_function(*func_id)),
                                _ => None,
                            })
                            .expect("Entry point function not found");
@@ -229,19 +225,14 @@ impl TypeChecker {
                 // unifies to anything, fresh var
                 self.fresh_ty_var()
             },
-            swim_resolve::Type::Named(ty_id) => self.type_map
-                                                    .get(&ty_id.into())
-                                                    .expect("type did not exist in type map")
-                                                    .clone(),
+            swim_resolve::Type::Named(ty_id) => self.type_map.get(&ty_id.into()).expect("type did not exist in type map").clone(),
         }
     }
 
     pub fn get_type(&self,
                     key: impl Into<TypeOrFunctionId>)
                     -> &TypeVariable {
-        self.type_map
-            .get(&key.into())
-            .expect("type did not exist in type map")
+        self.type_map.get(&key.into()).expect("type did not exist in type map")
     }
 
     fn convert_literal_to_type(&self,
@@ -337,9 +328,7 @@ impl TypeCheck for swim_resolve::Function {
     fn type_check(&self,
                   ctx: &mut TypeChecker)
                   -> Self::Output {
-        let params = self.params
-                         .iter()
-                         .map(|(name, ty)| (*name, ctx.to_type_var(ty)));
+        let params = self.params.iter().map(|(name, ty)| (*name, ctx.to_type_var(ty)));
 
         // unify types within the body with the parameter
         let return_type_of_body_expr = self.body.type_check(ctx);
@@ -365,10 +354,7 @@ impl TypeCheck for swim_resolve::FunctionCall {
         // and then unify with the function's type
         // get the function type
         let func_type = ctx.get_type(self.function).clone();
-        let arg_types = self.args
-                            .iter()
-                            .map(|arg| arg.type_check(ctx))
-                            .collect::<Vec<_>>();
+        let arg_types = self.args.iter().map(|arg| arg.type_check(ctx)).collect::<Vec<_>>();
 
         let arg_type = TypeChecker::arrow_type(arg_types);
 
@@ -403,8 +389,7 @@ mod tests {
         let parser = swim_parse::Parser::new(vec![("test", input)]);
         let (ast, errs, interner, source_map) = parser.into_result();
         if !errs.is_empty() {
-            errs.into_iter()
-                .for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
+            errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
             panic!("fmt failed: code didn't parse");
         }
         let resolved = QueryableResolvedItems::new_from_single_ast(ast);

@@ -56,13 +56,10 @@ impl IrContext {
         let mut flag_builder = settings::builder();
         flag_builder.enable("is_pic").unwrap();
 
-        let isa_builder = isa_builder().map_err(ToString::to_string)
-                                       .map_err(IrErrorKind::GenericIRError)?;
-        let isa = isa_builder.finish(settings::Flags::new(flag_builder))
-                             .unwrap();
+        let isa_builder = isa_builder().map_err(ToString::to_string).map_err(IrErrorKind::GenericIRError)?;
+        let isa = isa_builder.finish(settings::Flags::new(flag_builder)).unwrap();
 
-        let builder = ObjectBuilder::new(isa, file_name, cranelift_module::default_libcall_names())
-            .expect("TODO");
+        let builder = ObjectBuilder::new(isa, file_name, cranelift_module::default_libcall_names()).expect("TODO");
 
         let mut module = ObjectModule::new(builder);
         Ok(Self { module })
@@ -76,8 +73,7 @@ impl IrContext {
         // Define the data section with "Hello, world!\n"
         let mut data_ctx = cranelift_module::DataDescription::new();
         data_ctx.define(data);
-        let data_id = self.module
-                          .declare_data(data_name, Linkage::Local, is_writable, false)?;
+        let data_id = self.module.declare_data(data_name, Linkage::Local, is_writable, false)?;
         self.module.define_data(data_id, &data_ctx).expect("TODO");
         Ok(data_id)
     }
@@ -195,13 +191,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     flag_builder.enable("is_pic").unwrap();
 
     let isa_builder = isa_builder()?;
-    let isa = isa_builder.finish(settings::Flags::new(flag_builder))
-                         .unwrap();
+    let isa = isa_builder.finish(settings::Flags::new(flag_builder)).unwrap();
 
     // Set up the object module
-    let builder = ObjectBuilder::new(isa,
-                                     "my_program.o",
-                                     cranelift_module::default_libcall_names())?;
+    let builder = ObjectBuilder::new(isa, "my_program.o", cranelift_module::default_libcall_names())?;
     let mut module = ObjectModule::new(builder);
 
     // Define the data section with "Hello, world!\n"
@@ -213,8 +206,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create a function signature
     let mut func_sig = module.make_signature();
-    func_sig.returns
-            .push(AbiParam::new(cranelift::codegen::ir::types::I32));
+    func_sig.returns.push(AbiParam::new(cranelift::codegen::ir::types::I32));
     let func_id = module.declare_function("main", Linkage::Export, &func_sig)?;
 
     // Define the function

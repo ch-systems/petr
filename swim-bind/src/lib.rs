@@ -205,9 +205,7 @@ mod binder {
         pub fn insert_into_current_scope(&mut self,
                                          name: SymbolId,
                                          item: Item) {
-            let scope_id = self.scope_chain
-                               .last()
-                               .expect("there's always at least one scope");
+            let scope_id = self.scope_chain.last().expect("there's always at least one scope");
             self.scopes.get_mut(*scope_id).insert(name, item);
         }
 
@@ -247,33 +245,26 @@ mod binder {
             ty_decl.variants.iter().for_each(|variant| {
                                        let span = variant.span();
                                        let variant = variant.item();
-                                       let (fields_as_parameters, func_scope) =
-                                           self.with_scope(|_, scope| {
-                                                   (variant.fields
-                                                           .iter()
-                                                           .map(|field| {
-                                                               swim_ast::FunctionParameter {
-                                // TODO: don't just use the parent variant name
-                                name: variant.name,
-                                ty: *field,
-                            }
-                                                           })
-                                                           .collect::<Vec<_>>(),
-                                                    scope)
-                                               });
+                                       let (fields_as_parameters, func_scope) = self.with_scope(|_, scope| {
+                                                                                        (variant.fields
+                                                                                                .iter()
+                                                                                                .map(|field| {
+                                                                                                    swim_ast::FunctionParameter { // TODO: don't just use the parent variant name
+                                                                                                                                  name: variant.name,
+                                                                                                                                  ty:   *field, }
+                                                                                                })
+                                                                                                .collect::<Vec<_>>(),
+                                                                                         scope)
+                                                                                    });
 
-                                       let function = FunctionDeclaration {
-                    name: variant.name,
-                    parameters: fields_as_parameters.into_boxed_slice(),
-                    return_type: Ty::Named(ty_decl.name),
-                    body: span.with_item(Expression::TypeConstructor),
-                    visibility: ty_decl.visibility,
-                };
+                                       let function = FunctionDeclaration { name:        variant.name,
+                                                                            parameters:  fields_as_parameters.into_boxed_slice(),
+                                                                            return_type: Ty::Named(ty_decl.name),
+                                                                            body:        span.with_item(Expression::TypeConstructor),
+                                                                            visibility:  ty_decl.visibility, };
 
                                        let function_id = self.functions.insert(function);
-                                       self.insert_into_current_scope(variant.name.id,
-                                                                      Item::Function(function_id,
-                                                                                     func_scope));
+                                       self.insert_into_current_scope(variant.name.id, Item::Function(function_id, func_scope));
                                    });
         }
 
@@ -282,13 +273,11 @@ mod binder {
             let function_id = self.functions.insert(arg.clone());
             let func_body_scope = self.with_scope(|binder, function_body_scope| {
                                           for param in arg.parameters.iter() {
-                                              binder.insert_into_current_scope(param.name.id,
-                                                             Item::FunctionParameter(param.ty));
+                                              binder.insert_into_current_scope(param.name.id, Item::FunctionParameter(param.ty));
                                           }
                                           function_body_scope
                                       });
-            self.insert_into_current_scope(arg.name.id,
-                                           Item::Function(function_id, func_body_scope));
+            self.insert_into_current_scope(arg.name.id, Item::Function(function_id, func_body_scope));
         }
     }
 
@@ -322,8 +311,7 @@ mod binder {
             let parser = swim_parse::Parser::new(vec![("test", input)]);
             let (ast, errs, interner, source_map) = parser.into_result();
             if !errs.is_empty() {
-                errs.into_iter()
-                    .for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
+                errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
                 panic!("fmt failed: code didn't parse");
             }
             let binder = Binder::from_ast(&ast);

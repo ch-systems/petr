@@ -159,8 +159,7 @@ impl Lexer {
                 Some(_) => self.advance(),
                 None => pre_advance_span.with_item(Token::Eof),
             },
-            Some(tok) => self.span()
-                             .with_item(tok.expect("TODO: handle lexer failure")),
+            Some(tok) => self.span().with_item(tok.expect("TODO: handle lexer failure")),
         }
     }
 
