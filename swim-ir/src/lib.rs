@@ -5,7 +5,7 @@
 use std::{collections::BTreeMap, rc::Rc};
 
 use swim_typecheck::{Function as TypeCheckedFunction, FunctionId, SwimType, TypeChecker, TypeVariable, TypedExpr};
-use swim_utils::IndexMap;
+use swim_utils::{Identifier, IndexMap, SymbolId};
 
 mod error;
 mod opcodes;
@@ -29,6 +29,7 @@ pub struct Lowerer {
     reg_assigner: usize,
     function_label_assigner: usize,
     type_checker: TypeChecker,
+    variables_in_scope: Vec<BTreeMap<SymbolId, Reg>>,
 }
 
 #[derive(Debug, Clone)]
@@ -48,8 +49,9 @@ impl Lowerer {
             reg_assigner: 0,
             function_label_assigner: 0,
             type_checker,
+            variables_in_scope: Default::default(),
         };
-        lowerer.lower_all_functions();
+        lowerer.lower_all_functions().expect("errors should get caught before lowering");
         lowerer
     }
 
@@ -86,38 +88,39 @@ impl Lowerer {
     ) -> Result<(), LoweringError> {
         let func_label = self.new_function_label();
         let mut buf = vec![];
-        let mut param_to_reg_mapping = BTreeMap::new();
-        // TODO: func should have type checked types...not just the AST type
-        for (param_name, param_ty) in &func.params {
-            // in order, assign parameters to registers
-            if fits_in_reg(param_ty) {
-                // load from stack into register
-                let param_reg = self.fresh_reg();
-                let ty_reg = TypedReg {
-                    ty:  self.to_ir_type(param_ty),
-                    reg: param_reg,
-                };
-                buf.push(IrOpcode::StackPop(ty_reg));
-                // insert param into mapping
-                param_to_reg_mapping.insert(param_name, param_reg);
-            } else {
-                todo!("make reg a ptr to the value")
+        self.with_variable_context(|ctx| -> Result<_, _> {
+            // TODO: func should have type checked types...not just the AST type
+            for (param_name, param_ty) in &func.params {
+                // in order, assign parameters to registers
+                if fits_in_reg(param_ty) {
+                    // load from stack into register
+                    let param_reg = ctx.fresh_reg();
+                    let ty_reg = TypedReg {
+                        ty:  ctx.to_ir_type(param_ty),
+                        reg: param_reg,
+                    };
+                    buf.push(IrOpcode::StackPop(ty_reg));
+                    // insert param into mapping
+                } else {
+                    todo!("make reg a ptr to the value")
+                }
             }
-        }
 
-        // TODO we could support other return dests
-        let return_dest = ReturnDestination::Stack;
+            // TODO we could support other return dests
+            let return_dest = ReturnDestination::Stack;
 
-        let mut expr_body = self.lower_expr(&func.body, &mut param_to_reg_mapping, return_dest)?;
+            let mut expr_body = ctx.lower_expr(&func.body, return_dest)?;
 
-        buf.append(&mut expr_body);
-        self.function_definitions.insert(
-            id,
-            Function {
-                body:  buf,
-                label: func_label,
-            },
-        );
+            buf.append(&mut expr_body);
+            ctx.function_definitions.insert(
+                id,
+                Function {
+                    body:  buf,
+                    label: func_label,
+                },
+            );
+            Ok(())
+        });
         Ok(())
     }
 
@@ -130,7 +133,6 @@ impl Lowerer {
     fn lower_expr(
         &mut self,
         body: &TypedExpr,
-        param_to_reg_mapping: &mut BTreeMap<&swim_utils::Identifier, Reg>,
         return_destination: ReturnDestination,
     ) -> Result<Vec<IrOpcode>, LoweringError> {
         use TypedExpr::*;
@@ -151,7 +153,7 @@ impl Lowerer {
                 let mut buf = Vec::with_capacity(args.len());
                 // push all args onto the stack in order
                 for (_arg_name, arg_expr) in args {
-                    let mut expr = self.lower_expr(arg_expr, param_to_reg_mapping, ReturnDestination::Stack)?;
+                    let mut expr = self.lower_expr(arg_expr, ReturnDestination::Stack)?;
                     buf.append(&mut expr);
                 }
                 buf.push(IrOpcode::JumpToFunction(*func));
@@ -159,8 +161,8 @@ impl Lowerer {
             },
             List { elements, ty } => todo!(),
             Unit => todo!(),
-            Variable { ty } => todo!(),
-            Intrinsic { ty, intrinsic } => todo!(), //self.lower_intrinsic(intrinsic, return_destination),
+            Variable { ty } => todo!("look up in ctx"),
+            Intrinsic { ty, intrinsic } => self.lower_intrinsic(intrinsic, return_destination),
             ErrorRecovery => todo!(),
         }
     }
@@ -189,6 +191,7 @@ impl Lowerer {
             Unit => IrTy::Unit,
             Integer => IrTy::Int64,
             Boolean => IrTy::Boolean,
+            String => IrTy::String,
         }
     }
 
@@ -201,16 +204,18 @@ impl Lowerer {
 
     fn lower_intrinsic(
         &mut self,
-        intrinsic: swim_typecheck::Intrinsic,
+        intrinsic: &swim_typecheck::Intrinsic,
         return_destination: ReturnDestination,
     ) -> Result<Vec<IrOpcode>, LoweringError> {
-        let instr = match intrinsic.intrinsic {
-            swim_typecheck::IntrinsicName::Puts => {
+        let instr = match intrinsic {
+            swim_typecheck::Intrinsic::Puts(arg) => {
                 // puts takes one arg and it is a string
-                //let arg_reg = self.fresh_reg();
-                todo!("type checking should produce a type checked intrinsic");
-                // self.lower_expr(intrinsic.args[0], todo!("scoped param_to_reg mapping in ctx"), arg_reg)?;
-                // IrOpcode::Intrinsic(Intrinsic::Puts)
+                let arg_reg = self.fresh_reg();
+                self.lower_expr(arg, ReturnDestination::Reg(arg_reg))?;
+                IrOpcode::Intrinsic(Intrinsic::Puts(TypedReg {
+                    ty:  IrTy::Ptr(Box::new(IrTy::String)),
+                    reg: arg_reg,
+                }))
             },
         };
 
@@ -222,7 +227,31 @@ impl Lowerer {
             },
         })
     }
+
+    /// Produces a new context for variables in a scope to be allocated
+    fn with_variable_context<F, T>(
+        &mut self,
+        func: F,
+    ) -> Result<T, LoweringError>
+    where
+        F: FnOnce(&mut Self) -> Result<T, LoweringError>,
+    {
+        self.variables_in_scope.push(Default::default());
+        let res = func(self);
+        self.variables_in_scope.pop();
+        res
+    }
+
+    fn insert_var(
+        &mut self,
+        param_name: &Identifier,
+        param_reg: Reg,
+    ) {
+        self.variables_in_scope.last_mut().map(|scope| scope.insert(param_name.id, param_reg));
+    }
 }
+
+type VariableScope = BTreeMap<SymbolId, Reg>;
 
 enum ReturnDestination {
     Reg(Reg),

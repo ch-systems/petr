@@ -42,7 +42,7 @@ ir_ops! {
     StackPop "pop" TypedReg dest;
     StackPush "push" TypedReg src;
     Intrinsic "intrinsic" Intrinsic intr;
-    FunctionLabel "func" FunctionLabel label;
+    FunctionLabel "func" FunctionId label;
     LoadImmediate "imm" Reg dest, i64 imm
 }
 
@@ -78,6 +78,7 @@ pub enum IrTy {
     Ptr(Box<IrTy>),
     Int64,
     Unit,
+    String,
     Boolean,
 }
 

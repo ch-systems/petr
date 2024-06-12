@@ -117,6 +117,10 @@ impl Vm {
                 Ok(())
             },
             IrOpcode::FunctionLabel(_) => Ok(()),
+            IrOpcode::LoadImmediate(dest, imm) => {
+                self.set_register(dest, Value(imm as usize));
+                Ok(())
+            },
         }
     }
 

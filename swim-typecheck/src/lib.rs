@@ -10,7 +10,7 @@ use polytype::{tp, Type};
 pub use swim_bind::FunctionId;
 use swim_bind::TypeId;
 use swim_resolve::{Expr, ExprKind, QueryableResolvedItems, Ty};
-pub use swim_resolve::{Intrinsic, IntrinsicName, Literal};
+pub use swim_resolve::{Intrinsic as ResolvedIntrinsic, IntrinsicName, Literal};
 use swim_utils::{idx_map_key, Identifier, IndexMap, SymbolInterner};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -58,6 +58,7 @@ pub enum SwimType {
     Unit,
     Integer,
     Boolean,
+    String,
 }
 
 impl TypeChecker {
@@ -72,11 +73,13 @@ impl TypeChecker {
         let int_ty = tp!(int);
         let bool_ty = tp!(bool);
         let unit_ty = tp!(unit);
+        let string_ty = tp!(string);
         match ty {
             ty if ty == int_ty => SwimType::Integer,
             ty if ty == bool_ty => SwimType::Boolean,
             ty if ty == unit_ty => SwimType::Unit,
-            _ => todo!(),
+            ty if ty == string_ty => SwimType::String,
+            other => todo!("{other:?}"),
         }
     }
 
@@ -269,6 +272,11 @@ impl TypeChecker {
 }
 
 #[derive(Clone)]
+pub enum Intrinsic {
+    Puts(Box<TypedExpr>),
+}
+
+#[derive(Clone)]
 pub enum TypedExpr {
     FunctionCall {
         func: FunctionId,
@@ -367,7 +375,7 @@ impl TypeCheck for Expr {
     }
 }
 
-impl TypeCheck for Intrinsic {
+impl TypeCheck for ResolvedIntrinsic {
     type Output = TypedExpr;
 
     fn type_check(
@@ -381,10 +389,10 @@ impl TypeCheck for Intrinsic {
                     todo!("puts arg len check");
                 }
                 // puts takes a single string and returns unit
-                let type_of_arg = self.args[0].type_check(ctx);
-                ctx.unify(&tp!(string), &type_of_arg.ty());
+                let arg = self.args[0].type_check(ctx);
+                ctx.unify(&tp!(string), &arg.ty());
                 TypedExpr::Intrinsic {
-                    intrinsic: self.clone(),
+                    intrinsic: Intrinsic::Puts(Box::new(arg)),
                     ty:        tp!(unit),
                 }
             },
