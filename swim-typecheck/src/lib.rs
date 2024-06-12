@@ -49,7 +49,8 @@ impl From<&FunctionId> for TypeOrFunctionId {
 pub struct TypeChecker {
     ctx: polytype::Context,
     type_map: BTreeMap<TypeOrFunctionId, TypeVariable>,
-    functions: IndexMap<TypedFunctionId, Function>,
+    typed_functions: IndexMap<TypedFunctionId, Function>,
+    // typed_types: IndexMap<TypedTypeId, TypeVariable>,
     function_name_map: BTreeMap<Identifier, TypedFunctionId>,
     errors: Vec<TypeCheckError>,
     resolved: QueryableResolvedItems,
@@ -78,7 +79,7 @@ impl TypeChecker {
                     .concat(),
                 ),
             );
-            let typed_function_id = self.functions.insert(typed_function);
+            let typed_function_id = self.typed_functions.insert(typed_function);
             self.function_name_map.insert(func.name, typed_function_id);
         }
     }
@@ -103,7 +104,7 @@ impl TypeChecker {
         // Type check the function body as a function call
         let mut function_call = swim_resolve::FunctionCall {
             function: entry_point,
-            args:     vec![], // Populate with actual arguments if necessary
+            args: vec![], // Populate with actual arguments if necessary
         };
         function_call.type_check(self);
         ()
@@ -115,7 +116,7 @@ impl TypeChecker {
             ctx,
             type_map: Default::default(),
             errors: Default::default(),
-            functions: Default::default(),
+            typed_functions: Default::default(),
             function_name_map: Default::default(),
             resolved,
         };
@@ -232,20 +233,28 @@ impl TypeChecker {
     ) -> Rc<str> {
         self.resolved.interner.get(id)
     }
+
+    pub fn get_function(
+        &self,
+        id: TypedFunctionId,
+    ) -> &Function {
+        self.typed_functions.get(id)
+    }
 }
 
+#[derive(Clone)]
 pub enum TypedExpr {
     FunctionCall {
         arg_types: Vec<(Identifier, TypeVariable)>,
-        ty:        TypeVariable,
+        ty: TypeVariable,
     },
     Literal {
         value: Literal,
-        ty:    TypeVariable,
+        ty: TypeVariable,
     },
     List {
         elements: Vec<TypedExpr>,
-        ty:       TypeVariable,
+        ty: TypeVariable,
     },
     Unit,
     Variable {
@@ -253,7 +262,7 @@ pub enum TypedExpr {
         // TODO name?
     },
     Intrinsic {
-        ty:        TypeVariable,
+        ty: TypeVariable,
         intrinsic: Intrinsic,
     },
     // TODO put a span here?
@@ -291,7 +300,7 @@ impl TypeCheck for Expr {
                 if exprs.is_empty() {
                     TypedExpr::List {
                         elements: vec![],
-                        ty:       tp!(list(tp!(unit))),
+                        ty: tp!(list(tp!(unit))),
                     }
                 } else {
                     todo!(" exprs.first().unwrap().kind.return_type()")
@@ -304,7 +313,7 @@ impl TypeCheck for Expr {
                 if call.args.len() != func_decl.params.len() {
                     ctx.push_error(TypeCheckErrorKind::ArgumentCountMismatch {
                         expected: func_decl.params.len(),
-                        got:      call.args.len(),
+                        got: call.args.len(),
                         function: ctx.realize_symbol(func_decl.name.id).to_string(),
                     });
                     return TypedExpr::ErrorRecovery;
@@ -348,7 +357,7 @@ impl TypeCheck for Intrinsic {
                 ctx.unify(&tp!(string), &type_of_arg.ty());
                 TypedExpr::Intrinsic {
                     intrinsic: self.clone(),
-                    ty:        tp!(unit),
+                    ty: tp!(unit),
                 }
             },
         }
@@ -363,9 +372,11 @@ trait TypeCheck {
     ) -> Self::Output;
 }
 
+#[derive(Clone)]
 pub struct Function {
-    params:    Vec<(Identifier, TypeVariable)>,
-    return_ty: TypeVariable,
+    pub params: Vec<(Identifier, TypeVariable)>,
+    pub body: TypedExpr,
+    pub return_ty: TypeVariable,
 }
 
 impl TypeCheck for swim_resolve::Function {
@@ -378,15 +389,16 @@ impl TypeCheck for swim_resolve::Function {
         let params = self.params.iter().map(|(name, ty)| (*name, ctx.to_type_var(ty))).collect::<Vec<_>>();
 
         // unify types within the body with the parameter
-        let return_type_of_body_expr = self.body.type_check(ctx);
+        let body = self.body.type_check(ctx);
 
         let declared_return_type = ctx.to_type_var(&self.return_type);
 
-        ctx.unify(&declared_return_type, &return_type_of_body_expr.ty());
+        ctx.unify(&declared_return_type, &body.ty());
 
         Function {
             params,
             return_ty: declared_return_type,
+            body,
         }
         // in a scope that contains the above names to type variables, check the body
         // TODO: introduce scopes here, like in the binder, except with type variables

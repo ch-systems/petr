@@ -7,7 +7,7 @@ use std::{any::Any, collections::BTreeMap, rc::Rc};
 use cranelift_object::object::write;
 use swim_bind::FunctionId;
 use swim_resolve::QueryableResolvedItems;
-use swim_typecheck::{TypeChecker, TypeOrFunctionId, TypeVariable};
+use swim_typecheck::{TypeChecker, TypeOrFunctionId, TypeVariable, TypedExpr, TypedFunctionId};
 use swim_utils::{idx_map_key, IndexMap};
 
 pub use crate::error::LoweringError;
@@ -80,8 +80,7 @@ pub struct Function {
 pub struct Lowerer {
     data_section: IndexMap<DataLabel, DataSectionEntry>,
     entry_point:  FunctionLabel,
-    functions:    BTreeMap<FunctionId, Function>,
-    //    resolved_items: QueryableResolvedItems,
+    functions:    BTreeMap<TypedFunctionId, Function>,
     reg_assigner: usize,
     type_checker: TypeChecker,
 }
@@ -108,32 +107,14 @@ impl Lowerer {
         }
     }
 
-    pub fn lower(
-        &mut self,
-        nodes: BTreeMap<TypeOrFunctionId, TypeVariable>,
-    ) -> Result<(), LoweringError> {
-        for (id, ty) in nodes {
-            match id {
-                TypeOrFunctionId::FunctionId(id) => {
-                    self.lower_function(id, ty)?;
-                },
-                TypeOrFunctionId::TypeId(id) => {
-                    todo!()
-                },
-            }
-        }
-        todo!()
-    }
-
     fn lower_function(
         &mut self,
-        id: FunctionId,
+        id: TypedFunctionId,
         ty: TypeVariable,
     ) -> Result<(), LoweringError> {
         let mut buf = vec![];
         let mut param_to_reg_mapping = BTreeMap::new();
-        let func = self.resolved_items.get_function(id).clone();
-        let func_ty = self.type_checker.get_type(id);
+        let func = self.type_checker.get_function(id).clone();
         // TODO: func should have type checked types...not just the AST type
         for (param_name, param_ty) in &func.params {
             // in order, assign parameters to registers
@@ -170,15 +151,16 @@ impl Lowerer {
 
     fn lower_expr(
         &mut self,
-        body: &swim_resolve::Expr,
+        body: &TypedExpr,
         param_to_reg_mapping: &mut BTreeMap<&swim_utils::Identifier, Reg>,
         return_destination: ReturnDestination,
     ) -> Result<Vec<IrOpcode>, LoweringError> {
-        use swim_resolve::ExprKind::*;
-        match body.kind {
-            Literal(ref lit) => {
-                let ty = literal_to_ir_ty(&lit);
-                let data_label = self.insert_literal_data(lit);
+        use TypedExpr::*;
+
+        match body {
+            Literal { value, ty } => {
+                let data_label = self.insert_literal_data(value);
+                let ty = self.to_ir_type(ty);
                 Ok(match return_destination {
                     ReturnDestination::Reg(reg) => vec![IrOpcode::LoadData(reg, data_label)],
                     ReturnDestination::Stack => {
@@ -187,11 +169,11 @@ impl Lowerer {
                     },
                 })
             },
-            List(_) => todo!(),
-            FunctionCall(_) => todo!(),
-            Variable(_) => todo!(),
-            Intrinsic(_) => todo!(),
+            FunctionCall { arg_types, ty } => todo!(),
+            List { elements, ty } => todo!(),
             Unit => todo!(),
+            Variable { ty } => todo!(),
+            Intrinsic { ty, intrinsic } => todo!(),
             ErrorRecovery => todo!(),
         }
     }
@@ -212,9 +194,8 @@ impl Lowerer {
     // convert a polytype type to an `IrTy`
     fn to_ir_type(
         &self,
-        param_ty: TypeVariable,
+        param_ty: &TypeVariable,
     ) -> IrTy {
-        let ty = self.type_checker.get_type(param_ty);
         todo!()
     }
 }
@@ -223,18 +204,15 @@ enum ReturnDestination {
     Reg(Reg),
     Stack,
 }
-fn fits_in_reg(param_ty: &swim_resolve::Type) -> bool {
+fn fits_in_reg(param_ty: &TypeVariable) -> bool {
     // TODO
     true
 }
 
 fn literal_to_ir_ty(param_ty: swim_resolve::Literal) -> IrTy {
     match param_ty {
-        swim_resolve::Type::Integer => IrTy::Int64,
-        swim_resolve::Type::Bool => todo!(),
-        swim_resolve::Type::Unit => todo!(),
-        swim_resolve::Type::String => todo!(),
-        swim_resolve::Type::ErrorRecovery => todo!(),
-        swim_resolve::Type::Named(_) => todo!(),
+        swim_resolve::Literal::Integer(_) => todo!(),
+        swim_resolve::Literal::Boolean(_) => todo!(),
+        swim_resolve::Literal::String(_) => todo!(),
     }
 }
