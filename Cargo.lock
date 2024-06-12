@@ -933,7 +933,10 @@ dependencies = [
 name = "swim-ir"
 version = "0.1.0"
 dependencies = [
+ "expect-test",
  "miette",
+ "swim-parse",
+ "swim-resolve",
  "swim-typecheck",
  "swim-utils",
  "thiserror",

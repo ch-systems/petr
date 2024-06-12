@@ -3,6 +3,7 @@ use swim_utils::idx_map_key;
 idx_map_key!(FunctionLabel);
 
 idx_map_key!(DataLabel);
+
 macro_rules! ir_ops {
     ($($op_name:ident $op_code:literal $($args:ident),*);+) => {
         #[derive(Debug)]
@@ -30,7 +31,7 @@ pub enum Intrinsic {
 
 #[derive(Debug)]
 pub struct TypedReg {
-    pub ty:  IrTy,
+    pub ty: IrTy,
     pub reg: Reg,
 }
 
@@ -38,6 +39,8 @@ pub struct TypedReg {
 pub enum IrTy {
     Ptr(Box<IrTy>),
     Int64,
+    Unit,
+    Boolean,
 }
 
 /// a virtual register

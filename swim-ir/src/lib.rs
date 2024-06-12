@@ -4,7 +4,7 @@
 
 use std::{any::Any, collections::BTreeMap, rc::Rc};
 
-use swim_typecheck::{TypeChecker, TypeOrFunctionId, TypeVariable, TypedExpr, TypedFunctionId};
+use swim_typecheck::{Function as TypeCheckedFunction, SwimType, TypeChecker, TypeOrFunctionId, TypeVariable, TypedExpr, TypedFunctionId};
 use swim_utils::{idx_map_key, IndexMap};
 
 mod error;
@@ -15,18 +15,21 @@ use opcodes::*;
 
 // TODO: fully typed functions
 pub struct Function {
+    label: FunctionLabel,
     body: Vec<IrOpcode>,
 }
 
 /// Lowers typed nodes into an IR suitable for code generation.
 pub struct Lowerer {
     data_section: IndexMap<DataLabel, DataSectionEntry>,
-    entry_point:  FunctionLabel,
-    functions:    BTreeMap<TypedFunctionId, Function>,
+    entry_point: Option<FunctionLabel>,
+    function_definitions: BTreeMap<TypedFunctionId, Function>,
     reg_assigner: usize,
+    function_label_assigner: usize,
     type_checker: TypeChecker,
 }
 
+#[derive(Debug)]
 pub enum DataSectionEntry {
     Int64(i64),
     String(Rc<str>),
@@ -34,27 +37,34 @@ pub enum DataSectionEntry {
 }
 
 impl Lowerer {
-    pub fn new(
-        //resolved_items: QueryableResolvedItems,
-        type_checker: TypeChecker,
-    ) -> Self {
-        Self {
+    pub fn new(type_checker: TypeChecker) -> Self {
+        let mut lowerer = Self {
             data_section: IndexMap::default(),
-            entry_point: todo!(),
-            functions: BTreeMap::default(),
+            // TODO set entry point
+            entry_point: None,
+            function_definitions: BTreeMap::default(),
             reg_assigner: 0,
+            function_label_assigner: 0,
             type_checker,
-        }
+        };
+        lowerer.lower_all_functions();
+        lowerer
+    }
+
+    fn new_function_label(&mut self) -> FunctionLabel {
+        let label = self.function_label_assigner;
+        self.function_label_assigner += 1;
+        FunctionLabel::from(label)
     }
 
     fn lower_function(
         &mut self,
         id: TypedFunctionId,
-        ty: TypeVariable,
+        func: TypeCheckedFunction,
     ) -> Result<(), LoweringError> {
+        let func_label = self.new_function_label();
         let mut buf = vec![];
         let mut param_to_reg_mapping = BTreeMap::new();
-        let func = self.type_checker.get_function(id).clone();
         // TODO: func should have type checked types...not just the AST type
         for (param_name, param_ty) in &func.params {
             // in order, assign parameters to registers
@@ -62,7 +72,7 @@ impl Lowerer {
                 // load from stack into register
                 let param_reg = self.fresh_reg();
                 let ty_reg = TypedReg {
-                    ty:  self.to_ir_type(param_ty),
+                    ty: self.to_ir_type(param_ty),
                     reg: param_reg,
                 };
                 buf.push(IrOpcode::StackPop(ty_reg));
@@ -79,7 +89,13 @@ impl Lowerer {
         let mut expr_body = self.lower_expr(&func.body, &mut param_to_reg_mapping, return_dest)?;
 
         buf.append(&mut expr_body);
-        self.functions.insert(id, Function { body: buf });
+        self.function_definitions.insert(
+            id,
+            Function {
+                body: buf,
+                label: func_label,
+            },
+        );
         Ok(())
     }
 
@@ -136,7 +152,20 @@ impl Lowerer {
         &self,
         param_ty: &TypeVariable,
     ) -> IrTy {
-        todo!()
+        let realized_ty = self.type_checker.realize_type(param_ty);
+        use SwimType::*;
+        match realized_ty {
+            Unit => IrTy::Unit,
+            Integer => IrTy::Int64,
+            Boolean => IrTy::Boolean,
+        }
+    }
+
+    fn lower_all_functions(&mut self) -> Result<(), LoweringError> {
+        for (id, func) in self.type_checker.functions() {
+            self.lower_function(id, func)?;
+        }
+        Ok(())
     }
 }
 
@@ -155,5 +184,68 @@ fn literal_to_ir_ty(param_ty: swim_typecheck::Literal) -> IrTy {
         Integer(_) => todo!(),
         Boolean(_) => todo!(),
         String(_) => todo!(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use expect_test::{expect, Expect};
+    use swim_resolve::{resolve_symbols, QueryableResolvedItems};
+    use swim_utils::{render_error, SourceId, SymbolInterner};
+
+    use super::*;
+    fn check(
+        input: impl Into<String>,
+        expect: Expect,
+    ) {
+        let input = input.into();
+        let parser = swim_parse::Parser::new(vec![("test", input)]);
+        let (ast, errs, interner, source_map) = parser.into_result();
+        if !errs.is_empty() {
+            errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
+            panic!("fmt failed: code didn't parse");
+        }
+        let resolved = resolve_symbols(ast, interner);
+        let type_checker = TypeChecker::new(resolved);
+        let lowerer = Lowerer::new(type_checker);
+        let res = pretty_print_lowerer(&lowerer);
+
+        expect.assert_eq(&res);
+    }
+
+    fn pretty_print_lowerer(lowerer: &Lowerer) -> String {
+        let mut result = String::new();
+        result.push_str("; DATA_SECTION\n");
+        for (label, entry) in lowerer.data_section.iter() {
+            result.push_str(&format!("{}: {:?}\n", Into::<usize>::into(label), entry));
+        }
+
+        result.push_str("\n; PROGRAM_SECTION\n");
+        for (id, func) in &lowerer.function_definitions {
+            result.push_str(&format!("Function {:?}:\n", id));
+            for opcode in &func.body {
+                result.push_str(&format!("  {:?}\n", opcode));
+            }
+        }
+        result
+    }
+
+    #[test]
+    fn basic_main_func() {
+        check(
+            r#"
+            function main() returns 'int 42
+            "#,
+            expect![[r#"
+                ; DATA_SECTION
+                0: Int64(42)
+
+                ; PROGRAM_SECTION
+                Function TypedFunctionId(0):
+                  LoadData(Virtual(0), DataLabel(0))
+                  StackPush(TypedReg { ty: Int64, reg: Virtual(0) })
+            "#]],
+        );
     }
 }

@@ -59,7 +59,31 @@ pub struct TypeChecker {
 
 pub type TypeVariable = Type<&'static str>;
 
+pub enum SwimType {
+    Unit,
+    Integer,
+    Boolean,
+}
+
 impl TypeChecker {
+    /// realizes a polytype into a swim type
+    /// TODO very inefficient to do this one at a time, should realize
+    /// all types at once during lowering
+    pub fn realize_type(
+        &self,
+        ty: &TypeVariable,
+    ) -> SwimType {
+        let ty = ty.clone();
+        let int_ty = tp!(int);
+        let bool_ty = tp!(bool);
+        let unit_ty = tp!(unit);
+        match ty {
+            ty if ty == int_ty => SwimType::Integer,
+            ty if ty == bool_ty => SwimType::Boolean,
+            ty if ty == unit_ty => SwimType::Unit,
+            _ => todo!(),
+        }
+    }
     fn fully_resolve(&mut self) {
         // TODO collects on these iters is not ideal
         for (id, _) in self.resolved.types() {
@@ -105,13 +129,13 @@ impl TypeChecker {
         // Type check the function body as a function call
         let mut function_call = swim_resolve::FunctionCall {
             function: entry_point,
-            args:     vec![], // Populate with actual arguments if necessary
+            args: vec![], // Populate with actual arguments if necessary
         };
         function_call.type_check(self);
         ()
     }
 
-    fn new(resolved: QueryableResolvedItems) -> Self {
+    pub fn new(resolved: QueryableResolvedItems) -> Self {
         let mut ctx = polytype::Context::default();
         let mut type_checker = TypeChecker {
             ctx,
@@ -137,6 +161,7 @@ impl TypeChecker {
         //     type_checker.type_map.insert(id.into(), func_type);
         // }
 
+        type_checker.fully_resolve();
         type_checker
     }
 
@@ -241,21 +266,26 @@ impl TypeChecker {
     ) -> &Function {
         self.typed_functions.get(id)
     }
+
+    // TODO unideal clone
+    pub fn functions(&self) -> impl Iterator<Item = (TypedFunctionId, Function)> {
+        self.typed_functions.iter().map(|(a, b)| (a, b.clone())).collect::<Vec<_>>().into_iter()
+    }
 }
 
 #[derive(Clone)]
 pub enum TypedExpr {
     FunctionCall {
         arg_types: Vec<(Identifier, TypeVariable)>,
-        ty:        TypeVariable,
+        ty: TypeVariable,
     },
     Literal {
         value: Literal,
-        ty:    TypeVariable,
+        ty: TypeVariable,
     },
     List {
         elements: Vec<TypedExpr>,
-        ty:       TypeVariable,
+        ty: TypeVariable,
     },
     Unit,
     Variable {
@@ -263,7 +293,7 @@ pub enum TypedExpr {
         // TODO name?
     },
     Intrinsic {
-        ty:        TypeVariable,
+        ty: TypeVariable,
         intrinsic: Intrinsic,
     },
     // TODO put a span here?
@@ -301,7 +331,7 @@ impl TypeCheck for Expr {
                 if exprs.is_empty() {
                     TypedExpr::List {
                         elements: vec![],
-                        ty:       tp!(list(tp!(unit))),
+                        ty: tp!(list(tp!(unit))),
                     }
                 } else {
                     todo!(" exprs.first().unwrap().kind.return_type()")
@@ -314,7 +344,7 @@ impl TypeCheck for Expr {
                 if call.args.len() != func_decl.params.len() {
                     ctx.push_error(TypeCheckErrorKind::ArgumentCountMismatch {
                         expected: func_decl.params.len(),
-                        got:      call.args.len(),
+                        got: call.args.len(),
                         function: ctx.realize_symbol(func_decl.name.id).to_string(),
                     });
                     return TypedExpr::ErrorRecovery;
@@ -358,7 +388,7 @@ impl TypeCheck for Intrinsic {
                 ctx.unify(&tp!(string), &type_of_arg.ty());
                 TypedExpr::Intrinsic {
                     intrinsic: self.clone(),
-                    ty:        tp!(unit),
+                    ty: tp!(unit),
                 }
             },
         }
@@ -375,8 +405,8 @@ trait TypeCheck {
 
 #[derive(Clone)]
 pub struct Function {
-    pub params:    Vec<(Identifier, TypeVariable)>,
-    pub body:      TypedExpr,
+    pub params: Vec<(Identifier, TypeVariable)>,
+    pub body: TypedExpr,
     pub return_ty: TypeVariable,
 }
 
@@ -457,8 +487,7 @@ mod tests {
             panic!("fmt failed: code didn't parse");
         }
         let resolved = resolve_symbols(ast, interner);
-        let mut type_checker = TypeChecker::new(resolved);
-        type_checker.fully_resolve();
+        let type_checker = TypeChecker::new(resolved);
         let res = pretty_print_type_checker(&source_map, type_checker);
 
         expect.assert_eq(&res);
