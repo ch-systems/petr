@@ -69,7 +69,7 @@ impl std::fmt::Display for Intrinsic {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TypedReg {
-    pub ty: IrTy,
+    pub ty:  IrTy,
     pub reg: Reg,
 }
 

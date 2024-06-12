@@ -2,10 +2,10 @@
 // - reuse data labels
 // - figure out actual interface around "return destination" etc
 
-use std::{any::Any, collections::BTreeMap, rc::Rc};
+use std::{collections::BTreeMap, rc::Rc};
 
-use swim_typecheck::{Function as TypeCheckedFunction, FunctionId, SwimType, TypeChecker, TypeOrFunctionId, TypeVariable, TypedExpr};
-use swim_utils::{idx_map_key, IndexMap};
+use swim_typecheck::{Function as TypeCheckedFunction, FunctionId, SwimType, TypeChecker, TypeVariable, TypedExpr};
+use swim_utils::IndexMap;
 
 mod error;
 mod opcodes;
@@ -17,7 +17,7 @@ pub use opcodes::{DataLabel, Intrinsic, IrOpcode, Reg};
 // TODO: fully typed functions
 pub struct Function {
     label: FunctionLabel,
-    body: Vec<IrOpcode>,
+    body:  Vec<IrOpcode>,
 }
 
 pub type DataSection = IndexMap<DataLabel, DataSectionEntry>;
@@ -94,7 +94,7 @@ impl Lowerer {
                 // load from stack into register
                 let param_reg = self.fresh_reg();
                 let ty_reg = TypedReg {
-                    ty: self.to_ir_type(param_ty),
+                    ty:  self.to_ir_type(param_ty),
                     reg: param_reg,
                 };
                 buf.push(IrOpcode::StackPop(ty_reg));
@@ -114,7 +114,7 @@ impl Lowerer {
         self.function_definitions.insert(
             id,
             Function {
-                body: buf,
+                body:  buf,
                 label: func_label,
             },
         );
