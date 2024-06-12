@@ -1,3 +1,4 @@
+use swim_typecheck::FunctionId;
 use swim_utils::idx_map_key;
 
 idx_map_key!(FunctionLabel);
@@ -35,7 +36,7 @@ macro_rules! ir_ops {
 }
 
 ir_ops! {
-    JumpToFunction "jfunc" FunctionLabel label;
+    JumpToFunction "jfunc" FunctionId label;
     Add "add" Reg dest, Reg lhs, Reg rhs;
     LoadData "ld" Reg dest, DataLabel data;
     StackPop "pop" TypedReg dest;

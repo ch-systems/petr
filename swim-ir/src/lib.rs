@@ -4,7 +4,7 @@
 
 use std::{any::Any, collections::BTreeMap, rc::Rc};
 
-use swim_typecheck::{Function as TypeCheckedFunction, SwimType, TypeChecker, TypeOrFunctionId, TypeVariable, TypedExpr, TypedFunctionId};
+use swim_typecheck::{Function as TypeCheckedFunction, FunctionId, SwimType, TypeChecker, TypeOrFunctionId, TypeVariable, TypedExpr};
 use swim_utils::{idx_map_key, IndexMap};
 
 mod error;
@@ -25,7 +25,7 @@ pub type DataSection = IndexMap<DataLabel, DataSectionEntry>;
 pub struct Lowerer {
     data_section: DataSection,
     entry_point: Option<FunctionLabel>,
-    function_definitions: BTreeMap<TypedFunctionId, Function>,
+    function_definitions: BTreeMap<FunctionId, Function>,
     reg_assigner: usize,
     function_label_assigner: usize,
     type_checker: TypeChecker,
@@ -81,7 +81,7 @@ impl Lowerer {
 
     fn lower_function(
         &mut self,
-        id: TypedFunctionId,
+        id: FunctionId,
         func: TypeCheckedFunction,
     ) -> Result<(), LoweringError> {
         let func_label = self.new_function_label();
@@ -147,7 +147,16 @@ impl Lowerer {
                     },
                 })
             },
-            FunctionCall { arg_types, ty } => todo!(),
+            FunctionCall { func, args, ty } => {
+                let mut buf = Vec::with_capacity(args.len());
+                // push all args onto the stack in order
+                for (_arg_name, arg_expr) in args {
+                    let mut expr = self.lower_expr(arg_expr, param_to_reg_mapping, ReturnDestination::Stack)?;
+                    buf.append(&mut expr);
+                }
+                buf.push(IrOpcode::JumpToFunction(*func));
+                Ok(buf)
+            },
             List { elements, ty } => todo!(),
             Unit => todo!(),
             Variable { ty } => todo!(),
@@ -288,7 +297,7 @@ mod tests {
                 0: Int64(42)
 
                 ; PROGRAM_SECTION
-                Function TypedFunctionId(0):
+                Function FunctionId(0):
                   ld v0 datalabel0
                   push v0
             "#]],
@@ -320,14 +329,20 @@ mod tests {
                     function foo(a in 'int) returns 'bool true
                     "#,
             expect![[r#"
-                        ; DATA_SECTION
-                        0: Int64(42)
+                ; DATA_SECTION
+                0: Int64(123)
+                1: Bool(true)
 
-                        ; PROGRAM_SECTION
-                        Function TypedFunctionId(0):
-                            ld v0 datalabel0
-                            push v0
-                        "#]],
+                ; PROGRAM_SECTION
+                Function FunctionId(0):
+                  ld v0 datalabel0
+                  push v0
+                  jfunc functionid1
+                Function FunctionId(1):
+                  pop v1
+                  ld v2 datalabel1
+                  push v2
+            "#]],
         );
     }
 }

@@ -7,15 +7,11 @@ use std::{
 
 use error::{TypeCheckError, TypeCheckErrorKind};
 use polytype::{tp, Type};
-use swim_bind::{FunctionId, TypeId};
+pub use swim_bind::FunctionId;
+use swim_bind::TypeId;
 use swim_resolve::{Expr, ExprKind, QueryableResolvedItems, Ty};
 pub use swim_resolve::{Intrinsic, IntrinsicName, Literal};
 use swim_utils::{idx_map_key, Identifier, IndexMap, SymbolInterner};
-
-idx_map_key!(
-    /// A type-checked function declaration
-    TypedFunctionId
-);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TypeOrFunctionId {
@@ -50,9 +46,8 @@ impl From<&FunctionId> for TypeOrFunctionId {
 pub struct TypeChecker {
     ctx: polytype::Context,
     type_map: BTreeMap<TypeOrFunctionId, TypeVariable>,
-    typed_functions: IndexMap<TypedFunctionId, Function>,
+    typed_functions: BTreeMap<FunctionId, Function>,
     // typed_types: IndexMap<TypedTypeId, TypeVariable>,
-    function_name_map: BTreeMap<Identifier, TypedFunctionId>,
     errors: Vec<TypeCheckError>,
     resolved: QueryableResolvedItems,
 }
@@ -104,8 +99,8 @@ impl TypeChecker {
                     .concat(),
                 ),
             );
-            let typed_function_id = self.typed_functions.insert(typed_function);
-            self.function_name_map.insert(func.name, typed_function_id);
+            self.typed_functions.insert(id, typed_function);
+            //            self.function_name_map.insert(func.name, typed_function_id);
         }
     }
 
@@ -142,7 +137,6 @@ impl TypeChecker {
             type_map: Default::default(),
             errors: Default::default(),
             typed_functions: Default::default(),
-            function_name_map: Default::default(),
             resolved,
         };
 
@@ -262,21 +256,22 @@ impl TypeChecker {
 
     pub fn get_function(
         &self,
-        id: TypedFunctionId,
+        id: &FunctionId,
     ) -> &Function {
-        self.typed_functions.get(id)
+        self.typed_functions.get(id).expect("invariant: should exist")
     }
 
     // TODO unideal clone
-    pub fn functions(&self) -> impl Iterator<Item = (TypedFunctionId, Function)> {
-        self.typed_functions.iter().map(|(a, b)| (a, b.clone())).collect::<Vec<_>>().into_iter()
+    pub fn functions(&self) -> impl Iterator<Item = (FunctionId, Function)> {
+        self.typed_functions.iter().map(|(a, b)| (*a, b.clone())).collect::<Vec<_>>().into_iter()
     }
 }
 
 #[derive(Clone)]
 pub enum TypedExpr {
     FunctionCall {
-        arg_types: Vec<(Identifier, TypeVariable)>,
+        func: FunctionId,
+        args: Vec<(Identifier, TypedExpr)>,
         ty: TypeVariable,
     },
     Literal {
@@ -349,16 +344,17 @@ impl TypeCheck for Expr {
                     });
                     return TypedExpr::ErrorRecovery;
                 }
-                let mut arg_types = Vec::with_capacity(call.args.len());
+                let mut args = Vec::with_capacity(call.args.len());
 
                 for (arg, (param_name, param)) in call.args.iter().zip(func_decl.params.iter()) {
                     let arg_ty = arg.type_check(ctx);
                     let param_ty = ctx.to_type_var(param);
                     ctx.unify(&arg_ty.ty(), &param_ty);
-                    arg_types.push((*param_name, param_ty));
+                    args.push((*param_name, arg_ty));
                 }
                 TypedExpr::FunctionCall {
-                    arg_types,
+                    func: call.function,
+                    args,
                     ty: ctx.to_type_var(&func_decl.return_type),
                 }
             },
