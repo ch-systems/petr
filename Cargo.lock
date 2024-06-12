@@ -933,14 +933,7 @@ dependencies = [
 name = "swim-ir"
 version = "0.1.0"
 dependencies = [
- "cranelift",
- "cranelift-module",
- "cranelift-native",
- "cranelift-object",
- "cranelift-reader",
  "miette",
- "swim-bind",
- "swim-resolve",
  "swim-typecheck",
  "swim-utils",
  "thiserror",

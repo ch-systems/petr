@@ -7,15 +7,7 @@ edition = "2021"
 
 [dependencies]
 
-# these are probably not all needed -- need to evaluate later
-cranelift = "0.108.1"
-cranelift-native = "0.108.1"
-cranelift-reader = "0.108.1"
-cranelift-object = { version = "0.108.1" }
-cranelift-module = "0.108.1"
 miette = { version = "7.2.0", features = ["fancy"] }
 thiserror = "1.0.61"
 swim-utils = { path = "../swim-utils" }
 swim-typecheck = { path = "../swim-typecheck" }
-swim-bind = { path = "../swim-bind" }
-swim-resolve = { path = "../swim-resolve" }
