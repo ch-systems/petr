@@ -96,7 +96,7 @@ impl Vm {
         let opcode = self.instructions.get(self.state.program_counter).clone();
         self.state.program_counter = (self.state.program_counter.0 + 1).into();
         match opcode {
-            IrOpcode::JumpToFunction(label) => {
+            IrOpcode::JumpImmediate(label) => {
                 let Some(offset) = self
                     .instructions
                     .iter()
@@ -155,6 +155,8 @@ impl Vm {
                 Ok(Continue)
             },
             IrOpcode::TerminateExecution() => return Ok(Terminate),
+            IrOpcode::Jump(_) => todo!(),
+            IrOpcode::Label(_) => todo!(),
         }
     }
 

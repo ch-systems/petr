@@ -36,7 +36,8 @@ macro_rules! ir_ops {
 }
 
 ir_ops! {
-    JumpToFunction "jfunc" FunctionId label;
+    JumpImmediate "jumpi" FunctionId imm;
+    Jump "jump" Reg dest;
     Add "add" Reg dest, Reg lhs, Reg rhs;
     LoadData "ld" Reg dest, DataLabel data;
     StackPop "pop" TypedReg dest;
@@ -45,8 +46,11 @@ ir_ops! {
     FunctionLabel "func" FunctionId label;
     LoadImmediate "imm" Reg dest, i64 imm;
     Copy "cp" Reg dest, Reg src;
-    TerminateExecution "end"
+    TerminateExecution "end";
+    Label "label" LabelId label
 }
+
+idx_map_key!(LabelId);
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Intrinsic {

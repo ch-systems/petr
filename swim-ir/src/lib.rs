@@ -3,6 +3,7 @@
 // - figure out actual interface around "return destination" etc
 // - store position to jump back to after fn call
 // - terminate instructions in correct places (end of entry point)
+// - comments on IR ops
 
 use std::{collections::BTreeMap, rc::Rc};
 
@@ -37,6 +38,10 @@ pub struct Lowerer {
     function_label_assigner: usize,
     type_checker: TypeChecker,
     variables_in_scope: Vec<BTreeMap<SymbolId, Reg>>,
+    /// What register functions expect their return jump destination to be stored in
+    /// when they are called. TODO: use a context API for this so it is impossible to generate
+    /// a function call without setting the return dest.
+    function_return_destinations: BTreeMap<FunctionId, Reg>,
 }
 
 #[derive(Debug, Clone)]
@@ -57,12 +62,13 @@ impl Lowerer {
             function_label_assigner: 0,
             type_checker,
             variables_in_scope: Default::default(),
+            function_return_destinations: Default::default(),
         };
         lowerer.lower_all_functions().expect("errors should get caught before lowering");
         lowerer
     }
 
-    pub fn finalize(mut self) -> (DataSection, Vec<IrOpcode>) {
+    pub fn finalize(self) -> (DataSection, Vec<IrOpcode>) {
         let mut program_section = vec![];
 
         for (label, Function { label: _label, mut body }) in self.function_definitions {
@@ -121,10 +127,15 @@ impl Lowerer {
 
             // TODO we could support other return dests
             let return_dest = ReturnDestination::Stack;
-
             let mut expr_body = ctx.lower_expr(&func.body, return_dest)?;
-
             buf.append(&mut expr_body);
+
+            let return_reg = ctx.fresh_reg();
+            ctx.function_return_destinations.insert(id, return_reg);
+            // jump back to caller
+            let pop_reg = ctx.fresh_reg();
+            todo!("function call stack");
+
             ctx.function_definitions.insert(
                 id,
                 Function {
@@ -168,7 +179,10 @@ impl Lowerer {
                     let mut expr = self.lower_expr(arg_expr, ReturnDestination::Stack)?;
                     buf.append(&mut expr);
                 }
-                buf.push(IrOpcode::JumpToFunction(*func));
+
+                todo!();
+                // buf.push(IrOpcode::(ctx.new_label()));
+                buf.push(IrOpcode::JumpImmediate(*func));
                 Ok(buf)
             },
             List { elements, ty } => todo!(),
