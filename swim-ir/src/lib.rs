@@ -1,6 +1,8 @@
 // TODO:
 // - reuse data labels
 // - figure out actual interface around "return destination" etc
+// - store position to jump back to after fn call
+// - terminate instructions in correct places (end of entry point)
 
 use std::{collections::BTreeMap, rc::Rc};
 
@@ -60,22 +62,27 @@ impl Lowerer {
         lowerer
     }
 
-    pub fn finalize(&self) -> (DataSection, Vec<IrOpcode>) {
+    pub fn finalize(mut self) -> (DataSection, Vec<IrOpcode>) {
         let mut program_section = vec![];
 
-        if let Some(entry_point) = self.entry_point {
-            // Add entry point function body to the program section
-            if let Some(entry_func) = self.function_definitions.get(todo!()) {
-                program_section.extend(entry_func.body.clone());
-            }
+        for (label, Function { label: _label, mut body }) in self.function_definitions {
+            program_section.push(IrOpcode::FunctionLabel(label));
+            program_section.append(&mut body);
         }
 
+        // if let Some(entry_point) = self.entry_point {
+        //     // Add entry point function body to the program section
+        //     if let Some(entry_func) = self.function_definitions.get(todo!()) {
+        //         program_section.extend(entry_func.body.clone());
+        //     }
+        // }
+
         // Add other function bodies to the program section
-        for func in self.function_definitions.values() {
-            if func.label != FunctionLabel::from(0) {
-                program_section.extend(func.body.clone());
-            }
-        }
+        // for func in self.function_definitions.values() {
+        //     if func.label != FunctionLabel::from(0) {
+        //         program_section.extend(func.body.clone());
+        //     }
+        // }
 
         (self.data_section.clone(), program_section)
     }
@@ -268,6 +275,23 @@ impl Lowerer {
     ) {
         self.variables_in_scope.last_mut().map(|scope| scope.insert(param_name.id, param_reg));
     }
+
+    pub fn pretty_print(&self) -> String {
+        let mut result = String::new();
+        result.push_str("; DATA_SECTION\n");
+        for (label, entry) in self.data_section.iter() {
+            result.push_str(&format!("{}: {:?}\n", Into::<usize>::into(label), entry));
+        }
+
+        result.push_str("\n; PROGRAM_SECTION\n");
+        for (id, func) in &self.function_definitions {
+            result.push_str(&format!("Function {:?}:\n", id));
+            for opcode in &func.body {
+                result.push_str(&format!("  {}\n", opcode));
+            }
+        }
+        result
+    }
 }
 
 type VariableScope = BTreeMap<SymbolId, Reg>;
@@ -309,29 +333,12 @@ mod tests {
             errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
             panic!("fmt failed: code didn't parse");
         }
-        let resolved = resolve_symbols(ast, interner);
+        let (errs, resolved) = resolve_symbols(ast, interner);
         let type_checker = TypeChecker::new(resolved);
         let lowerer = Lowerer::new(type_checker);
-        let res = pretty_print_lowerer(&lowerer);
+        let res = lowerer.pretty_print();
 
         expect.assert_eq(&res);
-    }
-
-    fn pretty_print_lowerer(lowerer: &Lowerer) -> String {
-        let mut result = String::new();
-        result.push_str("; DATA_SECTION\n");
-        for (label, entry) in lowerer.data_section.iter() {
-            result.push_str(&format!("{}: {:?}\n", Into::<usize>::into(label), entry));
-        }
-
-        result.push_str("\n; PROGRAM_SECTION\n");
-        for (id, func) in &lowerer.function_definitions {
-            result.push_str(&format!("Function {:?}:\n", id));
-            for opcode in &func.body {
-                result.push_str(&format!("  {}\n", opcode));
-            }
-        }
-        result
     }
 
     #[test]

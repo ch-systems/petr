@@ -1,6 +1,9 @@
 //! Basic VM/interpreter for swim-ir. Primarily intended for testing the correctness of codegen and maybe some other features down the line,
 //! like a debugger or repl.
 
+// TODO should use fallible index maps since invalid IR can result in labels pointing to things that don't exist. don't want to
+// panic in those cases
+
 use std::collections::BTreeMap;
 
 use swim_ir::{DataLabel, DataSectionEntry, Intrinsic, IrOpcode, Reg};
@@ -110,7 +113,11 @@ impl Vm {
                 self.set_register(dest, Value(lhs.0 + rhs.0));
                 Ok(Continue)
             },
-            IrOpcode::LoadData(_dest, _data_label) => todo!(),
+            IrOpcode::LoadData(dest, data_label) => {
+                let data = data_section_to_val(self.state.static_data.get(data_label));
+                self.set_register(dest, data);
+                Ok(Continue)
+            },
             IrOpcode::StackPop(ref dest) => {
                 let Some(data) = self.state.stack.pop() else {
                     return Err(VmError::PoppedEmptyStack(opcode));
@@ -164,5 +171,14 @@ impl Vm {
         val: Value,
     ) {
         self.state.registers.insert(dest, val);
+    }
+}
+
+// TODO things larger than a register
+fn data_section_to_val(data: &DataSectionEntry) -> Value {
+    match data {
+        DataSectionEntry::Int64(x) => Value(*x as usize),
+        DataSectionEntry::String(_) => todo!(),
+        DataSectionEntry::Bool(x) => Value(if *x { 1 } else { 0 }),
     }
 }

@@ -1,6 +1,7 @@
 use std::fs;
 
 use clap::Parser as ClapParser;
+use swim_ir::Lowerer;
 use swim_parse::Parser;
 use swim_utils::{IndexMap, PrettyPrint, SourceId, SpannedItem};
 use swim_vm::Vm;
@@ -9,7 +10,9 @@ use swim_vm::Vm;
 #[command(version = "0.0", author = "Alex H <alex@alex-hansen.com>")]
 struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command:  Commands,
+    #[arg(short = 'i', long, help = "print the IR to stdout")]
+    print_ir: bool,
 }
 
 #[derive(ClapParser)]
@@ -42,17 +45,26 @@ fn main() {
             // resolve symbols
             let (resolution_errs, resolved) = swim_resolve::resolve_symbols(ast, interner);
             // TODO impl diagnostic for resolution errors
-            dbg!(&resolution_errs);
+            if !resolution_errs.is_empty() {
+                dbg!(&resolution_errs);
+            }
             // errs.append(&mut resolution_errs);
 
             // type check
             let (type_errs, type_checker) = swim_typecheck::type_check(resolved);
 
             // TODO impl diagnostic for type errors
-            dbg!(&type_errs);
+            if !type_errs.is_empty() {
+                dbg!(&type_errs);
+            }
             // errs.append(&mut type_errs);
 
-            let (data, instructions) = swim_ir::lower(type_checker).expect("Lowering err");
+            let mut lowerer: Lowerer = Lowerer::new(type_checker);
+            if cli.print_ir {
+                println!("{}", lowerer.pretty_print());
+            }
+
+            let (data, instructions) = lowerer.finalize();
 
             match target.to_lowercase().as_str() {
                 "vm" => {
