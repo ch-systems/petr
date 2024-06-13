@@ -43,7 +43,8 @@ ir_ops! {
     StackPush "push" TypedReg src;
     Intrinsic "intrinsic" Intrinsic intr;
     FunctionLabel "func" FunctionId label;
-    LoadImmediate "imm" Reg dest, i64 imm
+    LoadImmediate "imm" Reg dest, i64 imm;
+    Copy "cp" Reg dest, Reg src
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

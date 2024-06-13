@@ -121,6 +121,11 @@ impl Vm {
                 self.set_register(dest, Value(imm as usize));
                 Ok(())
             },
+            IrOpcode::Copy(dest, src) => {
+                let val = self.get_register(src)?;
+                self.set_register(dest, val);
+                Ok(())
+            },
         }
     }
 

@@ -85,7 +85,7 @@ mod binder {
     );
 
     idx_map_key!(
-        /// The ID type of an Expr.
+        /// The ID type of a function.
         FunctionId
     );
 
@@ -108,7 +108,7 @@ mod binder {
     /// The resolver will iterate over these to resolve symbols.
     #[derive(Clone, Debug)]
     pub struct Node {
-        pub item:  Item,
+        pub item: Item,
         pub scope: ScopeId,
     }
 
@@ -122,23 +122,23 @@ mod binder {
     }
 
     pub struct Binder {
-        scopes:          IndexMap<ScopeId, Scope<Item>>,
-        scope_chain:     Vec<ScopeId>,
+        scopes: IndexMap<ScopeId, Scope<Item>>,
+        scope_chain: Vec<ScopeId>,
         //    bindings: IndexMap<BindingId, Binding>,
-        functions:       IndexMap<FunctionId, FunctionDeclaration>,
-        types:           IndexMap<TypeId, TypeDeclaration>,
+        functions: IndexMap<FunctionId, FunctionDeclaration>,
+        types: IndexMap<TypeId, TypeDeclaration>,
         func_parameters: IndexMap<FunctionParameterId, FunctionParameter>,
         /// The processed nodes that have been bound. They no longer contain things like
         /// `SpannedItem` or `Commented` -- they're further from the language syntactically than
         /// the AST, which directly represents the syntax.
         /// Not a fully semantic representation, but a step closer. Serves to tee up the resolver for
         /// an easy job.
-        nodes:           IndexMap<NodeId, Node>,
+        nodes: IndexMap<NodeId, Node>,
     }
 
     pub struct Scope<T> {
         parent: Option<ScopeId>,
-        items:  BTreeMap<SymbolId, T>,
+        items: BTreeMap<SymbolId, T>,
     }
 
     impl<T> Default for Scope<T> {
@@ -151,7 +151,7 @@ mod binder {
         pub fn new() -> Self {
             Self {
                 parent: None,
-                items:  BTreeMap::new(),
+                items: BTreeMap::new(),
             }
         }
 
@@ -175,11 +175,11 @@ mod binder {
     impl Binder {
         fn new() -> Self {
             Self {
-                scopes:          IndexMap::default(),
-                scope_chain:     Vec::new(),
-                functions:       IndexMap::default(),
-                types:           IndexMap::default(),
-                nodes:           IndexMap::default(),
+                scopes: IndexMap::default(),
+                scope_chain: Vec::new(),
+                functions: IndexMap::default(),
+                types: IndexMap::default(),
+                nodes: IndexMap::default(),
                 func_parameters: IndexMap::default(),
             }
         }
@@ -281,7 +281,7 @@ mod binder {
                                 swim_ast::FunctionParameter {
                                     // TODO: don't just use the parent variant name
                                     name: variant.name,
-                                    ty:   *field,
+                                    ty: *field,
                                 }
                             })
                             .collect::<Vec<_>>(),
@@ -290,11 +290,11 @@ mod binder {
                 });
 
                 let function = FunctionDeclaration {
-                    name:        variant.name,
-                    parameters:  fields_as_parameters.into_boxed_slice(),
+                    name: variant.name,
+                    parameters: fields_as_parameters.into_boxed_slice(),
                     return_type: Ty::Named(ty_decl.name),
-                    body:        span.with_item(Expression::TypeConstructor),
-                    visibility:  ty_decl.visibility,
+                    body: span.with_item(Expression::TypeConstructor),
+                    visibility: ty_decl.visibility,
                 };
 
                 let function_id = self.functions.insert(function);

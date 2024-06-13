@@ -101,6 +101,7 @@ impl Lowerer {
                     };
                     buf.push(IrOpcode::StackPop(ty_reg));
                     // insert param into mapping
+                    ctx.insert_var(param_name, param_reg);
                 } else {
                     todo!("make reg a ptr to the value")
                 }
@@ -120,8 +121,7 @@ impl Lowerer {
                 },
             );
             Ok(())
-        });
-        Ok(())
+        })
     }
 
     fn fresh_reg(&mut self) -> Reg {
@@ -161,7 +161,21 @@ impl Lowerer {
             },
             List { elements, ty } => todo!(),
             Unit => todo!(),
-            Variable { ty } => todo!("look up in ctx"),
+            Variable { name, ty } => {
+                let var_reg = self
+                    .variables_in_scope
+                    .last()
+                    .expect("should be at least one scope")
+                    .get(&name.id)
+                    .expect("var did not exist TODO err");
+                Ok(match return_destination {
+                    ReturnDestination::Reg(reg) => vec![IrOpcode::Copy(reg, *var_reg)],
+                    ReturnDestination::Stack => vec![IrOpcode::StackPush(TypedReg {
+                        ty:  self.to_ir_type(ty),
+                        reg: *var_reg,
+                    })],
+                })
+            },
             Intrinsic { ty, intrinsic } => self.lower_intrinsic(intrinsic, return_destination),
             ErrorRecovery => todo!(),
         }
@@ -332,6 +346,7 @@ mod tests {
             "#]],
         );
     }
+
     #[test]
     fn func_calls_intrinsic() {
         check(
@@ -371,6 +386,26 @@ mod tests {
                   ld v2 datalabel1
                   push v2
             "#]],
+        );
+    }
+    #[test]
+    fn func_args_with_op() {
+        check(
+            r#"
+                function add(x in 'int, y in 'int) returns 'int + x y
+                function main() returns 'int ~add(1, 2)
+                "#,
+            expect![[r#""#]],
+        );
+    }
+    #[test]
+    fn func_args() {
+        check(
+            r#"
+                function add(x in 'int, y in 'int) returns 'int x
+                function main() returns 'int ~add(1, 2)
+                "#,
+            expect![[r#""#]],
         );
     }
 }

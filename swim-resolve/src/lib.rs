@@ -215,7 +215,7 @@ mod resolver {
         Literal(swim_ast::Literal),
         List(Box<[Expr]>),
         FunctionCall(FunctionCall),
-        Variable(Type),
+        Variable { name: Identifier, ty: Type },
         Intrinsic(Intrinsic),
         Unit,
         ErrorRecovery,
@@ -384,7 +384,7 @@ mod resolver {
                         return None;
                     };
                     let ty = ty.resolve(resolver, binder, scope_id).unwrap_or(Type::ErrorRecovery);
-                    Expr::new(ExprKind::Variable(ty))
+                    Expr::new(ExprKind::Variable { name: *var, ty })
                 },
                 // TODO
                 Expression::TypeConstructor => Expr::error_recovery(),
@@ -562,7 +562,7 @@ mod resolver {
                         },
                         ExprKind::Unit => "Unit".to_string(),
                         ExprKind::ErrorRecovery => "<error>".to_string(),
-                        ExprKind::Variable(_) => todo!(),
+                        ExprKind::Variable { .. } => todo!(),
                         ExprKind::Intrinsic(x) => format!(
                             "@{}({})",
                             x.intrinsic,

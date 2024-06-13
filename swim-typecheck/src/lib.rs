@@ -293,8 +293,8 @@ pub enum TypedExpr {
     },
     Unit,
     Variable {
-        ty: TypeVariable,
-        // TODO name?
+        ty:   TypeVariable,
+        name: Identifier,
     },
     Intrinsic {
         ty:        TypeVariable,
@@ -369,7 +369,10 @@ impl TypeCheck for Expr {
             },
             ExprKind::Unit => TypedExpr::Unit,
             ExprKind::ErrorRecovery => TypedExpr::ErrorRecovery,
-            ExprKind::Variable(item) => TypedExpr::Variable { ty: ctx.to_type_var(item) },
+            ExprKind::Variable { name, ty } => TypedExpr::Variable {
+                ty:   ctx.to_type_var(ty),
+                name: *name,
+            },
             ExprKind::Intrinsic(intrinsic) => intrinsic.type_check(ctx),
         }
     }
