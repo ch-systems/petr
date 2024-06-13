@@ -3,7 +3,7 @@ use std::os;
 use miette::Diagnostic;
 use thiserror::Error;
 
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug, PartialEq, Clone)]
 pub struct TypeCheckError {
     kind: TypeCheckErrorKind,
     help: Option<String>,
@@ -17,7 +17,7 @@ impl std::fmt::Display for TypeCheckError {
         write!(f, "{}", self.kind)
     }
 }
-#[derive(Error, Debug, Diagnostic, PartialEq)]
+#[derive(Error, Debug, Diagnostic, PartialEq, Clone)]
 pub enum TypeCheckErrorKind {
     #[error("Failed to unify types: {0}")]
     UnificationFailure(#[from] polytype::UnificationError),

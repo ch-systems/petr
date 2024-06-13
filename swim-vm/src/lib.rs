@@ -6,11 +6,7 @@ use std::collections::BTreeMap;
 use swim_ir::{DataLabel, DataSectionEntry, Intrinsic, IrOpcode, Reg};
 use swim_utils::{idx_map_key, IndexMap};
 
-fn main() {
-    todo!()
-}
-
-struct Vm {
+pub struct Vm {
     state:        VmState,
     instructions: IndexMap<ProgramOffset, IrOpcode>,
 }
@@ -36,41 +32,40 @@ impl Default for ProgramOffset {
 #[derive(Clone, Copy)]
 pub struct Value(usize);
 
+#[derive(Debug)]
 pub struct VmError;
 
 type Result<T> = std::result::Result<T, VmError>;
 
 impl Vm {
     pub fn new(
-        instructions: IndexMap<ProgramOffset, IrOpcode>,
+        instructions: Vec<IrOpcode>,
         static_data: IndexMap<DataLabel, DataSectionEntry>,
     ) -> Self {
+        let mut idx_map = IndexMap::default();
+        for instr in instructions {
+            idx_map.insert(instr);
+        }
         Self {
-            state: VmState {
+            state:        VmState {
                 stack: Default::default(),
                 static_data,
                 registers: Default::default(),
                 program_counter: 0.into(),
                 memory: Vec::with_capacity(100),
             },
-            instructions,
+            instructions: idx_map,
         }
     }
 
-    pub fn run(
-        &mut self,
-        ir: Vec<IrOpcode>,
-    ) -> Result<()> {
-        for opcode in ir {
-            self.execute(opcode)?;
+    pub fn run(&mut self) -> Result<()> {
+        loop {
+            self.execute()?
         }
-        Ok(())
     }
 
-    pub fn execute(
-        &mut self,
-        opcode: IrOpcode,
-    ) -> Result<()> {
+    pub fn execute(&mut self) -> Result<()> {
+        let opcode = self.instructions.get(self.state.program_counter).clone();
         match opcode {
             IrOpcode::JumpToFunction(label) => {
                 let Some(offset) = self

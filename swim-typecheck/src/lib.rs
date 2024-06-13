@@ -13,6 +13,14 @@ use swim_resolve::{Expr, ExprKind, QueryableResolvedItems, Ty};
 pub use swim_resolve::{Intrinsic as ResolvedIntrinsic, IntrinsicName, Literal};
 use swim_utils::{idx_map_key, Identifier, IndexMap, SymbolInterner};
 
+// TODO return QueryableTypeChecked instead of type checker
+// Clean up API so this is the only function exposed
+pub fn type_check(resolved: QueryableResolvedItems) -> (Vec<TypeCheckError>, TypeChecker) {
+    let mut type_checker = TypeChecker::new(resolved);
+    type_checker.fully_type_check();
+    (type_checker.errors.clone(), type_checker)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TypeOrFunctionId {
     TypeId(TypeId),
@@ -83,7 +91,7 @@ impl TypeChecker {
         }
     }
 
-    fn fully_resolve(&mut self) {
+    fn fully_type_check(&mut self) {
         // TODO collects on these iters is not ideal
         for (id, _) in self.resolved.types() {
             let ty = self.fresh_ty_var();
@@ -159,7 +167,7 @@ impl TypeChecker {
         //     type_checker.type_map.insert(id.into(), func_type);
         // }
 
-        type_checker.fully_resolve();
+        type_checker.fully_type_check();
         type_checker
     }
 
@@ -351,6 +359,7 @@ impl TypeCheck for Expr {
                         got:      call.args.len(),
                         function: ctx.realize_symbol(func_decl.name.id).to_string(),
                     });
+                    todo!("mismatched len error");
                     return TypedExpr::ErrorRecovery;
                 }
                 let mut args = Vec::with_capacity(call.args.len());

@@ -14,6 +14,11 @@ use error::*;
 use opcodes::*;
 pub use opcodes::{DataLabel, Intrinsic, IrOpcode, Reg};
 
+pub fn lower(checker: TypeChecker) -> Result<(DataSection, Vec<IrOpcode>), LoweringError> {
+    let lowerer = Lowerer::new(checker);
+    Ok(lowerer.finalize())
+}
+
 // TODO: fully typed functions
 pub struct Function {
     label: FunctionLabel,
@@ -177,7 +182,7 @@ impl Lowerer {
                 })
             },
             Intrinsic { ty, intrinsic } => self.lower_intrinsic(intrinsic, return_destination),
-            ErrorRecovery => todo!(),
+            ErrorRecovery => Err(LoweringError),
         }
     }
 

@@ -1,9 +1,2 @@
-type name = a 'bool 'int
-          | b
-          | c
 
-function bebebebe(
-  variable_1 ∈ 'int,
-  variable_2 ∈ 'bool,
-) returns 'int
-  ~bebebebe 1, true
+function main() returns 'int 5

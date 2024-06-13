@@ -3,14 +3,14 @@
 
 pub use resolved::QueryableResolvedItems;
 use resolver::Resolver;
-pub use resolver::{Expr, ExprKind, Function, FunctionCall, Intrinsic, Type};
+pub use resolver::{Expr, ExprKind, Function, FunctionCall, Intrinsic, ResolutionError, Type};
 pub use swim_ast::{Intrinsic as IntrinsicName, Literal, Ty};
 use swim_utils::SymbolInterner;
 
 pub fn resolve_symbols(
     ast: swim_ast::Ast,
     interner: SymbolInterner,
-) -> QueryableResolvedItems {
+) -> (Vec<ResolutionError>, QueryableResolvedItems) {
     let resolver = Resolver::new_from_single_ast(ast, interner);
     resolver.into_queryable()
 }
@@ -300,8 +300,11 @@ mod resolver {
             self.resolved.insert_function(func_id, func);
         }
 
-        pub fn into_queryable(self) -> QueryableResolvedItems {
-            QueryableResolvedItems::new(self.resolved.resolved_functions, self.resolved.resolved_types, self.interner)
+        pub fn into_queryable(self) -> (Vec<ResolutionError>, QueryableResolvedItems) {
+            (
+                self.errs,
+                QueryableResolvedItems::new(self.resolved.resolved_functions, self.resolved.resolved_types, self.interner),
+            )
         }
     }
 
@@ -340,7 +343,10 @@ mod resolver {
 
             let return_type = self.return_type.resolve(resolver, binder, scope_id).unwrap_or(Type::Unit);
 
-            let body = self.body.resolve(resolver, binder, scope_id).unwrap_or(Expr::error_recovery());
+            let body = match self.body.resolve(resolver, binder, scope_id) {
+                Some(x) => x,
+                None => todo!("Error recov"),
+            };
 
             Some(Function {
                 name: self.name,
@@ -366,7 +372,10 @@ mod resolver {
                     let list: Vec<Expr> = list
                         .elements
                         .iter()
-                        .map(|x| x.resolve(resolver, binder, scope_id).unwrap_or_else(Expr::error_recovery))
+                        .map(|x| match x.resolve(resolver, binder, scope_id) {
+                            Some(x) => x,
+                            None => todo!("error recovery"),
+                        })
                         .collect();
                     // TODO: do list combination type if list of unit, which functions like a block
                     Expr::new(ExprKind::List(list.into_boxed_slice()))
@@ -383,11 +392,19 @@ mod resolver {
                         resolver.errs.push(ResolutionError::FunctionParameterNotFound(var_name.to_string()));
                         return None;
                     };
-                    let ty = ty.resolve(resolver, binder, scope_id).unwrap_or(Type::ErrorRecovery);
+                    let ty = match ty.resolve(resolver, binder, scope_id) {
+                        Some(ty) => ty,
+
+                        None => {
+                            todo!("not found err");
+                            Type::ErrorRecovery
+                        },
+                    };
+
                     Expr::new(ExprKind::Variable { name: *var, ty })
                 },
                 // TODO
-                Expression::TypeConstructor => Expr::error_recovery(),
+                Expression::TypeConstructor => todo!("type cons"),
                 Expression::IntrinsicCall(intrinsic) => {
                     let resolved = intrinsic.resolve(resolver, binder, scope_id)?;
                     Expr::new(ExprKind::Intrinsic(resolved))
@@ -408,7 +425,10 @@ mod resolver {
             let args = self
                 .args
                 .iter()
-                .map(|x| x.resolve(resolver, binder, scope_id).unwrap_or_else(Expr::error_recovery))
+                .map(|x| match x.resolve(resolver, binder, scope_id) {
+                    Some(x) => x,
+                    None => todo!("error recov"),
+                })
                 .collect();
             Some(Intrinsic {
                 intrinsic: self.intrinsic.clone(),
@@ -461,7 +481,10 @@ mod resolver {
             let args = self
                 .args
                 .iter()
-                .map(|x| x.resolve(resolver, binder, scope_id).unwrap_or_else(Expr::error_recovery))
+                .map(|x| match x.resolve(resolver, binder, scope_id) {
+                    Some(x) => x,
+                    None => todo!("Error recov"),
+                })
                 .collect();
 
             Some(FunctionCall {
