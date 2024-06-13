@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 
 use swim_ir::{DataLabel, DataSectionEntry, Intrinsic, IrOpcode, Reg};
 use swim_utils::{idx_map_key, IndexMap};
+use thiserror::Error;
 
 pub struct Vm {
     state:        VmState,
@@ -32,10 +33,24 @@ impl Default for ProgramOffset {
 #[derive(Clone, Copy)]
 pub struct Value(usize);
 
-#[derive(Debug)]
-pub struct VmError;
+#[derive(Debug, Error)]
+pub enum VmError {
+    #[error("Function label not found when executing opcode {0}")]
+    FunctionLabelNotFound(IrOpcode),
+    #[error("Popped empty stack when executing opcode {0}")]
+    PoppedEmptyStack(IrOpcode),
+    #[error("Register {0} not found")]
+    RegisterNotFound(Reg),
+    #[error("PC value of {0} is out of bounds for program of length {1}")]
+    ProgramCounterOutOfBounds(ProgramOffset, usize),
+}
 
 type Result<T> = std::result::Result<T, VmError>;
+
+enum VmControlFlow {
+    Continue,
+    Terminate,
+}
 
 impl Vm {
     pub fn new(
@@ -59,13 +74,24 @@ impl Vm {
     }
 
     pub fn run(&mut self) -> Result<()> {
+        use VmControlFlow::*;
         loop {
-            self.execute()?
+            match self.execute() {
+                Ok(Continue) => continue,
+                Ok(Terminate) => break,
+                Err(e) => return Err(e),
+            }
         }
+        Ok(())
     }
 
-    pub fn execute(&mut self) -> Result<()> {
+    fn execute(&mut self) -> Result<VmControlFlow> {
+        use VmControlFlow::*;
+        if self.state.program_counter.0 >= self.instructions.len() {
+            return Err(VmError::ProgramCounterOutOfBounds(self.state.program_counter, self.instructions.len()));
+        }
         let opcode = self.instructions.get(self.state.program_counter).clone();
+        self.state.program_counter = (self.state.program_counter.0 + 1).into();
         match opcode {
             IrOpcode::JumpToFunction(label) => {
                 let Some(offset) = self
@@ -73,29 +99,29 @@ impl Vm {
                     .iter()
                     .find_map(|(position, op)| if *op == IrOpcode::FunctionLabel(label) { Some(position) } else { None })
                 else {
-                    return Err(VmError);
+                    return Err(VmError::FunctionLabelNotFound(opcode));
                 };
                 self.state.program_counter = offset;
-                Ok(())
+                Ok(Continue)
             },
             IrOpcode::Add(dest, lhs, rhs) => {
                 let lhs = self.get_register(lhs)?;
                 let rhs = self.get_register(rhs)?;
                 self.set_register(dest, Value(lhs.0 + rhs.0));
-                Ok(())
+                Ok(Continue)
             },
             IrOpcode::LoadData(_dest, _data_label) => todo!(),
-            IrOpcode::StackPop(dest) => {
+            IrOpcode::StackPop(ref dest) => {
                 let Some(data) = self.state.stack.pop() else {
-                    return Err(VmError);
+                    return Err(VmError::PoppedEmptyStack(opcode));
                 };
                 self.set_register(dest.reg, data);
-                Ok(())
+                Ok(Continue)
             },
             IrOpcode::StackPush(val) => {
                 let data = self.get_register(val.reg)?;
                 self.state.stack.push(data);
-                Ok(())
+                Ok(Continue)
             },
             IrOpcode::Intrinsic(intrinsic) => {
                 match intrinsic {
@@ -109,18 +135,19 @@ impl Vm {
                         println!("{}", string);
                     },
                 };
-                Ok(())
+                Ok(Continue)
             },
-            IrOpcode::FunctionLabel(_) => Ok(()),
+            IrOpcode::FunctionLabel(_) => Ok(Continue),
             IrOpcode::LoadImmediate(dest, imm) => {
                 self.set_register(dest, Value(imm as usize));
-                Ok(())
+                Ok(Continue)
             },
             IrOpcode::Copy(dest, src) => {
                 let val = self.get_register(src)?;
                 self.set_register(dest, val);
-                Ok(())
+                Ok(Continue)
             },
+            IrOpcode::TerminateExecution() => return Ok(Terminate),
         }
     }
 
@@ -128,7 +155,7 @@ impl Vm {
         &self,
         reg: swim_ir::Reg,
     ) -> Result<Value> {
-        self.state.registers.get(&reg).copied().ok_or(VmError)
+        self.state.registers.get(&reg).copied().ok_or(VmError::RegisterNotFound(reg))
     }
 
     fn set_register(

@@ -44,7 +44,8 @@ ir_ops! {
     Intrinsic "intrinsic" Intrinsic intr;
     FunctionLabel "func" FunctionId label;
     LoadImmediate "imm" Reg dest, i64 imm;
-    Copy "cp" Reg dest, Reg src
+    Copy "cp" Reg dest, Reg src;
+    TerminateExecution "end"
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

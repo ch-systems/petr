@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 swim-ir = { path = "../swim-ir" }
 swim-utils = { path = "../swim-utils" }
+thiserror = "1.0.61"
