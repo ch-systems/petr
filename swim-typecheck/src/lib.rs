@@ -353,7 +353,16 @@ impl TypeCheck for Expr {
                         ty:       tp!(list(tp!(unit))),
                     }
                 } else {
-                    todo!(" exprs.first().unwrap().kind.return_type()")
+                    let type_checked_exprs = exprs.iter().map(|expr| expr.type_check(ctx)).collect::<Vec<_>>();
+                    // unify the type of the first expr against everything else in the list
+                    let first_ty = type_checked_exprs[0].ty();
+                    for expr in type_checked_exprs.iter().skip(1) {
+                        ctx.unify(&first_ty, &expr.ty());
+                    }
+                    TypedExpr::List {
+                        elements: type_checked_exprs,
+                        ty:       tp!(list(first_ty)),
+                    }
                 }
             },
             ExprKind::FunctionCall(call) => {
@@ -390,6 +399,10 @@ impl TypeCheck for Expr {
                 name: *name,
             },
             ExprKind::Intrinsic(intrinsic) => intrinsic.type_check(ctx),
+            ExprKind::TypeConstructor => {
+                // type constructor expressions take inputs that should line up with a type decl and return a type
+                todo!()
+            },
         }
     }
 }
@@ -703,7 +716,6 @@ mod tests {
         );
     }
 
-    // TODO this will work when generics work
     #[test]
     fn multiple_calls_to_fn_dont_unify_params_themselves() {
         check(
@@ -723,6 +735,16 @@ mod tests {
                 function my_func → bool
                 function my_second_func → bool
             "#]],
+        );
+    }
+    #[test]
+    fn list_different_types_type_err() {
+        check(
+            r#"
+                function my_list() returns 'list [ 1, true ]
+            "#,
+            expect![[r#"
+                "#]],
         );
     }
 }

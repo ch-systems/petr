@@ -218,6 +218,7 @@ mod resolver {
         Variable { name: Identifier, ty: Type },
         Intrinsic(Intrinsic),
         Unit,
+        TypeConstructor,
         ErrorRecovery,
     }
 
@@ -404,7 +405,11 @@ mod resolver {
                     Expr::new(ExprKind::Variable { name: *var, ty })
                 },
                 // TODO
-                Expression::TypeConstructor => todo!("type cons"),
+                Expression::TypeConstructor => {
+                    // type constructor expressions are placeholders for the function body
+                    // of a type constructor function
+                    Expr::new(ExprKind::TypeConstructor)
+                },
                 Expression::IntrinsicCall(intrinsic) => {
                     let resolved = intrinsic.resolve(resolver, binder, scope_id)?;
                     Expr::new(ExprKind::Intrinsic(resolved))
@@ -540,6 +545,7 @@ mod resolver {
     #[cfg(test)]
     mod tests {
         mod pretty_printing {
+            use swim_utils::SymbolInterner;
 
             use super::{Expr, ExprKind};
             use crate::{resolved::QueryableResolvedItems, resolver::Type};
