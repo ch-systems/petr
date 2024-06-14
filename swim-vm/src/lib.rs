@@ -25,6 +25,7 @@ pub struct VmState {
     registers:       BTreeMap<Reg, Value>,
     program_counter: ProgramOffset,
     memory:          Vec<usize>,
+    call_stack:      Vec<ProgramOffset>,
 }
 
 impl Default for ProgramOffset {
@@ -71,6 +72,7 @@ impl Vm {
                 registers: Default::default(),
                 program_counter: 0.into(),
                 memory: Vec::with_capacity(100),
+                call_stack: Default::default(),
             },
             instructions: idx_map,
         }
@@ -95,6 +97,7 @@ impl Vm {
         }
         let opcode = self.instructions.get(self.state.program_counter).clone();
         self.state.program_counter = (self.state.program_counter.0 + 1).into();
+        dbg!(&opcode);
         match opcode {
             IrOpcode::JumpImmediate(label) => {
                 let Some(offset) = self
@@ -157,6 +160,18 @@ impl Vm {
             IrOpcode::TerminateExecution() => return Ok(Terminate),
             IrOpcode::Jump(_) => todo!(),
             IrOpcode::Label(_) => todo!(),
+            IrOpcode::Return() => {
+                // pop the fn stack, return there
+                let Some(offset) = self.state.call_stack.pop() else {
+                    return Ok(Terminate);
+                };
+                self.state.program_counter = offset;
+                Ok(Continue)
+            },
+            IrOpcode::PushPc() => {
+                self.state.call_stack.push(self.state.program_counter);
+                Ok(Continue)
+            },
         }
     }
 

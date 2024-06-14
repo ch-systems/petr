@@ -1,2 +1,2 @@
 
-function main() returns 'int 5
+function main() returns 'unit @puts("hello, world!")

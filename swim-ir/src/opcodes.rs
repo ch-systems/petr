@@ -47,7 +47,9 @@ ir_ops! {
     LoadImmediate "imm" Reg dest, i64 imm;
     Copy "cp" Reg dest, Reg src;
     TerminateExecution "end";
-    Label "label" LabelId label
+    Label "label" LabelId label;
+    Return "ret";
+    PushPc "ppc"
 }
 
 idx_map_key!(LabelId);

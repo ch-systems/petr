@@ -130,11 +130,8 @@ impl Lowerer {
             let mut expr_body = ctx.lower_expr(&func.body, return_dest)?;
             buf.append(&mut expr_body);
 
-            let return_reg = ctx.fresh_reg();
-            ctx.function_return_destinations.insert(id, return_reg);
             // jump back to caller
-            let pop_reg = ctx.fresh_reg();
-            todo!("function call stack");
+            buf.push(IrOpcode::Return());
 
             ctx.function_definitions.insert(
                 id,
@@ -179,9 +176,10 @@ impl Lowerer {
                     let mut expr = self.lower_expr(arg_expr, ReturnDestination::Stack)?;
                     buf.append(&mut expr);
                 }
+                // push current PC onto the stack
+                buf.push(IrOpcode::PushPc());
 
-                todo!();
-                // buf.push(IrOpcode::(ctx.new_label()));
+                // jump to the function
                 buf.push(IrOpcode::JumpImmediate(*func));
                 Ok(buf)
             },
@@ -247,25 +245,29 @@ impl Lowerer {
         intrinsic: &swim_typecheck::Intrinsic,
         return_destination: ReturnDestination,
     ) -> Result<Vec<IrOpcode>, LoweringError> {
-        let instr = match intrinsic {
+        let mut buf = vec![];
+        match intrinsic {
             swim_typecheck::Intrinsic::Puts(arg) => {
                 // puts takes one arg and it is a string
                 let arg_reg = self.fresh_reg();
-                self.lower_expr(arg, ReturnDestination::Reg(arg_reg))?;
-                IrOpcode::Intrinsic(Intrinsic::Puts(TypedReg {
+                buf.append(&mut self.lower_expr(arg, ReturnDestination::Reg(arg_reg))?);
+                buf.push(IrOpcode::Intrinsic(Intrinsic::Puts(TypedReg {
                     ty:  IrTy::Ptr(Box::new(IrTy::String)),
                     reg: arg_reg,
-                }))
+                })))
             },
-        };
+        }
 
-        Ok(match return_destination {
-            ReturnDestination::Reg(reg) => vec![instr, IrOpcode::LoadImmediate(reg, 0)],
+        match return_destination {
+            ReturnDestination::Reg(reg) => {
+                buf.push(IrOpcode::LoadImmediate(reg, 0));
+            },
             ReturnDestination::Stack => {
                 let reg = self.fresh_reg();
-                vec![instr, IrOpcode::StackPush(TypedReg { ty: IrTy::Unit, reg })]
+                buf.push(IrOpcode::StackPush(TypedReg { ty: IrTy::Unit, reg }));
             },
-        })
+        }
+        Ok(buf)
     }
 
     /// Produces a new context for variables in a scope to be allocated
