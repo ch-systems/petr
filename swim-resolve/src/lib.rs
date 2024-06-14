@@ -596,6 +596,7 @@ mod resolver {
                             x.intrinsic,
                             x.args.iter().map(|x| x.to_string(resolver)).collect::<Vec<_>>().join(", ")
                         ),
+                        ExprKind::TypeConstructor => todo!(),
                     }
                 }
             }
@@ -617,7 +618,8 @@ mod resolver {
                 panic!("fmt failed: code didn't parse");
             }
             let resolver = Resolver::new_from_single_ast(ast, interner);
-            let queryable = resolver.into_queryable();
+            let (errs, queryable) = resolver.into_queryable();
+            assert!(errs.is_empty());
             let result = pretty_print_resolution(&queryable);
             expect.assert_eq(&result);
         }

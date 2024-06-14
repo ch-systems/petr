@@ -383,9 +383,10 @@ mod tests {
                 0: Int64(42)
 
                 ; PROGRAM_SECTION
-                Function FunctionId(0):
-                  ld v0 datalabel0
-                  push v0
+                ENTRY: function 0:
+                 0	ld v0 datalabel0
+                 1	push v0
+                 2	ret
             "#]],
         );
     }
@@ -397,14 +398,16 @@ mod tests {
                 function main() returns 'unit @puts("hello")
                 "#,
             expect![[r#"
-                    ; DATA_SECTION
-                    0: Int64(42)
+                ; DATA_SECTION
+                0: String("hello")
 
-                    ; PROGRAM_SECTION
-                    Function TypedFunctionId(0):
-                      ld v0 datalabel0
-                      push v0
-                "#]],
+                ; PROGRAM_SECTION
+                ENTRY: function 0:
+                 0	ld v0 datalabel0
+                 1	intrinsic @puts(v0)
+                 2	pushi 0
+                 3	ret
+            "#]],
         );
     }
     #[test]
@@ -420,14 +423,17 @@ mod tests {
                 1: Bool(true)
 
                 ; PROGRAM_SECTION
-                Function FunctionId(0):
-                  ld v0 datalabel0
-                  push v0
-                  jfunc functionid1
-                Function FunctionId(1):
-                  pop v1
-                  ld v2 datalabel1
-                  push v2
+                ENTRY: function 0:
+                 0	ld v0 datalabel0
+                 1	push v0
+                 2	ppc
+                 3	jumpi functionid1
+                 4	ret
+                function 1:
+                 5	pop v1
+                 6	ld v2 datalabel1
+                 7	push v2
+                 8	ret
             "#]],
         );
     }
@@ -448,7 +454,26 @@ mod tests {
                 function add(x in 'int, y in 'int) returns 'int x
                 function main() returns 'int ~add(1, 2)
                 "#,
-            expect![[r#""#]],
+            expect![[r#"
+                ; DATA_SECTION
+                0: Int64(1)
+                1: Int64(2)
+
+                ; PROGRAM_SECTION
+                function 0:
+                 0	pop v0
+                 1	pop v1
+                 2	push v0
+                 3	ret
+                ENTRY: function 1:
+                 4	ld v2 datalabel0
+                 5	push v2
+                 6	ld v3 datalabel1
+                 7	push v3
+                 8	ppc
+                 9	jumpi functionid0
+                 10	ret
+            "#]],
         );
     }
 }

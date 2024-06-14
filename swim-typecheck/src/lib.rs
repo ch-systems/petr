@@ -1,9 +1,6 @@
 mod error;
 
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    rc::Rc,
-};
+use std::{collections::BTreeMap, rc::Rc};
 
 use error::{TypeCheckError, TypeCheckErrorKind};
 use polytype::{tp, Type};
@@ -55,9 +52,9 @@ pub struct TypeChecker {
     ctx: polytype::Context,
     type_map: BTreeMap<TypeOrFunctionId, TypeVariable>,
     typed_functions: BTreeMap<FunctionId, Function>,
-    // typed_types: IndexMap<TypedTypeId, TypeVariable>,
     errors: Vec<TypeCheckError>,
     resolved: QueryableResolvedItems,
+    generics_in_scope: Vec<BTreeMap<Identifier, TypeVariable>>,
 }
 
 pub type TypeVariable = Type<&'static str>;
@@ -98,6 +95,34 @@ impl TypeChecker {
         self.resolved.interner.get(id).clone()
     }
 
+    fn with_type_scope<T>(
+        &mut self,
+        f: impl FnOnce(&mut Self) -> T,
+    ) -> T {
+        self.generics_in_scope.push(Default::default());
+        let res = f(self);
+        self.generics_in_scope.pop();
+        res
+    }
+
+    fn generic_type(
+        &mut self,
+
+        id: &Identifier,
+    ) -> TypeVariable {
+        for scope in self.generics_in_scope.iter().rev() {
+            if let Some(ty) = scope.get(id) {
+                return ty.clone();
+            }
+        }
+        let fresh_ty = self.fresh_ty_var();
+        self.generics_in_scope
+            .last_mut()
+            .expect("looked for generic when no scope existed")
+            .insert(*id, fresh_ty.clone());
+        fresh_ty
+    }
+
     fn fully_type_check(&mut self) {
         // TODO collects on these iters is not ideal
         for (id, _) in self.resolved.types() {
@@ -119,60 +144,19 @@ impl TypeChecker {
                 ),
             );
             self.typed_functions.insert(id, typed_function);
-            //            self.function_name_map.insert(func.name, typed_function_id);
         }
     }
 
-    fn resolve_from_entry(
-        &mut self,
-        entry_point: FunctionId,
-        resolved: &swim_resolve::QueryableResolvedItems,
-    ) {
-        // TODO -- should entry point be a str?
-        // find function with entry point name and type check its body as a function call
-        // Find the function with the entry point name
-        let function = self
-            .type_map
-            .keys()
-            .find_map(|key| match key {
-                TypeOrFunctionId::FunctionId(func_id) if *func_id == entry_point => Some(resolved.get_function(*func_id)),
-                _ => None,
-            })
-            .expect("Entry point function not found");
-
-        // Type check the function body as a function call
-        let mut function_call = swim_resolve::FunctionCall {
-            function: entry_point,
-            args:     vec![], // Populate with actual arguments if necessary
-        };
-        function_call.type_check(self);
-        ()
-    }
-
     pub fn new(resolved: QueryableResolvedItems) -> Self {
-        let mut ctx = polytype::Context::default();
+        let ctx = polytype::Context::default();
         let mut type_checker = TypeChecker {
             ctx,
             type_map: Default::default(),
             errors: Default::default(),
             typed_functions: Default::default(),
             resolved,
+            generics_in_scope: Default::default(),
         };
-
-        // for (id, _ty) in type_checker.resolved_items.types() {
-        //     let ty = type_checker.fresh_ty_var();
-        //     type_checker.type_map.insert(id.into(), ty);
-        // }
-
-        // for (id, func) in resolved.functions() {
-        //     let mut func_type = Vec::with_capacity(func.params.len() + 1);
-        //     for (_, ty) in &func.params {
-        //         func_type.push(type_checker.to_type_var(ty));
-        //     }
-        //     func_type.push(type_checker.to_type_var(&func.return_type));
-        //     let func_type = TypeChecker::arrow_type(func_type);
-        //     type_checker.type_map.insert(id.into(), func_type);
-        // }
 
         type_checker.fully_type_check();
         type_checker
@@ -214,7 +198,10 @@ impl TypeChecker {
             swim_resolve::Type::Named(ty_id) => self.type_map.get(&ty_id.into()).expect("type did not exist in type map").clone(),
             swim_resolve::Type::Generic(generic_name) => {
                 // TODO I think this needs to be a qualifier
-                self.fresh_ty_var()
+                // polytype has support for qualifying polymorphic types
+                // but instead I'm going to do the lazy thing and instantiate the generic
+                // with a fresh type variable
+                self.generic_type(generic_name)
             },
         }
     }
@@ -455,21 +442,23 @@ impl TypeCheck for swim_resolve::Function {
         &self,
         ctx: &mut TypeChecker,
     ) -> Self::Output {
-        let params = self.params.iter().map(|(name, ty)| (*name, ctx.to_type_var(ty))).collect::<Vec<_>>();
+        ctx.with_type_scope(|ctx| {
+            let params = self.params.iter().map(|(name, ty)| (*name, ctx.to_type_var(ty))).collect::<Vec<_>>();
 
-        // unify types within the body with the parameter
-        let body = self.body.type_check(ctx);
+            // unify types within the body with the parameter
+            let body = self.body.type_check(ctx);
 
-        let declared_return_type = ctx.to_type_var(&self.return_type);
+            let declared_return_type = ctx.to_type_var(&self.return_type);
 
-        ctx.unify(&declared_return_type, &body.ty());
+            ctx.unify(&declared_return_type, &body.ty());
 
-        Function {
-            name: self.name,
-            params,
-            return_ty: declared_return_type,
-            body,
-        }
+            Function {
+                name: self.name,
+                params,
+                return_ty: declared_return_type,
+                body,
+            }
+        })
         // in a scope that contains the above names to type variables, check the body
         // TODO: introduce scopes here, like in the binder, except with type variables
     }
@@ -491,18 +480,6 @@ impl TypeCheck for swim_resolve::FunctionCall {
         let arg_type = TypeChecker::arrow_type(arg_types.iter().map(TypedExpr::ty).collect());
 
         ctx.unify(&func_type, &arg_type);
-
-        /*
-        let mut substitutions = Default::default();
-        for (arg, ty) in func_type.iter().zip(arg_types) {
-            if ctx.is_concrete(ty) {
-            } else {
-                substitutions.insert(arg.clone(), ty);
-            }
-        }
-
-        func_type.substitute(arg_types);
-        */
     }
 }
 
@@ -511,7 +488,7 @@ mod tests {
 
     use expect_test::{expect, Expect};
     use swim_resolve::resolve_symbols;
-    use swim_utils::{render_error, IndexMap, SourceId};
+    use swim_utils::render_error;
 
     use super::*;
     fn check(
@@ -528,15 +505,12 @@ mod tests {
         let (errs, resolved) = resolve_symbols(ast, interner);
         assert!(errs.is_empty(), "can't typecheck: unresolved symbols");
         let type_checker = TypeChecker::new(resolved);
-        let res = pretty_print_type_checker(&source_map, type_checker);
+        let res = pretty_print_type_checker(type_checker);
 
         expect.assert_eq(&res);
     }
 
-    fn pretty_print_type_checker(
-        source_map: &IndexMap<SourceId, (&str, &str)>,
-        type_checker: TypeChecker,
-    ) -> String {
+    fn pretty_print_type_checker(type_checker: TypeChecker) -> String {
         let mut s = String::new();
         for (id, ty) in &type_checker.type_map {
             let text = match id {
@@ -580,17 +554,16 @@ mod tests {
         );
     }
 
-    /* TODO this is maybe good for generic syntax
+    // TODO this is maybe good for generic syntax
     #[test]
     fn identity_resolution_generic() {
         check(
             r#"
             function foo(x in 'A) returns 'A x
             "#,
-            expect![[r#""#]],
+            expect![[r#"function foo → t0 → t0"#]],
         );
     }
-    */
 
     #[test]
     fn identity_resolution_custom_type() {
