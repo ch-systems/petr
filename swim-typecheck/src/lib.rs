@@ -9,9 +9,9 @@ use error::{TypeCheckError, TypeCheckErrorKind};
 use polytype::{tp, Type};
 pub use swim_bind::FunctionId;
 use swim_bind::TypeId;
-use swim_resolve::{Expr, ExprKind, QueryableResolvedItems, Ty};
+use swim_resolve::{Expr, ExprKind, QueryableResolvedItems};
 pub use swim_resolve::{Intrinsic as ResolvedIntrinsic, IntrinsicName, Literal};
-use swim_utils::{idx_map_key, Identifier, IndexMap, SymbolInterner};
+use swim_utils::{Identifier, SymbolId};
 
 // TODO return QueryableTypeChecked instead of type checker
 // Clean up API so this is the only function exposed
@@ -89,6 +89,13 @@ impl TypeChecker {
             ty if ty == string_ty => SwimType::String,
             other => todo!("{other:?}"),
         }
+    }
+
+    pub fn get_symbol(
+        &self,
+        id: SymbolId,
+    ) -> Rc<str> {
+        self.resolved.interner.get(id).clone()
     }
 
     fn fully_type_check(&mut self) {
@@ -422,6 +429,7 @@ trait TypeCheck {
 
 #[derive(Clone)]
 pub struct Function {
+    pub name:      Identifier,
     pub params:    Vec<(Identifier, TypeVariable)>,
     pub body:      TypedExpr,
     pub return_ty: TypeVariable,
@@ -444,6 +452,7 @@ impl TypeCheck for swim_resolve::Function {
         ctx.unify(&declared_return_type, &body.ty());
 
         Function {
+            name: self.name,
             params,
             return_ty: declared_return_type,
             body,
@@ -488,8 +497,8 @@ impl TypeCheck for swim_resolve::FunctionCall {
 mod tests {
 
     use expect_test::{expect, Expect};
-    use swim_resolve::{resolve_symbols, QueryableResolvedItems};
-    use swim_utils::{render_error, SourceId, SymbolInterner};
+    use swim_resolve::resolve_symbols;
+    use swim_utils::{render_error, IndexMap, SourceId};
 
     use super::*;
     fn check(
@@ -503,7 +512,8 @@ mod tests {
             errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
             panic!("fmt failed: code didn't parse");
         }
-        let resolved = resolve_symbols(ast, interner);
+        let (errs, resolved) = resolve_symbols(ast, interner);
+        assert!(errs.is_empty(), "can't typecheck: unresolved symbols");
         let type_checker = TypeChecker::new(resolved);
         let res = pretty_print_type_checker(&source_map, type_checker);
 

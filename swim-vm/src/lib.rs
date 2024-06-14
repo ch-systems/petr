@@ -178,7 +178,7 @@ impl Vm {
                 Ok(Continue)
             },
             IrOpcode::PushPc() => {
-                self.state.call_stack.push(self.state.program_counter);
+                self.state.call_stack.push((self.state.program_counter.0 + 1).into());
                 Ok(Continue)
             },
             IrOpcode::StackPushImmediate(imm) => {

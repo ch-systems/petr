@@ -540,7 +540,6 @@ mod resolver {
     #[cfg(test)]
     mod tests {
         mod pretty_printing {
-            use swim_utils::SymbolInterner;
 
             use super::{Expr, ExprKind};
             use crate::{resolved::QueryableResolvedItems, resolver::Type};

@@ -32,7 +32,7 @@ pub type DataSection = IndexMap<DataLabel, DataSectionEntry>;
 /// Lowers typed nodes into an IR suitable for code generation.
 pub struct Lowerer {
     data_section: DataSection,
-    entry_point: Option<FunctionLabel>,
+    entry_point: Option<FunctionId>,
     function_definitions: BTreeMap<FunctionId, Function>,
     reg_assigner: usize,
     function_label_assigner: usize,
@@ -55,8 +55,13 @@ impl Lowerer {
     pub fn new(type_checker: TypeChecker) -> Self {
         let mut lowerer = Self {
             data_section: IndexMap::default(),
-            // TODO set entry point
-            entry_point: None,
+            entry_point: {
+                // set entry point to func named main
+                type_checker
+                    .functions()
+                    .find(|(_func_id, func)| &*type_checker.get_symbol(func.name.id) == "main")
+                    .map(|(id, _)| id)
+            },
             function_definitions: BTreeMap::default(),
             reg_assigner: 0,
             function_label_assigner: 0,
@@ -70,6 +75,11 @@ impl Lowerer {
 
     pub fn finalize(self) -> (DataSection, Vec<IrOpcode>) {
         let mut program_section = vec![];
+
+        // insert jump to entry point as first instr
+        if let Some(entry_point) = self.entry_point {
+            program_section.push(IrOpcode::JumpImmediate(entry_point));
+        }
 
         for (label, Function { label: _label, mut body }) in self.function_definitions {
             program_section.push(IrOpcode::FunctionLabel(label));
@@ -297,12 +307,18 @@ impl Lowerer {
         for (label, entry) in self.data_section.iter() {
             result.push_str(&format!("{}: {:?}\n", Into::<usize>::into(label), entry));
         }
+        let mut pc = 0;
 
         result.push_str("\n; PROGRAM_SECTION\n");
         for (id, func) in &self.function_definitions {
-            result.push_str(&format!("Function {:?}:\n", id));
+            result.push_str(&format!(
+                "{}function {}:\n",
+                if Some(*id) == self.entry_point { "ENTRY: " } else { "" },
+                Into::<usize>::into(*id)
+            ));
             for opcode in &func.body {
-                result.push_str(&format!("  {}\n", opcode));
+                result.push_str(&format!(" {pc}\t{}\n", opcode));
+                pc += 1;
             }
         }
         result
