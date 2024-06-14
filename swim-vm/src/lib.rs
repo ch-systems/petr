@@ -24,7 +24,7 @@ pub struct VmState {
     static_data:     IndexMap<DataLabel, DataSectionEntry>,
     registers:       BTreeMap<Reg, Value>,
     program_counter: ProgramOffset,
-    memory:          Vec<usize>,
+    memory:          Vec<u64>,
     call_stack:      Vec<ProgramOffset>,
 }
 
@@ -35,7 +35,7 @@ impl Default for ProgramOffset {
 }
 
 #[derive(Clone, Copy)]
-pub struct Value(usize);
+pub struct Value(u64);
 
 #[derive(Debug, Error)]
 pub enum VmError {
@@ -46,7 +46,7 @@ pub enum VmError {
     #[error("Register {0} not found")]
     RegisterNotFound(Reg),
     #[error("PC value of {0} is out of bounds for program of length {1}")]
-    ProgramCounterOutOfBounds(ProgramOffset, usize),
+    ProgramCounterOutOfBounds(ProgramOffset, u64),
 }
 
 type Result<T> = std::result::Result<T, VmError>;
@@ -93,11 +93,13 @@ impl Vm {
     fn execute(&mut self) -> Result<VmControlFlow> {
         use VmControlFlow::*;
         if self.state.program_counter.0 >= self.instructions.len() {
-            return Err(VmError::ProgramCounterOutOfBounds(self.state.program_counter, self.instructions.len()));
+            return Err(VmError::ProgramCounterOutOfBounds(
+                self.state.program_counter,
+                self.instructions.len() as u64,
+            ));
         }
         let opcode = self.instructions.get(self.state.program_counter).clone();
         self.state.program_counter = (self.state.program_counter.0 + 1).into();
-        dbg!(&opcode);
         match opcode {
             IrOpcode::JumpImmediate(label) => {
                 let Some(offset) = self
@@ -117,7 +119,8 @@ impl Vm {
                 Ok(Continue)
             },
             IrOpcode::LoadData(dest, data_label) => {
-                let data = data_section_to_val(self.state.static_data.get(data_label));
+                let data = self.state.static_data.get(data_label).clone();
+                let data = self.data_section_to_val(&data);
                 self.set_register(dest, data);
                 Ok(Continue)
             },
@@ -137,7 +140,13 @@ impl Vm {
                 match intrinsic {
                     Intrinsic::Puts(reg) => {
                         let ptr = self.get_register(reg.reg)?.0;
+                        let ptr = ptr as usize;
+
                         let len = self.state.memory[ptr];
+                        let len = len as usize;
+
+                        // strings are padded to the nearest u64 boundary right now and that's working
+                        // ...should be fine?
                         let str = &self.state.memory[ptr + 1..ptr + 1 + len];
                         let str = str.iter().flat_map(|num| num.to_ne_bytes()).collect::<Vec<u8>>();
                         // convert vec of usizes to string
@@ -149,7 +158,7 @@ impl Vm {
             },
             IrOpcode::FunctionLabel(_) => Ok(Continue),
             IrOpcode::LoadImmediate(dest, imm) => {
-                self.set_register(dest, Value(imm as usize));
+                self.set_register(dest, Value(imm as u64));
                 Ok(Continue)
             },
             IrOpcode::Copy(dest, src) => {
@@ -172,6 +181,10 @@ impl Vm {
                 self.state.call_stack.push(self.state.program_counter);
                 Ok(Continue)
             },
+            IrOpcode::StackPushImmediate(imm) => {
+                self.state.stack.push(Value(imm));
+                Ok(Continue)
+            },
         }
     }
 
@@ -189,13 +202,40 @@ impl Vm {
     ) {
         self.state.registers.insert(dest, val);
     }
-}
 
-// TODO things larger than a register
-fn data_section_to_val(data: &DataSectionEntry) -> Value {
-    match data {
-        DataSectionEntry::Int64(x) => Value(*x as usize),
-        DataSectionEntry::String(_) => todo!(),
-        DataSectionEntry::Bool(x) => Value(if *x { 1 } else { 0 }),
+    // TODO things larger than a register
+    fn data_section_to_val(
+        &mut self,
+        data: &DataSectionEntry,
+    ) -> Value {
+        match data {
+            DataSectionEntry::Int64(x) => Value(*x as u64),
+            DataSectionEntry::String(val) => {
+                let str_as_bytes = val.as_bytes();
+                let bytes_compressed_as_u64s = str_as_bytes
+                    .chunks(8)
+                    .map(|chunk| {
+                        let mut bytes = [0u8; 8];
+                        // pad the chunk with 0s if it isn't a multiple of 8
+                        let len = chunk.len();
+                        let chunk = if len < 8 {
+                            let mut padded = [0u8; 8];
+                            padded[..len].copy_from_slice(chunk);
+                            padded.to_vec()
+                        } else {
+                            chunk.to_vec()
+                        };
+                        bytes.copy_from_slice(&chunk[..]);
+                        u64::from_ne_bytes(bytes)
+                    })
+                    .collect::<Vec<_>>();
+                let ptr = self.state.memory.len();
+                // first slot of a string is the len, then the content
+                self.state.memory.push(bytes_compressed_as_u64s.len() as u64);
+                self.state.memory.extend_from_slice(&bytes_compressed_as_u64s);
+                Value(ptr as u64)
+            },
+            DataSectionEntry::Bool(x) => Value(if *x { 1 } else { 0 }),
+        }
     }
 }

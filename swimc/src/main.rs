@@ -21,7 +21,7 @@ enum Commands {
     Run {
         #[arg(help = "sources to compile", required = true, num_args(1..))]
         files:  Vec<String>,
-        #[arg(short, long, help = "target to run on", value_parser = ["vm", "native"])]
+        #[arg(short, long, help = "target to run on", value_parser = ["vm", "native"], default_value = "vm")]
         target: String,
     },
 }
@@ -31,7 +31,6 @@ fn main() {
 
     match cli.command {
         Commands::Run { files, target } => {
-            println!("Running on target: {}", target);
             let mut buf = Vec::with_capacity(files.len());
             for file in files {
                 let source = fs::read_to_string(&file).expect("Failed to read file");

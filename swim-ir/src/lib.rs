@@ -263,8 +263,7 @@ impl Lowerer {
                 buf.push(IrOpcode::LoadImmediate(reg, 0));
             },
             ReturnDestination::Stack => {
-                let reg = self.fresh_reg();
-                buf.push(IrOpcode::StackPush(TypedReg { ty: IrTy::Unit, reg }));
+                buf.push(IrOpcode::StackPushImmediate(0));
             },
         }
         Ok(buf)

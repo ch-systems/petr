@@ -44,12 +44,13 @@ ir_ops! {
     StackPush "push" TypedReg src;
     Intrinsic "intrinsic" Intrinsic intr;
     FunctionLabel "func" FunctionId label;
-    LoadImmediate "imm" Reg dest, i64 imm;
+    LoadImmediate "imm" Reg dest, u64 imm;
     Copy "cp" Reg dest, Reg src;
     TerminateExecution "end";
     Label "label" LabelId label;
     Return "ret";
-    PushPc "ppc"
+    PushPc "ppc";
+    StackPushImmediate "pushi" u64 imm
 }
 
 idx_map_key!(LabelId);
