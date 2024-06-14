@@ -3,16 +3,14 @@ use std::fs;
 use clap::Parser as ClapParser;
 use swim_ir::Lowerer;
 use swim_parse::Parser;
-use swim_utils::{IndexMap, PrettyPrint, SourceId, SpannedItem};
+use swim_utils::{IndexMap, SourceId, SpannedItem};
 use swim_vm::Vm;
 
 #[derive(ClapParser)]
 #[command(version = "0.0", author = "Alex H <alex@alex-hansen.com>")]
 struct Cli {
     #[command(subcommand)]
-    command:  Commands,
-    #[arg(short = 'i', long, help = "print the IR to stdout")]
-    print_ir: bool,
+    command: Commands,
 }
 
 #[derive(ClapParser)]
@@ -20,9 +18,11 @@ enum Commands {
     #[command(about = "Run the program")]
     Run {
         #[arg(help = "sources to compile", required = true, num_args(1..))]
-        files:  Vec<String>,
+        files:    Vec<String>,
         #[arg(short, long, help = "target to run on", value_parser = ["vm", "native"], default_value = "vm")]
-        target: String,
+        target:   String,
+        #[arg(short = 'i', long, help = "print the IR to stdout")]
+        print_ir: bool,
     },
 }
 
@@ -30,7 +30,7 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Run { files, target } => {
+        Commands::Run { files, target, print_ir } => {
             let mut buf = Vec::with_capacity(files.len());
             for file in files {
                 let source = fs::read_to_string(&file).expect("Failed to read file");
@@ -58,8 +58,8 @@ fn main() {
             }
             // errs.append(&mut type_errs);
 
-            let mut lowerer: Lowerer = Lowerer::new(type_checker);
-            if cli.print_ir {
+            let lowerer: Lowerer = Lowerer::new(type_checker);
+            if print_ir {
                 println!("{}", lowerer.pretty_print());
             }
 
