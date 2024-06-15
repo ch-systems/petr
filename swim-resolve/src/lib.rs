@@ -18,7 +18,6 @@ pub fn resolve_symbols(
 mod resolved {
     use std::collections::BTreeMap;
 
-    
     use swim_bind::{FunctionId, TypeId};
     use swim_utils::SymbolInterner;
 
@@ -414,6 +413,7 @@ mod resolver {
                     let resolved = intrinsic.resolve(resolver, binder, scope_id)?;
                     Expr::new(ExprKind::Intrinsic(resolved))
                 },
+                Expression::Binding(_) => todo!(),
             })
         }
     }
@@ -545,7 +545,6 @@ mod resolver {
     #[cfg(test)]
     mod tests {
         mod pretty_printing {
-            
 
             use super::{Expr, ExprKind};
             use crate::{resolved::QueryableResolvedItems, resolver::Type};
