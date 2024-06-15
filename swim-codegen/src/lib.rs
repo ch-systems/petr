@@ -1,11 +1,7 @@
-use std::{process::Command, rc::Rc, sync::Arc};
+use std::process::Command;
 
 use cranelift::{
-    codegen::{
-        isa::TargetIsa,
-        settings::{self, Configurable},
-        Context,
-    },
+    codegen::settings::{self, Configurable},
     frontend::{FunctionBuilder, FunctionBuilderContext},
 };
 use cranelift_module::{DataId, Linkage, Module};
@@ -62,7 +58,7 @@ impl IrContext {
 
         let builder = ObjectBuilder::new(isa, file_name, cranelift_module::default_libcall_names()).expect("TODO");
 
-        let mut module = ObjectModule::new(builder);
+        let module = ObjectModule::new(builder);
         Ok(Self { module })
     }
 

@@ -18,11 +18,11 @@ pub fn resolve_symbols(
 mod resolved {
     use std::collections::BTreeMap;
 
-    use swim_ast::Ast;
+    
     use swim_bind::{FunctionId, TypeId};
     use swim_utils::SymbolInterner;
 
-    use crate::resolver::{Function, Resolver, TypeDeclaration};
+    use crate::resolver::{Function, TypeDeclaration};
     /// Contains things that have already been resolved.
     /// Resolved items cannot be queried during resolution. This is because the resolution
     /// stage should only query the binder, then the type checking stage can query
@@ -545,7 +545,7 @@ mod resolver {
     #[cfg(test)]
     mod tests {
         mod pretty_printing {
-            use swim_utils::SymbolInterner;
+            
 
             use super::{Expr, ExprKind};
             use crate::{resolved::QueryableResolvedItems, resolver::Type};

@@ -1,4 +1,3 @@
-use std::os;
 
 use miette::Diagnostic;
 use thiserror::Error;

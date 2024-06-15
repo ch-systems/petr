@@ -349,8 +349,8 @@ fn literal_to_ir_ty(param_ty: swim_typecheck::Literal) -> IrTy {
 mod tests {
 
     use expect_test::{expect, Expect};
-    use swim_resolve::{resolve_symbols, QueryableResolvedItems};
-    use swim_utils::{render_error, SourceId, SymbolInterner};
+    use swim_resolve::resolve_symbols;
+    use swim_utils::render_error;
 
     use super::*;
     fn check(
