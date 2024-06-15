@@ -68,6 +68,8 @@ pub enum Token {
     True,
     #[token("false")]
     False,
+    #[token("let")]
+    Let,
     #[regex(r#"\@[_a-zA-Z][_a-zA-Z0-9]{0,30}"#)]
     Intrinsic,
     Eof,
@@ -120,12 +122,14 @@ impl std::fmt::Display for Token {
             False => write!(f, "false"),
             String => write!(f, "string"),
             Intrinsic => write!(f, "@intrinsic"),
+            Let => write!(f, "let"),
         }
     }
 }
 
 pub type LexedSources = IndexMap<SourceId, logos::Lexer<'static, Token>>;
 
+#[derive(Clone)]
 pub struct Lexer {
     sources: LexedSources,
     source:  SourceId,

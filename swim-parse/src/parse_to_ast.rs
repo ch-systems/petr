@@ -243,11 +243,38 @@ impl Parse for Expression {
             Token::Tilde => Some(Expression::FunctionCall(p.parse()?)),
             Token::True | Token::False | Token::String | Token::Integer => Some(Expression::Literal(p.parse()?)),
             Token::Intrinsic => Some(Expression::IntrinsicCall(p.parse()?)),
+            Token::Let => Some(Expression::Binding(p.parse()?)),
             a => {
                 println!("need to parse expr {a:?} {}", p.slice());
                 None
             },
         }
+    }
+}
+
+impl Parse for ExpressionWithBindings {
+    /// parse an expression that is prefaced with symbol bindings
+    fn parse(p: &mut Parser) -> Option<Self> {
+        p.token(Token::Let)?;
+
+        let bindings: Vec<Binding> = p.sequence_one_or_more(Token::Comma)?;
+        let expression: Expression = p.parse()?;
+
+        Some(ExpressionWithBindings {
+            bindings,
+            expression: Box::new(expression),
+        })
+    }
+}
+
+impl Parse for Binding {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        p.with_help("while parsing let binding", |p| {
+            let name: Identifier = p.parse()?;
+            p.token(Token::Equals)?;
+            let expr: Expression = p.parse()?;
+            Some(Binding { name, val: expr })
+        })
     }
 }
 

@@ -581,3 +581,55 @@ fn intrinsic_2() {
         "#]],
     );
 }
+
+#[test]
+fn let_bindings_trailing_comma() {
+    check(
+        FCB::default().put_trailing_commas_on_let_bindings(true).build(),
+        "function makes_function_call(c in 'int) returns 'int                      let a = 1, b = 20, ~fn_call a, b, let z = 10 c
+
+            function fn_call(a in 'int, b in 'int, c in 'int) returns 'int + a + b c
+                     ",
+        expect![[r#"
+            function makes_function_call(
+              c ∈ 'int,
+            ) returns 'int
+              let a = 1,
+                  b = 20,
+              ~fn_call a, b, let z = 10, c
+
+            function fn_call(
+              a ∈ 'int,
+              b ∈ 'int,
+              c ∈ 'int,
+            ) returns 'int
+              + a + b c
+        "#]],
+    )
+}
+
+#[test]
+fn let_bindings_no_trailing_comma() {
+    check(
+        FCB::default().put_trailing_commas_on_let_bindings(false).build(),
+        "function makes_function_call(c in 'int) returns 'int                      let a = 1, b = 20, ~fn_call a, b, let z = 10 c
+
+            function fn_call(a in 'int, b in 'int, c in 'int) returns 'int + a + b c
+                     ",
+        expect![[r#"
+            function makes_function_call(
+              c ∈ 'int,
+            ) returns 'int
+              let a = 1,
+                  b = 20
+              ~fn_call a, b, let z = 10 c
+
+            function fn_call(
+              a ∈ 'int,
+              b ∈ 'int,
+              c ∈ 'int,
+            ) returns 'int
+              + a + b c
+        "#]],
+    )
+}

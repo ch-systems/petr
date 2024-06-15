@@ -147,3 +147,65 @@ fn fn_call() {
         "#]],
     )
 }
+
+#[test]
+fn let_bindings() {
+    check(
+        vec![
+            "function makes_function_call(c in 'int) returns 'int
+                        let a = 1,
+                            b = 20
+                        ~fn_call a, b, c
+
+            function fn_call(a in 'int, b in 'int, c in 'int) returns 'int + a + b c
+                     ",
+        ],
+        expect![[r#"
+            AST
+            ____
+            Func makes_function_call(
+              c ∈ 'int
+            ) -> 'int 
+              let a = 1,
+                  b = 20
+              call fn_call(var(a), var(b), var(c))
+
+            Func fn_call(
+              a ∈ 'int,
+              b ∈ 'int,
+              c ∈ 'int
+            ) -> 'int +(var(a) +(var(b) var(c)))
+        "#]],
+    )
+}
+
+#[test]
+fn let_bindings_trailing_comma() {
+    check(
+        vec![
+            "function makes_function_call(c in 'int) returns 'int
+                        let a = 1,
+                            b = 20,
+                        ~fn_call a, b, c
+
+            function fn_call(a in 'int, b in 'int, c in 'int) returns 'int + a + b c
+                     ",
+        ],
+        expect![[r#"
+            AST
+            ____
+            Func makes_function_call(
+              c ∈ 'int
+            ) -> 'int 
+              let a = 1,
+                  b = 20
+              call fn_call(var(a), var(b), var(c))
+
+            Func fn_call(
+              a ∈ 'int,
+              b ∈ 'int,
+              c ∈ 'int
+            ) -> 'int +(var(a) +(var(b) var(c)))
+        "#]],
+    )
+}

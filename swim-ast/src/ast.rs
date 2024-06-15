@@ -61,7 +61,20 @@ pub enum Expression {
     FunctionCall(FunctionCall),
     Variable(Identifier),
     IntrinsicCall(IntrinsicCall),
+    Binding(ExpressionWithBindings),
     TypeConstructor,
+}
+
+#[derive(Clone)]
+pub struct ExpressionWithBindings {
+    pub bindings:   Vec<Binding>,
+    pub expression: Box<Expression>,
+}
+
+#[derive(Clone)]
+pub struct Binding {
+    pub name: Identifier,
+    pub val:  Expression,
 }
 
 #[derive(Clone)]

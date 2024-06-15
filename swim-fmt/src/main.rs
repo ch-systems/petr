@@ -230,7 +230,58 @@ impl Formattable for Expression {
             Expression::TypeConstructor => unreachable!("this is only constructed after binding, which the formatter doesn't do"),
             Expression::FunctionCall(f) => f.format(ctx),
             Expression::IntrinsicCall(i) => i.format(ctx),
+            Expression::Binding(binding) => binding.format(ctx),
         }
+    }
+}
+
+impl Formattable for ExpressionWithBindings {
+    fn format(
+        &self,
+        ctx: &mut FormatterContext,
+    ) -> FormattedLines {
+        let mut lines = Vec::new();
+        // First, format the bindings, if any.
+        if !self.bindings.is_empty() {
+            for (ix, binding) in self.bindings.iter().enumerate() {
+                let is_first = ix == 0;
+                let is_last = ix == self.bindings.len() - 1;
+                let mut buf = if is_first { "let ".to_string() } else { "    ".to_string() };
+
+                let name = ctx.interner.get(binding.name.id);
+                buf.push_str(&*name);
+                buf.push_str(" = ");
+                let expr_lines = ctx.indented(|ctx| binding.val.format(ctx).lines);
+
+                if expr_lines.len() == 1 {
+                    buf.push_str(&expr_lines[0].content);
+                    lines.push(ctx.new_line(buf));
+                } else {
+                    // extend buf with first line
+                    // then add the rest of the lines
+                    buf.push_str(&expr_lines[0].content);
+                    lines.push(ctx.new_line(buf));
+                    lines.append(&mut expr_lines[1..].to_vec());
+                }
+                // add comma to the end of the last line
+                if !is_last || ctx.config.put_trailing_commas_on_let_bindings() {
+                    let last_line = lines.last().expect("invariant");
+                    let last_line_indentation = last_line.indentation;
+                    let mut last_line_content = last_line.content.to_string();
+                    last_line_content.push(',');
+                    *(lines.last_mut().expect("invariant")) = Line {
+                        content:     Rc::from(last_line_content),
+                        indentation: last_line_indentation,
+                    };
+                }
+            }
+        }
+
+        // Then, format the expression itself.
+        let expr_lines = self.expression.format(ctx).lines;
+        lines.append(&mut expr_lines.to_vec());
+
+        FormattedLines::new(lines)
     }
 }
 
@@ -521,7 +572,7 @@ impl FormattedLines {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Line {
     indentation: usize,
     content:     Rc<str>,

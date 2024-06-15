@@ -124,7 +124,40 @@ impl PrettyPrint for Expression {
             Expression::FunctionCall(call) => call.pretty_print(interner, indentation),
             Expression::Variable(v) => format!("var({})", interner.get(v.id)),
             Expression::IntrinsicCall(call) => call.pretty_print(interner, indentation),
+            Expression::Binding(binding) => binding.pretty_print(interner, indentation + 1),
         }
+    }
+}
+
+impl PrettyPrint for ExpressionWithBindings {
+    fn pretty_print(
+        &self,
+        interner: &SymbolInterner,
+        indentation: usize,
+    ) -> String {
+        let mut bindings = self.bindings.iter();
+        let Some(first_binding) = bindings.next() else {
+            return Default::default();
+        };
+        let mut buf = format!(
+            "\n{}let {} = {},",
+            "  ".repeat(indentation),
+            first_binding.name.pretty_print(interner, indentation + 1),
+            first_binding.val.pretty_print(interner, indentation + 1)
+        );
+        for (ix, binding) in bindings.enumerate() {
+            let is_last = ix == self.bindings.len() - 2;
+            buf.push_str(&format!(
+                "\n{}    {} = {}{}",
+                "  ".repeat(indentation),
+                binding.name.pretty_print(interner, indentation + 1),
+                binding.val.pretty_print(interner, indentation + 1),
+                if !is_last { "," } else { "" }
+            ));
+        }
+        buf.push_str(&format!("\n{}\n\n", self.expression.pretty_print(interner, indentation)));
+
+        buf
     }
 }
 

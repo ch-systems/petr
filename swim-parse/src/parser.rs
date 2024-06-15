@@ -251,26 +251,40 @@ impl Parser {
     /// parses a sequence separated by `separator`
     /// e.g. if separator is `Token::Comma`, can parse `a, b, c, d`
     /// NOTE: this parses one or more items. Will reject zero items.
+    /// alias for `sequence`
+    pub fn sequence_one_or_more<P: Parse>(
+        &mut self,
+        separator: Token,
+    ) -> Option<Vec<P>> {
+        self.sequence(separator)
+    }
+
+    /// parses a sequence separated by `separator`
+    /// e.g. if separator is `Token::Comma`, can parse `a, b, c, d`
+    /// NOTE: this parses one or more items. Will reject zero items.
     pub fn sequence<P: Parse>(
         &mut self,
         separator: Token,
     ) -> Option<Vec<P>> {
         let mut buf = vec![];
-        loop {
-            let item = P::parse(self);
+        let errs = loop {
+            let item = self.with_backtrack(|p| P::parse(p));
             match item {
-                Some(item) => buf.push(item),
-                None => {
-                    break;
+                Ok(item) => buf.push(item),
+                Err(errs) => {
+                    break errs;
                 },
             }
             if *self.peek().item() == separator {
                 self.advance();
             } else {
-                break;
+                break vec![];
             }
-        }
+        };
         if buf.is_empty() {
+            for err in errs {
+                self.errors.push(err)
+            }
             None
         } else {
             Some(buf)
@@ -371,6 +385,49 @@ impl Parser {
     fn pop_help(&mut self) {
         let _ = self.help.pop();
     }
+
+    /// Performs a backtracking parse, which means that if the inner function returns `None`,
+    /// the parser will backtrack to the state before the function was called and revert any
+    /// errors that were encountered, returning them as `Err` but crucially not appending them to
+    /// `self.errors`.
+    /// Note that this is NOT a performant method, and it should be used sparingly.
+    pub fn with_backtrack<F, T>(
+        &mut self,
+        f: F,
+    ) -> std::result::Result<T, Vec<SpannedItem<ParseError>>>
+    where
+        F: Fn(&mut Parser) -> Option<T>,
+    {
+        let checkpoint = self.checkpoint();
+        let res = f(self);
+        match res {
+            Some(res) => Ok(res),
+            None => return Err(self.restore_checkpoint(checkpoint)),
+        }
+    }
+
+    fn checkpoint(&self) -> Checkpoint {
+        Checkpoint {
+            errors: self.errors.len(),
+            lexer:  self.lexer.clone(),
+            peek:   self.peek.clone(),
+        }
+    }
+
+    fn restore_checkpoint(
+        &mut self,
+        checkpoint: Checkpoint,
+    ) -> Vec<SpannedItem<ParseError>> {
+        self.lexer = checkpoint.lexer;
+        self.peek = checkpoint.peek;
+        self.errors.split_off(checkpoint.errors)
+    }
+}
+
+struct Checkpoint {
+    errors: usize,
+    lexer:  Lexer,
+    peek:   Option<SpannedItem<Token>>,
 }
 
 pub trait Parse: Sized {
