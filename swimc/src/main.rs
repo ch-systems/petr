@@ -29,7 +29,7 @@ fn main() {
 
     match cli.command {
         Commands::Run { target, print_ir } => {
-            let manifest = swim_manifest::find_manifest().expect("Failed to find manifest");
+            let manifest = swim_pkg::manifest::find_manifest().expect("Failed to find manifest");
             let dependencies = manifest.dependencies;
             let (lockfile, resolved_deps) = swim_pkg::load_dependencies(dependencies);
             let lockfile_toml = toml::to_string(&lockfile).expect("Failed to serialize lockfile to TOML");

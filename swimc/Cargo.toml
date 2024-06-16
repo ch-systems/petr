@@ -14,7 +14,6 @@ swim-ir = { "path" = "../swim-ir" }
 swim-typecheck = { "path" = "../swim-typecheck" }
 swim-resolve = { "path" = "../swim-resolve" }
 swim-pkg = { "path" = "../swim-pkg" }
-swim-manifest = { "path" = "../swim-manifest" }
 miette = { version = "7.2.0", features = ["fancy"] }
 thiserror = "1.0.61"
 toml = "0.8.14"

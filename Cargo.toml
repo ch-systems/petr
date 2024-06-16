@@ -1,2 +1,15 @@
 [workspace]
-members = [ "swim-parse", "swim-fmt", "swim-utils" , "swimc", "swim-codegen", "swim-ast", "swim-typecheck", "swim-bind", "swim-resolve", "swim-ir", "swim-vm", "swim-manifest", "swim-pkg"]
+members = [
+    "swim-parse",
+    "swim-fmt",
+    "swim-utils",
+    "swimc",
+    "swim-codegen",
+    "swim-ast",
+    "swim-typecheck",
+    "swim-bind",
+    "swim-resolve",
+    "swim-ir",
+    "swim-vm",
+    "swim-pkg",
+]

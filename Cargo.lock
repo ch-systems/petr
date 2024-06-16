@@ -1398,16 +1398,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "swim-manifest"
-version = "0.1.0"
-dependencies = [
- "serde",
- "swim-fmt",
- "swim-pkg",
- "toml",
-]
-
-[[package]]
 name = "swim-parse"
 version = "0.1.0"
 dependencies = [
@@ -1428,6 +1418,8 @@ dependencies = [
  "dirs",
  "git2",
  "serde",
+ "swim-fmt",
+ "toml",
 ]
 
 [[package]]
@@ -1480,7 +1472,6 @@ dependencies = [
  "clap 4.5.4",
  "miette",
  "swim-ir",
- "swim-manifest",
  "swim-parse",
  "swim-pkg",
  "swim-resolve",

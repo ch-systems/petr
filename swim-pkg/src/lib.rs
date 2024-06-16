@@ -2,6 +2,9 @@
 //! about dependencies, pulling them in, creating lockfiles,
 //! etc.
 
+pub mod manifest;
+
+use manifest::Manifest;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -52,6 +55,12 @@ pub fn load_dependencies(deps: BTreeMap<String, Dependency>) -> (Lockfile, Vec<V
     }
 
     (Lockfile { entries }, files)
+}
+
+struct LoadDependencyResult {
+    lock:     LockfileEntry,
+    files:    Vec<(String, String)>,
+    manifest: Manifest,
 }
 
 fn load_git_dependency(dep: &GitDependency) -> (LockfileEntry, Vec<(String, String)>) {
