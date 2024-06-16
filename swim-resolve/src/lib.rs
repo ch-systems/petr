@@ -219,6 +219,13 @@ mod resolver {
         Unit,
         TypeConstructor,
         ErrorRecovery,
+        ExpressionWithBindings { bindings: Vec<Binding>, expression: Box<Expr> },
+    }
+
+    #[derive(Clone)]
+    pub struct Binding {
+        pub name:       Identifier,
+        pub expression: Expr,
     }
 
     #[derive(Clone)]
@@ -255,11 +262,11 @@ mod resolver {
                     use Item::*;
                     match item {
                         Function(func, func_scope) => self.resolve_function(binder, *func, *func_scope),
-                        Expr(_expr) => todo!(),
                         Type(ty) => self.resolve_type(binder, *ty, scope_id),
                         FunctionParameter(_ty) => {
                             // I don't think we have to do anything here but not sure
                         },
+                        Binding(_) => todo!(),
                     }
                 }
             }
@@ -413,7 +420,21 @@ mod resolver {
                     let resolved = intrinsic.resolve(resolver, binder, scope_id)?;
                     Expr::new(ExprKind::Intrinsic(resolved))
                 },
-                Expression::Binding(_) => todo!(),
+                Expression::Binding(bound_expression) => {
+                    let mut bindings: Vec<Binding> = Vec::with_capacity(bound_expression.bindings.len());
+                    for binding in &bound_expression.bindings {
+                        let rhs = binding.val.resolve(resolver, binder, scope_id)?;
+                        bindings.push(Binding {
+                            name:       binding.name.clone(),
+                            expression: rhs,
+                        });
+                    }
+                    let expression = bound_expression.expression.resolve(resolver, binder, scope_id)?;
+                    Expr::new(ExprKind::ExpressionWithBindings {
+                        expression: Box::new(expression),
+                        bindings,
+                    })
+                },
             })
         }
     }

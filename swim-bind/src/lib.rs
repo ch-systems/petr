@@ -2,10 +2,10 @@
 
 mod impls {
 
-    use swim_ast::{Commented, Expression, FunctionDeclaration, TypeDeclaration};
+    use swim_ast::{Commented, Expression, ExpressionWithBindings, FunctionDeclaration, TypeDeclaration};
     use swim_utils::SpannedItem;
 
-    use crate::{Bind, Binder};
+    use crate::{Bind, Binder, Item};
 
     impl Bind for TypeDeclaration {
         fn bind(
@@ -28,6 +28,15 @@ mod impls {
                         for item in list.elements.iter() {
                             item.bind(binder);
                         }
+                    });
+                },
+                Expression::Binding(ExpressionWithBindings { bindings, expression }) => {
+                    binder.with_scope(|binder, _scope_id| {
+                        for binding in bindings.iter() {
+                            let binding_id = binder.insert_binding(*expression.clone());
+                            binder.insert_into_current_scope(binding.name.id, Item::Binding(binding_id));
+                        }
+                        expression.bind(binder);
                     });
                 },
                 _ => self.bind(binder),
@@ -114,7 +123,8 @@ mod binder {
 
     #[derive(Clone, Debug, Copy)]
     pub enum Item {
-        Expr(ExprId),
+        //Expr(ExprId),
+        Binding(BindingId),
         // the `ScopeId` is the scope of the function body
         Function(FunctionId, ScopeId),
         Type(TypeId),
@@ -124,7 +134,7 @@ mod binder {
     pub struct Binder {
         scopes:          IndexMap<ScopeId, Scope<Item>>,
         scope_chain:     Vec<ScopeId>,
-        //    bindings: IndexMap<BindingId, Binding>,
+        bindings:        IndexMap<BindingId, Expression>,
         functions:       IndexMap<FunctionId, FunctionDeclaration>,
         types:           IndexMap<TypeId, TypeDeclaration>,
         func_parameters: IndexMap<FunctionParameterId, FunctionParameter>,
@@ -181,6 +191,7 @@ mod binder {
                 types:           IndexMap::default(),
                 nodes:           IndexMap::default(),
                 func_parameters: IndexMap::default(),
+                bindings:        IndexMap::default(),
             }
         }
 
@@ -315,9 +326,14 @@ mod binder {
             });
             self.insert_into_current_scope(arg.name.id, Item::Function(function_id, func_body_scope));
         }
-    }
 
-    impl Binder {
+        pub(crate) fn insert_binding(
+            &mut self,
+            binding: Expression,
+        ) -> BindingId {
+            self.bindings.insert(binding)
+        }
+
         pub fn from_ast(ast: &Ast) -> Self {
             let mut binder = Self::new();
 

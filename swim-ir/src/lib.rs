@@ -447,11 +447,45 @@ mod tests {
             expect![[r#""#]],
         );
     }
+
     #[test]
     fn func_args() {
         check(
             r#"
                 function add(x in 'int, y in 'int) returns 'int x
+                function main() returns 'int ~add(1, 2)
+                "#,
+            expect![[r#"
+                ; DATA_SECTION
+                0: Int64(1)
+                1: Int64(2)
+
+                ; PROGRAM_SECTION
+                function 0:
+                 0	pop v0
+                 1	pop v1
+                 2	push v0
+                 3	ret
+                ENTRY: function 1:
+                 4	ld v2 datalabel0
+                 5	push v2
+                 6	ld v3 datalabel1
+                 7	push v3
+                 8	ppc
+                 9	jumpi functionid0
+                 10	ret
+            "#]],
+        );
+    }
+
+    #[test]
+    fn let_bindings() {
+        check(
+            r#"
+                function add(x in 'int, y in 'int) returns 'int
+                    let a = 10,
+                        b = 20
+                    + a + b + x y
                 function main() returns 'int ~add(1, 2)
                 "#,
             expect![[r#"

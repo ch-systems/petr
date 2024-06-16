@@ -356,13 +356,13 @@ impl TypeCheck for Expr {
                 // unify args with params
                 // return the func return type
                 let func_decl = ctx.get_untyped_function(call.function).clone();
+                dbg!(&call.args.len(), func_decl.params.len());
                 if call.args.len() != func_decl.params.len() {
                     ctx.push_error(TypeCheckErrorKind::ArgumentCountMismatch {
                         expected: func_decl.params.len(),
                         got:      call.args.len(),
                         function: ctx.realize_symbol(func_decl.name.id).to_string(),
                     });
-                    todo!("mismatched len error");
                     return TypedExpr::ErrorRecovery;
                 }
                 let mut args = Vec::with_capacity(call.args.len());
@@ -390,6 +390,7 @@ impl TypeCheck for Expr {
                 // type constructor expressions take inputs that should line up with a type decl and return a type
                 todo!()
             },
+            ExprKind::ExpressionWithBindings { bindings, expression } => todo!(),
         }
     }
 }
@@ -561,7 +562,9 @@ mod tests {
             r#"
             function foo(x in 'A) returns 'A x
             "#,
-            expect![[r#"function foo → t0 → t0"#]],
+            expect![[r#"
+                function foo → t0 → t0
+            "#]],
         );
     }
 
@@ -717,7 +720,30 @@ mod tests {
                 function my_list() returns 'list [ 1, true ]
             "#,
             expect![[r#"
-                "#]],
+                function my_list → t0
+
+                Errors:
+                Failed to unify types: Failure(int, bool)
+            "#]],
+        );
+    }
+
+    #[test]
+    fn incorrect_number_of_args() {
+        check(
+            r#"
+                function add(a in 'int, b in 'int) returns 'int a
+
+                function add_five(a in 'int) returns 'int ~add(5)
+            "#,
+            expect![[r#"
+                function add → (int → int) → int
+                function add_five → int → int
+
+                Errors:
+                Function add takes 2 arguments, but got 1 arguments.
+                Failed to unify types: Failure(int, error)
+            "#]],
         );
     }
 }
