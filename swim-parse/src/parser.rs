@@ -108,14 +108,17 @@ fn format_toks(toks: &[Token]) -> String {
 type Result<T> = std::result::Result<T, ParseError>;
 
 pub struct Parser {
-    interner:   SymbolInterner,
-    lexer:      Lexer,
-    errors:     Vec<SpannedItem<ParseError>>,
-    comments:   Vec<SpannedItem<Comment>>,
-    peek:       Option<SpannedItem<Token>>,
+    interner:     SymbolInterner,
+    lexer:        Lexer,
+    errors:       Vec<SpannedItem<ParseError>>,
+    comments:     Vec<SpannedItem<Comment>>,
+    peek:         Option<SpannedItem<Token>>,
     // the tuple is the file name and content
-    source_map: IndexMap<SourceId, (&'static str, &'static str)>,
-    help:       Vec<String>,
+    source_map:   IndexMap<SourceId, (&'static str, &'static str)>,
+    help:         Vec<String>,
+    /// whether or not to continue advancing if one source file ends
+    /// TODO can maybe remove this now that modules aren't spanned items
+    file_barrier: bool,
 }
 
 impl Parser {
@@ -175,19 +178,20 @@ impl Parser {
             .collect::<Vec<_>>();
         let sources_for_lexer = sources.iter().map(|(_, source)| *source);
         Self {
-            interner:   SymbolInterner::default(),
-            lexer:      Lexer::new(sources_for_lexer),
-            errors:     Default::default(),
-            comments:   Default::default(),
-            peek:       None,
-            source_map: {
+            interner:     SymbolInterner::default(),
+            lexer:        Lexer::new(sources_for_lexer),
+            errors:       Default::default(),
+            comments:     Default::default(),
+            peek:         None,
+            source_map:   {
                 let mut source_map = IndexMap::default();
                 for (name, source) in sources.into_iter() {
                     source_map.insert((name, source));
                 }
                 source_map
             },
-            help:       Default::default(),
+            help:         Default::default(),
+            file_barrier: false,
         }
     }
 
@@ -204,7 +208,7 @@ impl Parser {
         SymbolInterner,
         IndexMap<SourceId, (&'static str, &'static str)>,
     ) {
-        let nodes: Vec<SpannedItem<Module>> = self.many::<SpannedItem<Module>>();
+        let nodes: Vec<Module> = self.many::<Module>();
         // drop the lexers from the source map
         (Ast::new(nodes), self.errors, self.interner, self.source_map)
     }
@@ -297,6 +301,12 @@ impl Parser {
     }
 
     pub fn advance(&mut self) -> SpannedItem<Token> {
+        if self.file_barrier {
+            match self.peek().item() {
+                Token::NewFile(_) => return self.lexer.span().with_item(Token::Eof),
+                _ => (),
+            }
+        }
         if let Some(tok) = self.peek.take() {
             return tok;
         }
@@ -431,6 +441,18 @@ impl Parser {
     pub fn source_map(&self) -> &IndexMap<SourceId, (&'static str, &'static str)> {
         &self.source_map
     }
+
+    /// stops advancing if a new file is found
+    /// required so we don't accidentally create spans that cross files
+    fn with_file_barrier<T>(
+        &mut self,
+        f: impl Fn(&mut Parser) -> T,
+    ) -> T {
+        self.file_barrier = true;
+        let res = f(self);
+        self.file_barrier = false;
+        res
+    }
 }
 
 struct Checkpoint {
@@ -450,8 +472,8 @@ where
     fn parse(p: &mut Parser) -> Option<Self> {
         let before_span = p.lexer.span();
         let result = T::parse(p)?;
-        let after_span = p.lexer.span();
 
+        let after_span = p.lexer.span();
         // i think this should be `hi` to `hi`, not 100% though
         Some(before_span.hi_to_hi(after_span).with_item(result))
     }

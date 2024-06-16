@@ -6,7 +6,7 @@ use crate::comments::Commented;
 
 // todo rename to parse tree or parsed program
 pub struct Ast {
-    pub modules: Vec<SpannedItem<Module>>,
+    pub modules: Vec<Module>,
 }
 
 pub struct Module {
@@ -15,7 +15,7 @@ pub struct Module {
 }
 
 impl Ast {
-    pub fn new(nodes: Vec<SpannedItem<Module>>) -> Ast {
+    pub fn new(nodes: Vec<Module>) -> Ast {
         Self { modules: nodes }
     }
 }

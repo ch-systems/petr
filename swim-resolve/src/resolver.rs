@@ -17,13 +17,6 @@ pub(crate) struct Resolver {
     pub errs:     Vec<ResolutionError>,
 }
 
-/*
-struct Package {
-    binder: Binder,
-    ast: Ast,
-}
-*/
-
 #[derive(Debug, Clone, Copy)]
 pub struct TypeDeclaration {
     pub name: Identifier,
@@ -157,7 +150,40 @@ impl Resolver {
                     },
                     Binding(_) => todo!(),
                     Module(_) => todo!(),
-                    Import { path, alias } => todo!(),
+                    Import { .. } => { // do nothing?
+                         // find the module that the import refers to
+                         // the first ident is either a top-level module or one that is in this scope
+                         // let mut path_iter = path.iter();
+                         // let Some(first_item) = binder.find_symbol_in_scope(
+                         //     path_iter.next().expect("import with no items was parsed -- should be an invariant").id,
+                         //     scope_id,
+                         // ) else {
+                         //     todo!("push import item not found error")
+                         // };
+
+                        // let first_item = match first_item {
+                        //     Item::Module(id) => id,
+                        //     _ => todo!("push error -- import path is not a module"),
+                        // };
+
+                        // let mut rover = binder.get_module(*first_item);
+                        // // iterate over the rest of the path to find the path item
+                        // for (ix, item) in path_iter.enumerate() {
+                        //     let is_last = ix == path.len() - 1;
+                        //     let Some(next_symbol) = binder.find_symbol_in_scope(item.id, rover.root_scope) else { todo!("push item not found err") };
+
+                        //     match next_item {
+                        //         Item::Module(id) => rover = binder.get_module(id),
+                        //         otherwise if is_last => {
+                        //             let alias = alias.unwrap_or_else(|| item.name);
+
+                        //         },
+                        //         _ => todo!("push error -- import path item is not a module"),
+                        //     }
+                        // }
+
+                        // todo!()
+                    },
                 }
             }
         }
@@ -285,21 +311,37 @@ impl Resolve for Expression {
                 Expr::new(ExprKind::FunctionCall(resolved_call))
             },
             Expression::Variable(var) => {
-                let Some(Item::FunctionParameter(ty)) = binder.find_symbol_in_scope(var.id, scope_id) else {
-                    let var_name = resolver.interner.get(var.id);
-                    resolver.errs.push(ResolutionError::FunctionParameterNotFound(var_name.to_string()));
-                    return None;
-                };
-                let ty = match ty.resolve(resolver, binder, scope_id) {
-                    Some(ty) => ty,
-
+                let item = match binder.find_symbol_in_scope(var.id, scope_id) {
+                    Some(item @ Item::FunctionParameter(_) | item @ Item::Binding(_)) => item,
+                    _ => todo!("variable references non-variable item"),
                     None => {
-                        todo!("not found err");
-                        Type::ErrorRecovery
+                        let var_name = resolver.interner.get(var.id);
+                        todo!();
+                        // resolver.errs.push(ResolutionError::NotFound(var_name.to_string()));
+                        return None;
                     },
                 };
+                match item {
+                    Item::Binding(binding_id) => {
+                        // TODO not sure what to do here
+                        let binding = binder.get_binding(*binding_id);
 
-                Expr::new(ExprKind::Variable { name: *var, ty })
+                        Expr::new(ExprKind::Variable { name: *var, ty: todo!() })
+                    },
+                    Item::FunctionParameter(ty) => {
+                        let ty = match ty.resolve(resolver, binder, scope_id) {
+                            Some(ty) => ty,
+
+                            None => {
+                                todo!("not found err");
+                                Type::ErrorRecovery
+                            },
+                        };
+
+                        Expr::new(ExprKind::Variable { name: *var, ty })
+                    },
+                    _ => unreachable!(),
+                }
             },
             // TODO
             Expression::TypeConstructor => {
@@ -390,9 +432,45 @@ impl Resolve for swim_ast::FunctionCall {
         scope_id: ScopeId,
     ) -> Option<Self::Resolved> {
         let func_name = self.func_name;
-        let Some(Item::Function(resolved_id, _func_scope)) = binder.find_symbol_in_scope(func_name.id, scope_id) else {
-            todo!("push error");
-            panic!()
+        let resolved_id = match binder.find_symbol_in_scope(func_name.id, scope_id) {
+            Some(Item::Function(resolved_id, _func_scope)) => resolved_id,
+            Some(Item::Import { path, alias }) => {
+                let mut path_iter = path.iter();
+                let Some(first_item) = binder.find_symbol_in_scope(
+                    path_iter.next().expect("import with no items was parsed -- should be an invariant").id,
+                    scope_id,
+                ) else {
+                    todo!("push import item not found error")
+                };
+
+                let first_item = match first_item {
+                    Item::Module(id) => id,
+                    _ => todo!("push error -- import path is not a module"),
+                };
+
+                let mut rover = binder.get_module(*first_item);
+                // iterate over the rest of the path to find the path item
+                let mut func_id = None;
+                for (ix, item) in path_iter.enumerate() {
+                    let is_last = ix == path.len() - 1;
+                    let Some(next_symbol) = binder.find_symbol_in_scope(item.id, rover.root_scope) else {
+                        todo!("push item not found err")
+                    };
+
+                    match next_symbol {
+                        Item::Module(id) => rover = binder.get_module(*id),
+                        Item::Function(func, _scope) if is_last => func_id = Some(func),
+                        _ => todo!("push error -- import path item is not a module"),
+                    }
+                }
+                match func_id {
+                    Some(id) => id,
+                    None => todo!("func not found error"),
+                }
+            },
+            _ => {
+                todo!("push error");
+            },
         };
 
         let args = self
@@ -536,6 +614,28 @@ mod tests {
         expect.assert_eq(&result);
     }
 
+    fn check_multiple(
+        inputs: Vec<impl Into<String>>,
+        expect: Expect,
+    ) {
+        let inputs: Vec<_> = inputs
+            .into_iter()
+            .enumerate()
+            .map(|(i, input)| (format!("test{}", i + 1), input.into()))
+            .collect();
+        let parser = swim_parse::Parser::new(inputs);
+        let (ast, errs, interner, source_map) = parser.into_result();
+        if !errs.is_empty() {
+            errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
+            panic!("fmt failed: code didn't parse");
+        }
+        let resolver = Resolver::new_from_single_ast(ast, interner);
+        let (errs, queryable) = resolver.into_queryable();
+        assert!(errs.is_empty());
+        let result = pretty_print_resolution(&queryable);
+        expect.assert_eq(&result);
+    }
+
     fn pretty_print_resolution(queryable: &QueryableResolvedItems) -> String {
         let mut result = String::new();
         result.push_str("_____FUNCTIONS_____\n");
@@ -664,6 +764,23 @@ mod tests {
                     #0 MyType
 
                 "#]],
+        )
+    }
+    #[test]
+    fn import_something_from_another_file() {
+        check_multiple(
+            vec![
+                r#"
+                Function exported_func(a in 'int) returns 'int a
+                "#,
+                r#"
+                import test1.exported_func
+
+                function foo() returns 'int ~exported_func(5)
+
+               "#,
+            ],
+            expect![[r#""#]],
         )
     }
 }

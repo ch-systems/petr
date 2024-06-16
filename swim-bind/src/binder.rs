@@ -59,8 +59,8 @@ pub struct Binder {
 }
 
 pub struct Module {
-    root_scope: ScopeId,
-    exports:    BTreeMap<Identifier, Item>,
+    pub root_scope: ScopeId,
+    pub exports:    BTreeMap<Identifier, Item>,
 }
 
 pub struct Scope<T> {
@@ -268,7 +268,7 @@ impl Binder {
 
         ast.modules.iter().for_each(|module| {
             binder.with_scope(|binder, scope_id| {
-                let exports = module.item().nodes.iter().filter_map(|node| match node.item() {
+                let exports = module.nodes.iter().filter_map(|node| match node.item() {
                     swim_ast::AstNode::FunctionDeclaration(decl) => decl.bind(binder),
                     swim_ast::AstNode::TypeDeclaration(decl) => decl.bind(binder),
                     swim_ast::AstNode::ImportStatement(stmt) => stmt.bind(binder),
@@ -282,6 +282,20 @@ impl Binder {
         });
 
         binder
+    }
+
+    pub fn get_module(
+        &self,
+        id: ModuleId,
+    ) -> &Module {
+        self.modules.get(id)
+    }
+
+    pub fn get_binding(
+        &self,
+        binding_id: BindingId,
+    ) -> &Expression {
+        self.bindings.get(binding_id)
     }
 }
 
