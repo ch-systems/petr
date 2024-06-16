@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use swim_pkg::{Dependency, DependencySource, GitDependency, PathDependency};
+use swim_pkg::{Dependency, GitDependency};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Manifest {
@@ -8,11 +8,12 @@ pub struct Manifest {
     #[serde(default)]
     pub formatter:    swim_fmt::FormatterConfig,
     #[serde(default)]
-    pub dependencies: Vec<Dependency>,
+    pub dependencies: BTreeMap<String, Dependency>,
 }
 
 // check the current folder, then recursively upwards until a swim manfiest is found
 use std::{
+    collections::BTreeMap,
     fs,
     path::{Path, PathBuf},
 };
@@ -39,21 +40,15 @@ fn what_is_my_manifest_format() {
         author:       Some("Alex Hansen <alex@alex-hansen.com>".into()),
         license:      Some("MIT".into()),
         formatter:    Default::default(),
-        dependencies: vec![
-            Dependency {
-                name:   "std".into(),
-                source: DependencySource::Git(GitDependency {
-                    url:    "https://github.com/sezna/swim-std".into(),
-                    branch: None,
-                    tag:    None,
-                    rev:    None,
-                }),
-            },
-            Dependency {
-                name:   "todo".into(),
-                source: DependencySource::Path(PathDependency { path: "~/code/todo".into() }),
-            },
-        ],
+        dependencies: BTreeMap::from_iter(vec![(
+            "std".to_string(),
+            Dependency::Git(GitDependency {
+                git:    "https://github.com/sezna/swim-std".into(),
+                branch: None,
+                tag:    None,
+                rev:    None,
+            }),
+        )]),
     };
 
     let manifest_str = toml::to_string(&manifest).unwrap();

@@ -5,13 +5,8 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Dependency {
-    pub name:   String,
-    pub source: DependencySource,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum DependencySource {
+#[serde(untagged)]
+pub enum Dependency {
     Git(GitDependency),
     Path(PathDependency),
 }
@@ -23,13 +18,13 @@ pub struct Lockfile {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LockfileEntry {
     name:       String,
-    hash:       u128,
+    hash:       String,
     depends_on: Vec<Dependency>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GitDependency {
-    pub url:    String,
+    pub git:    String,
     pub branch: Option<String>,
     pub tag:    Option<String>,
     pub rev:    Option<String>,
@@ -40,16 +35,16 @@ pub struct PathDependency {
     pub path: String,
 }
 
-use std::{fs, path::Path};
+use std::{collections::BTreeMap, fs, path::Path};
 
-pub fn load_dependencies(deps: Vec<Dependency>) -> (Lockfile, Vec<Vec<(String, String)>>) {
+pub fn load_dependencies(deps: BTreeMap<String, Dependency>) -> (Lockfile, Vec<Vec<(String, String)>>) {
     let mut entries = Vec::new();
     let mut files = Vec::new();
 
-    for dep in deps {
-        let (entry, sources) = match dep.source {
-            DependencySource::Git(ref git_dep) => load_git_dependency(git_dep),
-            DependencySource::Path(ref path_dep) => load_path_dependency(path_dep),
+    for (dep_name, dep_source) in deps {
+        let (entry, sources) = match dep_source {
+            Dependency::Git(ref git_dep) => load_git_dependency(git_dep),
+            Dependency::Path(ref path_dep) => load_path_dependency(path_dep),
         };
 
         entries.push(entry);
@@ -70,9 +65,9 @@ fn load_git_dependency(dep: &GitDependency) -> (LockfileEntry, Vec<(String, Stri
         fs::create_dir_all(&swim_dir).expect("Failed to create .swim directory");
     }
 
-    let repo_dir = swim_dir.join(&dep.url.replace("/", "_"));
+    let repo_dir = swim_dir.join(&dep.git.replace("/", "_"));
     if !repo_dir.exists() {
-        let _ = git2::Repository::clone(&dep.url, &repo_dir).expect("Failed to clone Git repository");
+        let _ = git2::Repository::clone(&dep.git, &repo_dir).expect("Failed to clone Git repository");
     }
 
     let path_dep = PathDependency {
@@ -109,7 +104,7 @@ fn load_path_dependency(dep: &PathDependency) -> (LockfileEntry, Vec<(String, St
     (lockfile_entry, files)
 }
 
-fn calculate_lockfile_hash(sources: Vec<(String, String)>) -> u128 {
+fn calculate_lockfile_hash(sources: Vec<(String, String)>) -> String {
     // hash all sources and contents into a u128
     use bcrypt::{hash, DEFAULT_COST};
 
@@ -121,5 +116,5 @@ fn calculate_lockfile_hash(sources: Vec<(String, String)>) -> u128 {
     let hash_bytes = hasher.finalize();
     let hash_bytes = hash_bytes.as_bytes();
     let hash_string = hash(hash_bytes, DEFAULT_COST).expect("Failed to hash");
-    u128::from_be_bytes(hash_string.as_bytes()[..16].try_into().expect("Failed to convert hash to u128"))
+    u128::from_be_bytes(hash_string.as_bytes()[..16].try_into().expect("Failed to convert hash to u128")).to_string()
 }
