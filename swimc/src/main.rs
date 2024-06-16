@@ -21,17 +21,30 @@ enum Commands {
         target:   String,
         #[arg(short = 'i', long, help = "print the IR to stdout")]
         print_ir: bool,
+        #[arg(
+            long,
+            help = "path to the directory which contains the swim.toml manifest and src subdir",
+            default_value = "."
+        )]
+        path:     PathBuf,
     },
     #[command(about = "format all sources in the project")]
-    Fmt,
+    Fmt {
+        #[arg(
+            long,
+            help = "path to the directory which contains the swim.toml manifest and src subdir",
+            default_value = "."
+        )]
+        path: PathBuf,
+    },
 }
 
 fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Run { target, print_ir } => {
-            let (lockfile, buf) = load_project_and_dependencies();
+        Commands::Run { target, print_ir, path } => {
+            let (lockfile, buf) = load_project_and_dependencies(&path);
             let lockfile_toml = toml::to_string(&lockfile).expect("Failed to serialize lockfile to TOML");
             fs::write("swim.lock", lockfile_toml).expect("Failed to write lockfile");
 
@@ -81,25 +94,26 @@ fn main() {
                 },
             }
         },
-        Commands::Fmt => {
+        Commands::Fmt { path } => {
             let manifest = swim_pkg::manifest::find_manifest().expect("Failed to find manifest");
-            let files = load_files();
+            let files = load_files(&path);
             swim_fmt::format_sources(files, manifest.formatter).expect("TODO errs");
         },
     }
 }
 
-fn load_project_and_dependencies() -> (swim_pkg::Lockfile, Vec<(PathBuf, String)>) {
+fn load_project_and_dependencies(path: &PathBuf) -> (swim_pkg::Lockfile, Vec<(PathBuf, String)>) {
     let manifest = swim_pkg::manifest::find_manifest().expect("Failed to find manifest");
     let dependencies = manifest.dependencies;
     let (lockfile, _) = swim_pkg::load_dependencies(dependencies);
 
-    let files = load_files();
+    let files = load_files(path);
     (lockfile, files)
 }
 
-fn load_files() -> Vec<(PathBuf, String)> {
-    let files = fs::read_dir("./src")
+fn load_files(path: &PathBuf) -> Vec<(PathBuf, String)> {
+    let src_path = path.join("src");
+    let files = fs::read_dir(&src_path)
         .expect("Failed to read src directory")
         .filter_map(|entry| {
             let entry = entry.expect("Failed to read directory entry");
