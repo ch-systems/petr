@@ -11,7 +11,7 @@ use crate::{
 
 impl Parse for FunctionCall {
     fn parse(p: &mut Parser) -> Option<Self> {
-        p.with_help("encountered while parsing function call", |p| -> Option<Self> {
+        p.with_help("while parsing function call", |p| -> Option<Self> {
             p.token(Token::Tilde)?;
             let func_name = p.parse()?;
             // optionally, args can be in parens to resolve ambiguity
@@ -32,7 +32,7 @@ impl Parse for FunctionCall {
 
 impl Parse for TypeDeclaration {
     fn parse(p: &mut Parser) -> Option<Self> {
-        p.with_help("encountered while parsing type declaration", |p| -> Option<Self> {
+        p.with_help("while parsing type declaration", |p| -> Option<Self> {
             let tok = p.one_of([Token::TypeKeyword, Token::ExportTypeKeyword])?;
             let visibility = match tok.item() {
                 Token::TypeKeyword => Visibility::Local,
@@ -61,7 +61,7 @@ impl Parse for TypeDeclaration {
 
 impl Parse for TypeVariant {
     fn parse(p: &mut Parser) -> Option<Self> {
-        p.with_help("encountered while parsing type variant", |p| -> Option<Self> {
+        p.with_help("while parsing type variant", |p| -> Option<Self> {
             let mut buf = vec![];
             let name = p.parse()?;
             loop {
@@ -83,10 +83,11 @@ impl Parse for TypeVariant {
 
 impl Parse for AstNode {
     fn parse(p: &mut Parser) -> Option<Self> {
-        p.with_help("encountered while parsing AST node", |p| match p.peek().item() {
+        p.with_help("while parsing AST node", |p| match p.peek().item() {
             Token::FunctionKeyword | Token::ExportFunctionKeyword => Some(AstNode::FunctionDeclaration(p.parse()?)),
             Token::TypeKeyword | Token::ExportTypeKeyword => Some(AstNode::TypeDeclaration(p.parse()?)),
             Token::Eof | Token::NewFile(..) => None,
+            Token::Import | Token::Export => Some(AstNode::ImportStatement(p.parse()?)),
             a => {
                 let span = p.peek().span();
                 p.push_error(span.with_item(ParseErrorKind::ExpectedOneOf(
@@ -98,9 +99,30 @@ impl Parse for AstNode {
         })
     }
 }
+
+impl Parse for ImportStatement {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        p.with_help("while parsing import or export statement", |p| -> Option<Self> {
+            let tok = p.one_of([Token::Import, Token::Export])?;
+            let visibility = match tok.item() {
+                Token::Import => Visibility::Local,
+                Token::Export => Visibility::Exported,
+                _ => unreachable!(),
+            };
+            let path: Vec<Identifier> = p.sequence_one_or_more(Token::Dot)?;
+            let alias = if p.try_token(Token::As).is_some() { Some(p.parse()?) } else { None };
+            Some(Self {
+                path: path.into_boxed_slice(),
+                visibility,
+                alias,
+            })
+        })
+    }
+}
+
 impl Parse for FunctionDeclaration {
     fn parse(p: &mut Parser) -> Option<Self> {
-        p.with_help("encountered while parsing function declaration", |p| -> Option<Self> {
+        p.with_help("while parsing function declaration", |p| -> Option<Self> {
             let tok = p.one_of([Token::FunctionKeyword, Token::ExportFunctionKeyword])?;
             let visibility = match tok.item() {
                 Token::FunctionKeyword => Visibility::Local,
@@ -146,7 +168,7 @@ impl Parse for Literal {
 }
 impl Parse for FunctionParameter {
     fn parse(p: &mut Parser) -> Option<Self> {
-        p.with_help("encountered while parsing function parameter", |p| -> Option<Self> {
+        p.with_help("while parsing function parameter", |p| -> Option<Self> {
             let name: Identifier = p.parse()?;
             p.one_of([Token::InKeyword, Token::IsInSymbol])?;
             let ty: Ty = p.parse()?;
@@ -280,7 +302,7 @@ impl Parse for Binding {
 
 impl Parse for IntrinsicCall {
     fn parse(p: &mut Parser) -> Option<Self> {
-        p.with_help("encountered while parsing intrinsic call", |p| -> Option<Self> {
+        p.with_help("while parsing intrinsic call", |p| -> Option<Self> {
             let name = p.slice().to_string();
             let intrinsic = match &name[1..] {
                 "puts" => Intrinsic::Puts,

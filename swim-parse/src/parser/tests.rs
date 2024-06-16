@@ -34,6 +34,7 @@ fn prefix_operator_expression() {
             ____
             module test =
             Func addToFive() -> 'Integer +(4 1)
+
         "#]],
     )
 }
@@ -50,6 +51,7 @@ fn parse_parameters() {
               a ∈ 'Integer,
               b ∈ 'Integer
             ) -> 'Integer +(var(a) var(b))
+
         "#]],
     )
 }
@@ -82,6 +84,7 @@ fn commented_function() {
               a ∈ 'A,
               b ∈ 'B
             ) -> 'B +(var(a) var(b))
+
         "#]],
     )
 }
@@ -100,6 +103,7 @@ fn multi_commented_function() {
               a ∈ 'A,
               b ∈ 'B
             ) -> 'B +(var(a) var(b))
+
         "#]],
     )
 }
@@ -113,6 +117,7 @@ fn list_expr() {
             ____
             module test =
             Func list_to_three() -> 'intlist [1, 2, 3]
+
         "#]],
     )
 }
@@ -126,6 +131,7 @@ fn list_with_nested_exprs() {
             ____
             module test =
             Func list_to_three() -> 'intlist [+(1 2), 2, +(1 +(2 3))]
+
         "#]],
     )
 }
@@ -139,6 +145,7 @@ fn nested_list() {
             ____
             module test =
             Func list_to_three() -> 'intlist [[1, 2], [3, 4, +(1 2)]]
+
         "#]],
     )
 }
@@ -152,6 +159,7 @@ fn fn_call() {
             ____
             module test =
             Func makes_function_call() -> 'unit call fn_call(var(a), var(b), var(c))
+
         "#]],
     )
 }
@@ -179,11 +187,13 @@ fn let_bindings() {
                   b = 20
               call fn_call(var(a), var(b), var(c))
 
+
             Func fn_call(
               a ∈ 'int,
               b ∈ 'int,
               c ∈ 'int
             ) -> 'int +(var(a) +(var(b) var(c)))
+
         "#]],
     )
 }
@@ -211,11 +221,40 @@ fn let_bindings_trailing_comma() {
                   b = 20
               call fn_call(var(a), var(b), var(c))
 
+
             Func fn_call(
               a ∈ 'int,
               b ∈ 'int,
               c ∈ 'int
             ) -> 'int +(var(a) +(var(b) var(c)))
+
+        "#]],
+    )
+}
+
+#[test]
+fn imports_and_exports() {
+    check(
+        vec![
+            "import moduleA.itemA
+             export moduleB.itemB
+
+             function someFunction(a in 'int) returns 'int + a 1
+
+             import something_else.foo as bar
+            ",
+        ],
+        expect![[r#"
+            AST
+            ____
+            module test =
+            import moduleA.itemA
+            export moduleB.itemB
+            Func someFunction(
+              a ∈ 'int
+            ) -> 'int +(var(a) 1)
+            import something_else.foo as bar
+
         "#]],
     )
 }

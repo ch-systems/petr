@@ -32,6 +32,26 @@ impl PrettyPrint for Module {
     }
 }
 
+impl PrettyPrint for ImportStatement {
+    fn pretty_print(
+        &self,
+        interner: &SymbolInterner,
+        indentation: usize,
+    ) -> String {
+        let mut buf = format!(
+            "{}{} {}",
+            "  ".repeat(indentation),
+            if self.is_exported() { "export" } else { "import" },
+            self.path.iter().map(|id| interner.get(id.id)).collect::<Vec<_>>().join("."),
+        );
+        if let Some(alias) = self.alias {
+            buf.push_str(&format!(" as {}", interner.get(alias.id)));
+        }
+        buf.push('\n');
+        buf
+    }
+}
+
 impl PrettyPrint for AstNode {
     fn pretty_print(
         &self,
@@ -41,7 +61,7 @@ impl PrettyPrint for AstNode {
         let mut string = match self {
             AstNode::FunctionDeclaration(node) => node.pretty_print(interner, indentation),
             AstNode::TypeDeclaration(ty) => ty.pretty_print(interner, indentation),
-            AstNode::ImportStatement(_) => todo!(),
+            AstNode::ImportStatement(stmt) => stmt.pretty_print(interner, indentation),
         };
         let indentation_str = "  ".repeat(indentation);
         string = format!("{indentation_str}{string}");
@@ -263,7 +283,7 @@ impl PrettyPrint for FunctionDeclaration {
             visibility,
         } = self;
         format!(
-            "{}{}Func {}({}{}{}) -> {} {}",
+            "{}{}Func {}({}{}{}) -> {} {}\n",
             "  ".repeat(indentation),
             if *visibility == Visibility::Exported { "exported " } else { "" },
             name.pretty_print(interner, 0),

@@ -54,8 +54,6 @@ pub enum Token {
     Equals,
     #[token("|")]
     Pipe,
-    #[token("from")]
-    FromKeyword,
     #[token("to")]
     ToKeyword,
     #[token("Function")]
@@ -70,6 +68,14 @@ pub enum Token {
     False,
     #[token("let")]
     Let,
+    #[token("import")]
+    Import,
+    #[token("export")]
+    Export,
+    #[token(".")]
+    Dot,
+    #[token("as")]
+    As,
     #[regex(r#"\@[_a-zA-Z][_a-zA-Z0-9]{0,30}"#)]
     Intrinsic,
     NewFile(SourceId),
@@ -114,7 +120,6 @@ impl std::fmt::Display for Token {
             TypeKeyword => write!(f, "type"),
             Equals => write!(f, "="),
             Pipe => write!(f, "|"),
-            FromKeyword => write!(f, "from"),
             ToKeyword => write!(f, "to"),
             ExportFunctionKeyword => write!(f, "Function"),
             ExportTypeKeyword => write!(f, "Type"),
@@ -125,6 +130,10 @@ impl std::fmt::Display for Token {
             Intrinsic => write!(f, "@intrinsic"),
             Let => write!(f, "let"),
             NewFile(source_id) => write!(f, "new file {source_id:?}"),
+            Import => write!(f, "import"),
+            Export => write!(f, "export"),
+            Dot => write!(f, "."),
+            As => write!(f, "as"),
         }
     }
 }
