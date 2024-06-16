@@ -11,6 +11,7 @@ swim-parse = { "path" = "../swim-parse" }
 swim-utils = { "path" = "../swim-utils" }
 swim-vm = { "path" = "../swim-vm" }
 swim-ir = { "path" = "../swim-ir" }
+swim-fmt = { path = "../swim-fmt" }
 swim-typecheck = { "path" = "../swim-typecheck" }
 swim-resolve = { "path" = "../swim-resolve" }
 swim-pkg = { "path" = "../swim-pkg" }

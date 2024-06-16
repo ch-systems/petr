@@ -1488,6 +1488,7 @@ version = "0.1.0"
 dependencies = [
  "clap 4.5.4",
  "miette",
+ "swim-fmt",
  "swim-ir",
  "swim-parse",
  "swim-pkg",

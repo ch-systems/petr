@@ -1,4 +1,3 @@
-// TODO: let bindings on same line?
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Copy)]
@@ -15,6 +14,7 @@ pub struct FormatterConfig {
     max_line_length: usize,
     put_fn_args_on_new_lines: bool,
     put_trailing_commas_on_let_bindings: bool,
+    backup: bool,
 }
 
 impl FormatterConfig {
@@ -66,6 +66,10 @@ impl FormatterConfig {
         self.put_trailing_commas_on_let_bindings
     }
 
+    pub fn backup(&self) -> bool {
+        self.backup
+    }
+
     pub(crate) fn as_builder(&self) -> FormatterConfigBuilder {
         FormatterConfigBuilder {
             put_fn_params_on_new_lines: self.put_fn_params_on_new_lines,
@@ -80,6 +84,7 @@ impl FormatterConfig {
             max_line_length: self.max_line_length,
             put_fn_args_on_new_lines: self.put_fn_args_on_new_lines,
             put_trailing_commas_on_let_bindings: self.put_trailing_commas_on_let_bindings,
+            backup: self.backup,
         }
     }
 }
@@ -103,6 +108,7 @@ pub struct FormatterConfigBuilder {
     max_line_length: usize,
     put_fn_args_on_new_lines: bool,
     put_trailing_commas_on_let_bindings: bool,
+    backup: bool,
 }
 
 impl FormatterConfigBuilder {
@@ -217,6 +223,13 @@ impl FormatterConfigBuilder {
         }
     }
 
+    pub fn backup(
+        self,
+        backup: bool,
+    ) -> Self {
+        Self { backup, ..self }
+    }
+
     pub fn build(self) -> FormatterConfig {
         FormatterConfig {
             put_fn_params_on_new_lines: self.put_fn_params_on_new_lines,
@@ -231,6 +244,7 @@ impl FormatterConfigBuilder {
             max_line_length: self.max_line_length,
             put_fn_args_on_new_lines: self.put_fn_args_on_new_lines,
             put_trailing_commas_on_let_bindings: self.put_trailing_commas_on_let_bindings,
+            backup: self.backup,
         }
     }
 }
@@ -250,6 +264,7 @@ impl Default for FormatterConfigBuilder {
             max_line_length: 80,
             put_fn_args_on_new_lines: false,
             put_trailing_commas_on_let_bindings: false,
+            backup: false,
         }
     }
 }
