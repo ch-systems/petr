@@ -32,6 +32,7 @@ fn prefix_operator_expression() {
         expect![[r#"
             AST
             ____
+            module test =
             Func addToFive() -> 'Integer +(4 1)
         "#]],
     )
@@ -44,6 +45,7 @@ fn parse_parameters() {
         expect![[r#"
             AST
             ____
+            module test =
             Func addTwoNums(
               a ∈ 'Integer,
               b ∈ 'Integer
@@ -74,6 +76,7 @@ fn commented_function() {
         expect![[r#"
             AST
             ____
+            module test =
             {- this is a comment -}
             Func addTwoNums(
               a ∈ 'A,
@@ -90,6 +93,7 @@ fn multi_commented_function() {
         expect![[r#"
             AST
             ____
+            module test =
             {- comment one -}
             {- comment two -}
             Func addTwoNums(
@@ -107,6 +111,7 @@ fn list_expr() {
         expect![[r#"
             AST
             ____
+            module test =
             Func list_to_three() -> 'intlist [1, 2, 3]
         "#]],
     )
@@ -119,6 +124,7 @@ fn list_with_nested_exprs() {
         expect![[r#"
             AST
             ____
+            module test =
             Func list_to_three() -> 'intlist [+(1 2), 2, +(1 +(2 3))]
         "#]],
     )
@@ -131,6 +137,7 @@ fn nested_list() {
         expect![[r#"
             AST
             ____
+            module test =
             Func list_to_three() -> 'intlist [[1, 2], [3, 4, +(1 2)]]
         "#]],
     )
@@ -143,6 +150,7 @@ fn fn_call() {
         expect![[r#"
             AST
             ____
+            module test =
             Func makes_function_call() -> 'unit call fn_call(var(a), var(b), var(c))
         "#]],
     )
@@ -163,6 +171,7 @@ fn let_bindings() {
         expect![[r#"
             AST
             ____
+            module test =
             Func makes_function_call(
               c ∈ 'int
             ) -> 'int 
@@ -194,6 +203,7 @@ fn let_bindings_trailing_comma() {
         expect![[r#"
             AST
             ____
+            module test =
             Func makes_function_call(
               c ∈ 'int
             ) -> 'int 

@@ -33,22 +33,8 @@ idx_map_key!(
     TypeId
 );
 
-idx_map_key!(
-    /// The ID type of a bound node.
-   NodeId
-);
-
-/// Tracks what scope an item is in.
-/// The resolver will iterate over these to resolve symbols.
-#[derive(Clone, Debug)]
-pub struct Node {
-    pub item:  Item,
-    pub scope: ScopeId,
-}
-
 #[derive(Clone, Debug, Copy)]
 pub enum Item {
-    //Expr(ExprId),
     Binding(BindingId),
     // the `ScopeId` is the scope of the function body
     Function(FunctionId, ScopeId),
@@ -57,18 +43,12 @@ pub enum Item {
 }
 
 pub struct Binder {
-    scopes:          IndexMap<ScopeId, Scope<Item>>,
-    scope_chain:     Vec<ScopeId>,
-    bindings:        IndexMap<BindingId, Expression>,
-    functions:       IndexMap<FunctionId, FunctionDeclaration>,
-    types:           IndexMap<TypeId, TypeDeclaration>,
-    func_parameters: IndexMap<FunctionParameterId, FunctionParameter>,
-    /// The processed nodes that have been bound. They no longer contain things like
-    /// `SpannedItem` or `Commented` -- they're further from the language syntactically than
-    /// the AST, which directly represents the syntax.
-    /// Not a fully semantic representation, but a step closer. Serves to tee up the resolver for
-    /// an easy job.
-    nodes:           IndexMap<NodeId, Node>,
+    scopes:      IndexMap<ScopeId, Scope<Item>>,
+    scope_chain: Vec<ScopeId>,
+    bindings:    IndexMap<BindingId, Expression>,
+    functions:   IndexMap<FunctionId, FunctionDeclaration>,
+    types:       IndexMap<TypeId, TypeDeclaration>,
+    modules:     IndexMap<ModuleId, Module>,
 }
 
 pub struct Scope<T> {
@@ -110,13 +90,11 @@ impl<T> Scope<T> {
 impl Binder {
     fn new() -> Self {
         Self {
-            scopes:          IndexMap::default(),
-            scope_chain:     Vec::new(),
-            functions:       IndexMap::default(),
-            types:           IndexMap::default(),
-            nodes:           IndexMap::default(),
-            func_parameters: IndexMap::default(),
-            bindings:        IndexMap::default(),
+            scopes:      IndexMap::default(),
+            scope_chain: Vec::new(),
+            functions:   IndexMap::default(),
+            types:       IndexMap::default(),
+            bindings:    IndexMap::default(),
         }
     }
 

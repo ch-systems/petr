@@ -18,6 +18,20 @@ impl PrettyPrint for Ast {
     }
 }
 
+impl PrettyPrint for Module {
+    fn pretty_print(
+        &self,
+        interner: &SymbolInterner,
+        indentation: usize,
+    ) -> String {
+        let mut buf = format!("{}module {} =\n", "  ".repeat(indentation), interner.get(self.name.id));
+        for node in &self.nodes {
+            buf.push_str(&node.pretty_print(interner, 0));
+        }
+        buf
+    }
+}
+
 impl PrettyPrint for AstNode {
     fn pretty_print(
         &self,

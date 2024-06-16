@@ -72,6 +72,7 @@ pub enum Token {
     Let,
     #[regex(r#"\@[_a-zA-Z][_a-zA-Z0-9]{0,30}"#)]
     Intrinsic,
+    NewFile(SourceId),
     Eof,
 }
 impl Token {
@@ -123,6 +124,7 @@ impl std::fmt::Display for Token {
             String => write!(f, "string"),
             Intrinsic => write!(f, "@intrinsic"),
             Let => write!(f, "let"),
+            NewFile(source_id) => write!(f, "new file {source_id:?}"),
         }
     }
 }
@@ -132,7 +134,8 @@ pub type LexedSources = IndexMap<SourceId, logos::Lexer<'static, Token>>;
 #[derive(Clone)]
 pub struct Lexer {
     sources: LexedSources,
-    source:  SourceId,
+    source: SourceId,
+    has_started_lexing: bool,
 }
 
 impl Lexer {
@@ -145,7 +148,8 @@ impl Lexer {
         }
         Self {
             sources: map,
-            source:  0.into(),
+            source: 0.into(),
+            has_started_lexing: false,
         }
     }
 
@@ -159,11 +163,16 @@ impl Lexer {
 
     pub(crate) fn advance(&mut self) -> SpannedItem<Token> {
         let pre_advance_span = self.span();
+        if !self.has_started_lexing {
+            self.has_started_lexing = true;
+            return self.span().with_item(Token::NewFile(self.source));
+        }
         let current_lexer = self.current_lexer_mut();
 
         match current_lexer.next() {
             None => match self.advance_lexer() {
-                Some(_) => self.advance(),
+                Some(_) => self.span().with_item(Token::NewFile(self.source)),
+
                 None => pre_advance_span.with_item(Token::Eof),
             },
             Some(tok) => self.span().with_item(tok.expect("TODO: handle lexer failure")),

@@ -7,7 +7,7 @@ use std::rc::Rc;
 use lexer::Lexer;
 pub use lexer::Token;
 use miette::Diagnostic;
-use swim_ast::{Ast, AstNode, Comment, List};
+use swim_ast::{Ast, AstNode, Comment, List, Module};
 use swim_utils::{IndexMap, SourceId, Span, SpannedItem, SymbolId, SymbolInterner};
 use thiserror::Error;
 
@@ -86,6 +86,8 @@ pub enum ParseErrorKind {
     ExpectedToken(Token, Token),
     #[error("Expected one of tokens {}; found {1}", format_toks(.0))]
     ExpectedOneOf(Vec<Token>, Token),
+    #[error("Internal error in parser. Please file an issue on GitHub. {0}")]
+    InternalError(String),
 }
 impl ParseErrorKind {
     pub fn into_err(self) -> ParseError {
@@ -202,7 +204,7 @@ impl Parser {
         SymbolInterner,
         IndexMap<SourceId, (&'static str, &'static str)>,
     ) {
-        let nodes: Vec<SpannedItem<AstNode>> = self.many::<SpannedItem<AstNode>>();
+        let nodes: Vec<SpannedItem<Module>> = self.many::<SpannedItem<Module>>();
         // drop the lexers from the source map
         (Ast::new(nodes), self.errors, self.interner, self.source_map)
     }
@@ -214,6 +216,9 @@ impl Parser {
     pub fn many<P: Parse>(&mut self) -> Vec<P> {
         let mut buf = Vec::new();
         loop {
+            if *self.peek().item() == Token::Eof {
+                break;
+            }
             if let Some(parsed_item) = P::parse(self) {
                 buf.push(parsed_item);
             } else {
@@ -389,7 +394,7 @@ impl Parser {
     /// Performs a backtracking parse, which means that if the inner function returns `None`,
     /// the parser will backtrack to the state before the function was called and revert any
     /// errors that were encountered, returning them as `Err` but crucially not appending them to
-    /// `self.errors`.
+    /// self.errors`.
     /// Note that this is NOT a performant method, and it should be used sparingly.
     pub fn with_backtrack<F, T>(
         &mut self,
@@ -421,6 +426,10 @@ impl Parser {
         self.lexer = checkpoint.lexer;
         self.peek = checkpoint.peek;
         self.errors.split_off(checkpoint.errors)
+    }
+
+    pub fn source_map(&self) -> &IndexMap<SourceId, (&'static str, &'static str)> {
+        &self.source_map
     }
 }
 

@@ -136,13 +136,12 @@ impl Resolver {
             resolved: ResolvedItems::new(),
             interner,
         };
-        resolver.add_package(ast, &binder);
+        resolver.add_package(&binder);
         resolver
     }
 
     pub fn add_package(
         &mut self,
-        _ast: Ast,
         binder: &Binder,
     ) {
         // Iterate over the binder's scopes and resolve all symbols

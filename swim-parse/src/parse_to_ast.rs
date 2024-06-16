@@ -83,10 +83,10 @@ impl Parse for TypeVariant {
 
 impl Parse for AstNode {
     fn parse(p: &mut Parser) -> Option<Self> {
-        match p.peek().item() {
+        p.with_help("encountered while parsing AST node", |p| match p.peek().item() {
             Token::FunctionKeyword | Token::ExportFunctionKeyword => Some(AstNode::FunctionDeclaration(p.parse()?)),
             Token::TypeKeyword | Token::ExportTypeKeyword => Some(AstNode::TypeDeclaration(p.parse()?)),
-            Token::Eof => None,
+            Token::Eof | Token::NewFile(..) => None,
             a => {
                 let span = p.peek().span();
                 p.push_error(span.with_item(ParseErrorKind::ExpectedOneOf(
@@ -95,7 +95,7 @@ impl Parse for AstNode {
                 )));
                 None
             },
-        }
+        })
     }
 }
 impl Parse for FunctionDeclaration {
@@ -296,5 +296,26 @@ impl Parse for IntrinsicCall {
             }
             Some(Self { intrinsic, args })
         })
+    }
+}
+
+impl Parse for Module {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        let module_name = dbg!(p.advance());
+        match module_name.item() {
+            Token::NewFile(name) => {
+                let name = p.source_map().get(*name).0;
+                let identifier_id = p.intern(Rc::from(name));
+                let name = Identifier { id: identifier_id };
+                let nodes: Vec<_> = p.many::<SpannedItem<AstNode>>();
+                Some(Module { name, nodes })
+            },
+            a => {
+                p.push_error(module_name.span().with_item(ParseErrorKind::InternalError(format!(
+                    "Expected module name, found {a:?}. All tokens should belong to a module."
+                ))));
+                None
+            },
+        }
     }
 }

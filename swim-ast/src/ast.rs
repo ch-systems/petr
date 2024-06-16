@@ -4,18 +4,18 @@ use swim_utils::{Identifier, SpannedItem};
 
 use crate::comments::Commented;
 
-// NOTE:
-// for scopes, track scopes in a tree to know which scopes are parents of which ones
-// then, store all names in a mapping from scope id to name
-// use the tree to find the scopes that are "in scope" by traversing up
-// and then search those scopes
-
+// todo rename to parse tree or parsed program
 pub struct Ast {
+    pub nodes: Vec<SpannedItem<Module>>,
+}
+
+pub struct Module {
+    pub name:  Identifier,
     pub nodes: Vec<SpannedItem<AstNode>>,
 }
 
 impl Ast {
-    pub fn new(nodes: Vec<SpannedItem<AstNode>>) -> Ast {
+    pub fn new(nodes: Vec<SpannedItem<Module>>) -> Ast {
         Self { nodes }
     }
 }

@@ -24,6 +24,7 @@ fn test_lexer_advance() {
         vec!["I am some source code"],
         expect![[r#"
             [
+                SpannedItem NewFile(SourceId(0)) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(0), length: 0 } }],
                 SpannedItem Identifier [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(0), length: 1 } }],
                 SpannedItem Identifier [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(2), length: 2 } }],
                 SpannedItem Identifier [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(5), length: 4 } }],
@@ -39,9 +40,11 @@ fn test_lexer_advance_multiple_sources() {
         vec!["I am some", "Source code"],
         expect![[r#"
             [
+                SpannedItem NewFile(SourceId(0)) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(0), length: 0 } }],
                 SpannedItem Identifier [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(0), length: 1 } }],
                 SpannedItem Identifier [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(2), length: 2 } }],
                 SpannedItem Identifier [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(5), length: 4 } }],
+                SpannedItem NewFile(SourceId(1)) [Span { source: SourceId(1), span: SourceSpan { offset: SourceOffset(0), length: 0 } }],
                 SpannedItem Identifier [Span { source: SourceId(1), span: SourceSpan { offset: SourceOffset(0), length: 6 } }],
                 SpannedItem Identifier [Span { source: SourceId(1), span: SourceSpan { offset: SourceOffset(7), length: 4 } }],
             ]"#]],
@@ -54,6 +57,7 @@ fn test_symbols() {
         vec!["((5 +-/* 2)[]"],
         expect![[r#"
             [
+                SpannedItem NewFile(SourceId(0)) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(0), length: 0 } }],
                 SpannedItem OpenParen [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(0), length: 1 } }],
                 SpannedItem OpenParen [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(1), length: 1 } }],
                 SpannedItem Integer [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(2), length: 1 } }],
