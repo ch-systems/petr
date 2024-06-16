@@ -1,6 +1,7 @@
 // TODO: let bindings on same line?
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, Copy)]
 pub struct FormatterConfig {
     put_fn_params_on_new_lines: bool,
     use_set_notation_for_types: bool,

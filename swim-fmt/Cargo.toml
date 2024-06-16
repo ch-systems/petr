@@ -10,6 +10,7 @@ swim-parse = { path = "../swim-parse" }
 swim-utils = { path = "../swim-utils" }
 swim-ast = { path = "../swim-ast" }
 structopt = { version = "0.3.26", features = ["color"] }
+serde = { version = "1.0.203", features = ["derive"] }
 
 [dev-dependencies]
 expect-test = "1.5.0"
