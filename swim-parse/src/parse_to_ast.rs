@@ -312,7 +312,7 @@ impl Parse for Module {
             },
             a => {
                 p.push_error(module_name.span().with_item(ParseErrorKind::InternalError(format!(
-                    "Expected module name, found {a:?}. All tokens should belong to a module."
+                    "Expected module name, found {a:?}. All tokens should be prefaced by a module."
                 ))));
                 None
             },

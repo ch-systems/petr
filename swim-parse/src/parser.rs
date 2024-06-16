@@ -7,7 +7,7 @@ use std::rc::Rc;
 use lexer::Lexer;
 pub use lexer::Token;
 use miette::Diagnostic;
-use swim_ast::{Ast, AstNode, Comment, List, Module};
+use swim_ast::{Ast, Comment, List, Module};
 use swim_utils::{IndexMap, SourceId, Span, SpannedItem, SymbolId, SymbolInterner};
 use thiserror::Error;
 

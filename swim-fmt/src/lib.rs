@@ -373,6 +373,7 @@ impl Formattable for AstNode {
         match self {
             AstNode::FunctionDeclaration(fd) => fd.format(ctx),
             AstNode::TypeDeclaration(ty) => ty.format(ctx),
+            AstNode::ImportStatement(_) => todo!(),
         }
     }
 }

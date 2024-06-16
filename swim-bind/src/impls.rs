@@ -1,4 +1,4 @@
-use swim_ast::{Commented, Expression, ExpressionWithBindings, FunctionDeclaration, TypeDeclaration};
+use swim_ast::{Commented, Expression, ExpressionWithBindings, FunctionDeclaration, ImportStatement, TypeDeclaration};
 use swim_utils::{Identifier, SpannedItem};
 
 use crate::{Bind, Binder, Item};
@@ -73,5 +73,30 @@ impl Bind for FunctionDeclaration {
         binder: &mut Binder,
     ) -> Self::Output {
         binder.insert_function(self)
+    }
+}
+
+impl Bind for ImportStatement {
+    type Output = Option<(Identifier, Item)>;
+
+    fn bind(
+        &self,
+        binder: &mut Binder,
+    ) -> Self::Output {
+        let item = Item::Import {
+            path:  self.path.clone(),
+            alias: self.alias,
+        };
+
+        // the alias, if any, or the last path element if there is no alias
+        let name = self.alias.unwrap_or_else(|| *self.path.last().expect("should never be empty"));
+
+        binder.insert_into_current_scope(name.id, item.clone());
+
+        if self.is_exported() {
+            Some((name, item))
+        } else {
+            None
+        }
     }
 }

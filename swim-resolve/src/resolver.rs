@@ -156,6 +156,8 @@ impl Resolver {
                         // I don't think we have to do anything here but not sure
                     },
                     Binding(_) => todo!(),
+                    Module(_) => todo!(),
+                    Import { path, alias } => todo!(),
                 }
             }
         }

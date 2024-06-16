@@ -38,13 +38,15 @@ idx_map_key!(
    ModuleId
 );
 
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug)]
 pub enum Item {
     Binding(BindingId),
     // the `ScopeId` is the scope of the function body
     Function(FunctionId, ScopeId),
     Type(TypeId),
     FunctionParameter(Ty),
+    Module(ModuleId),
+    Import { path: Box<[Identifier]>, alias: Option<Identifier> },
 }
 
 pub struct Binder {
@@ -194,7 +196,7 @@ impl Binder {
         // and a type binding for the parent type
         let type_id = self.types.insert(ty_decl.clone());
         let type_item = Item::Type(type_id);
-        self.insert_into_current_scope(ty_decl.name.id, type_item);
+        self.insert_into_current_scope(ty_decl.name.id, type_item.clone());
 
         ty_decl.variants.iter().for_each(|variant| {
             let span = variant.span();
@@ -269,6 +271,7 @@ impl Binder {
                 let exports = module.item().nodes.iter().filter_map(|node| match node.item() {
                     swim_ast::AstNode::FunctionDeclaration(decl) => decl.bind(binder),
                     swim_ast::AstNode::TypeDeclaration(decl) => decl.bind(binder),
+                    swim_ast::AstNode::ImportStatement(stmt) => stmt.bind(binder),
                 });
                 let exports = BTreeMap::from_iter(exports);
                 binder.modules.insert(Module {
@@ -330,6 +333,8 @@ mod tests {
                     Item::FunctionParameter(param) => {
                         format!("FunctionParameter {:?}", param)
                     },
+                    Item::Module(_) => todo!(),
+                    Item::Import { path, alias } => todo!(),
                 };
                 result.push_str(&format!("  {}: {}\n", symbol_name, item_description));
             }

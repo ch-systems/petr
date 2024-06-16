@@ -41,6 +41,7 @@ impl PrettyPrint for AstNode {
         let mut string = match self {
             AstNode::FunctionDeclaration(node) => node.pretty_print(interner, indentation),
             AstNode::TypeDeclaration(ty) => ty.pretty_print(interner, indentation),
+            AstNode::ImportStatement(_) => todo!(),
         };
         let indentation_str = "  ".repeat(indentation);
         string = format!("{indentation_str}{string}");

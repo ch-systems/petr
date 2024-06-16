@@ -23,6 +23,18 @@ impl Ast {
 pub enum AstNode {
     FunctionDeclaration(Commented<FunctionDeclaration>),
     TypeDeclaration(Commented<TypeDeclaration>),
+    ImportStatement(Commented<ImportStatement>),
+}
+
+pub struct ImportStatement {
+    pub path:       Box<[Identifier]>,
+    pub alias:      Option<Identifier>,
+    pub visibility: Visibility,
+}
+impl ImportStatement {
+    pub fn is_exported(&self) -> bool {
+        self.visibility == Visibility::Exported
+    }
 }
 
 #[derive(Clone)]
