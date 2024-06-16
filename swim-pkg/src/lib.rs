@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Dependency {
-    name:   String,
-    source: DependencySource,
+    pub name:   String,
+    pub source: DependencySource,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -29,15 +29,15 @@ pub struct LockfileEntry {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GitDependency {
-    url:    String,
-    branch: Option<String>,
-    tag:    Option<String>,
-    rev:    Option<String>,
+    pub url:    String,
+    pub branch: Option<String>,
+    pub tag:    Option<String>,
+    pub rev:    Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PathDependency {
-    path: String,
+    pub path: String,
 }
 
 use std::{fs, path::Path};

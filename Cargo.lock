@@ -1480,12 +1480,15 @@ dependencies = [
  "clap 4.5.4",
  "miette",
  "swim-ir",
+ "swim-manifest",
  "swim-parse",
+ "swim-pkg",
  "swim-resolve",
  "swim-typecheck",
  "swim-utils",
  "swim-vm",
  "thiserror",
+ "toml",
 ]
 
 [[package]]
