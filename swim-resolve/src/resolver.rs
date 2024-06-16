@@ -506,6 +506,7 @@ mod tests {
                         x.args.iter().map(|x| x.to_string(resolver)).collect::<Vec<_>>().join(", ")
                     ),
                     ExprKind::TypeConstructor => todo!(),
+                    ExprKind::ExpressionWithBindings { bindings, expression } => todo!(),
                 }
             }
         }

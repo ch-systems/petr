@@ -6,7 +6,7 @@ use crate::comments::Commented;
 
 // todo rename to parse tree or parsed program
 pub struct Ast {
-    pub nodes: Vec<SpannedItem<Module>>,
+    pub modules: Vec<SpannedItem<Module>>,
 }
 
 pub struct Module {
@@ -16,7 +16,7 @@ pub struct Module {
 
 impl Ast {
     pub fn new(nodes: Vec<SpannedItem<Module>>) -> Ast {
-        Self { nodes }
+        Self { modules: nodes }
     }
 }
 
@@ -30,6 +30,11 @@ pub struct TypeDeclaration {
     pub name:       Identifier,
     pub variants:   Box<[SpannedItem<TypeVariant>]>,
     pub visibility: Visibility,
+}
+impl TypeDeclaration {
+    pub fn is_exported(&self) -> bool {
+        self.visibility == Visibility::Exported
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -51,6 +56,11 @@ pub struct FunctionDeclaration {
     pub return_type: Ty,
     pub body:        SpannedItem<Expression>,
     pub visibility:  Visibility,
+}
+impl FunctionDeclaration {
+    pub fn is_exported(&self) -> bool {
+        self.visibility == Visibility::Exported
+    }
 }
 
 #[derive(Clone)]

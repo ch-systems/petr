@@ -332,6 +332,26 @@ impl Formattable for Ast {
         &self,
         ctx: &mut FormatterContext,
     ) -> FormattedLines {
+        // realistically this will only get called on individual files, so there's only ever one module,
+        // since there's no inline module syntax.
+        let mut lines = Vec::new();
+        for (ix, item) in self.modules.iter().enumerate() {
+            lines.append(&mut item.format(ctx).lines);
+            if ix != self.modules.len() - 1 {
+                for _ in 0..ctx.config.newlines_between_items() {
+                    lines.push(ctx.new_line(""));
+                }
+            }
+        }
+        FormattedLines::new(lines)
+    }
+}
+
+impl Formattable for Module {
+    fn format(
+        &self,
+        ctx: &mut FormatterContext,
+    ) -> FormattedLines {
         let mut lines = Vec::new();
         for (ix, item) in self.nodes.iter().enumerate() {
             lines.append(&mut item.format(ctx).lines);

@@ -301,7 +301,7 @@ impl Parse for IntrinsicCall {
 
 impl Parse for Module {
     fn parse(p: &mut Parser) -> Option<Self> {
-        let module_name = dbg!(p.advance());
+        let module_name = p.advance();
         match module_name.item() {
             Token::NewFile(name) => {
                 let name = p.source_map().get(*name).0;

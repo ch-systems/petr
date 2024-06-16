@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use swim_ast::{Ast, Expression, FunctionDeclaration, FunctionParameter, Ty, TypeDeclaration};
-use swim_utils::{idx_map_key, IndexMap, SymbolId};
+use swim_utils::{idx_map_key, Identifier, IndexMap, SymbolId};
 
 idx_map_key!(
     /// The ID type of a Scope in the Binder.
@@ -33,6 +33,11 @@ idx_map_key!(
     TypeId
 );
 
+idx_map_key!(
+    /// The ID type of a module.
+   ModuleId
+);
+
 #[derive(Clone, Debug, Copy)]
 pub enum Item {
     Binding(BindingId),
@@ -49,6 +54,11 @@ pub struct Binder {
     functions:   IndexMap<FunctionId, FunctionDeclaration>,
     types:       IndexMap<TypeId, TypeDeclaration>,
     modules:     IndexMap<ModuleId, Module>,
+}
+
+pub struct Module {
+    root_scope: ScopeId,
+    exports:    BTreeMap<Identifier, Item>,
 }
 
 pub struct Scope<T> {
@@ -95,6 +105,7 @@ impl Binder {
             functions:   IndexMap::default(),
             types:       IndexMap::default(),
             bindings:    IndexMap::default(),
+            modules:     IndexMap::default(),
         }
     }
 
@@ -174,14 +185,16 @@ impl Binder {
         res
     }
 
+    /// TODO (https://github.com/sezna/swim/issues/33)
     pub(crate) fn insert_type(
         &mut self,
         ty_decl: &TypeDeclaration,
-    ) {
+    ) -> Option<(Identifier, Item)> {
         // insert a function binding for every constructor
         // and a type binding for the parent type
         let type_id = self.types.insert(ty_decl.clone());
-        self.insert_into_current_scope(ty_decl.name.id, Item::Type(type_id));
+        let type_item = Item::Type(type_id);
+        self.insert_into_current_scope(ty_decl.name.id, type_item);
 
         ty_decl.variants.iter().for_each(|variant| {
             let span = variant.span();
@@ -214,12 +227,17 @@ impl Binder {
             let function_id = self.functions.insert(function);
             self.insert_into_current_scope(variant.name.id, Item::Function(function_id, func_scope));
         });
+        if ty_decl.is_exported() {
+            Some((ty_decl.name, type_item))
+        } else {
+            None
+        }
     }
 
     pub(crate) fn insert_function(
         &mut self,
         arg: &FunctionDeclaration,
-    ) {
+    ) -> Option<(Identifier, Item)> {
         let function_id = self.functions.insert(arg.clone());
         let func_body_scope = self.with_scope(|binder, function_body_scope| {
             for param in arg.parameters.iter() {
@@ -227,7 +245,13 @@ impl Binder {
             }
             function_body_scope
         });
-        self.insert_into_current_scope(arg.name.id, Item::Function(function_id, func_body_scope));
+        let item = Item::Function(function_id, func_body_scope);
+        self.insert_into_current_scope(arg.name.id, item.clone());
+        if arg.is_exported() {
+            Some((arg.name, item))
+        } else {
+            None
+        }
     }
 
     pub(crate) fn insert_binding(
@@ -240,13 +264,18 @@ impl Binder {
     pub fn from_ast(ast: &Ast) -> Self {
         let mut binder = Self::new();
 
-        binder.with_scope(|binder, _scope_id| {
-            for node in &ast.nodes {
-                match node.item() {
+        ast.modules.iter().for_each(|module| {
+            binder.with_scope(|binder, scope_id| {
+                let exports = module.item().nodes.iter().filter_map(|node| match node.item() {
                     swim_ast::AstNode::FunctionDeclaration(decl) => decl.bind(binder),
                     swim_ast::AstNode::TypeDeclaration(decl) => decl.bind(binder),
-                }
-            }
+                });
+                let exports = BTreeMap::from_iter(exports);
+                binder.modules.insert(Module {
+                    root_scope: scope_id,
+                    exports,
+                });
+            })
         });
 
         binder
@@ -254,10 +283,11 @@ impl Binder {
 }
 
 pub trait Bind {
+    type Output;
     fn bind(
         &self,
         binder: &mut Binder,
-    );
+    ) -> Self::Output;
 }
 
 #[cfg(test)]
@@ -292,7 +322,7 @@ mod tests {
             for (symbol_id, item) in &scope.items {
                 let symbol_name = interner.get(*symbol_id);
                 let item_description = match item {
-                    Item::Expr(expr_id) => format!("Expr {:?}", expr_id),
+                    Item::Binding(bind_id) => format!("Binding {:?}", bind_id),
                     Item::Function(function_id, _function_scope) => {
                         format!("Function {:?}", function_id)
                     },
@@ -328,12 +358,12 @@ mod tests {
         check(
             "function add(a in 'Int, b in 'Int) returns 'Int + 1 2",
             expect![[r#"
-                    Scope ScopeId(0):
-                      add: Function FunctionId(0)
-                    Scope ScopeId(1):
-                      a: FunctionParameter Named(Identifier { id: SymbolId(2) })
-                      b: FunctionParameter Named(Identifier { id: SymbolId(2) })
-                "#]],
+                Scope ScopeId(0):
+                  add: Function FunctionId(0)
+                Scope ScopeId(1):
+                  a: FunctionParameter Named(Identifier { id: SymbolId(3) })
+                  b: FunctionParameter Named(Identifier { id: SymbolId(3) })
+            "#]],
         );
     }
 
@@ -342,12 +372,12 @@ mod tests {
         check(
             "function add(a in 'Int, b in  'Int) returns 'Int [ 1, 2, 3, 4, 5, 6 ]",
             expect![[r#"
-                    Scope ScopeId(0):
-                      add: Function FunctionId(0)
-                    Scope ScopeId(1):
-                      a: FunctionParameter Named(Identifier { id: SymbolId(2) })
-                      b: FunctionParameter Named(Identifier { id: SymbolId(2) })
-                "#]],
+                Scope ScopeId(0):
+                  add: Function FunctionId(0)
+                Scope ScopeId(1):
+                  a: FunctionParameter Named(Identifier { id: SymbolId(3) })
+                  b: FunctionParameter Named(Identifier { id: SymbolId(3) })
+            "#]],
         );
     }
 }

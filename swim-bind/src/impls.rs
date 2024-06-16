@@ -1,18 +1,22 @@
 use swim_ast::{Commented, Expression, ExpressionWithBindings, FunctionDeclaration, TypeDeclaration};
-use swim_utils::SpannedItem;
+use swim_utils::{Identifier, SpannedItem};
 
 use crate::{Bind, Binder, Item};
 
 impl Bind for TypeDeclaration {
+    type Output = Option<(Identifier, Item)>;
+
     fn bind(
         &self,
         binder: &mut Binder,
-    ) {
-        binder.insert_type(self);
+    ) -> Self::Output {
+        binder.insert_type(self)
     }
 }
 
 impl Bind for Expression {
+    type Output = ();
+
     fn bind(
         &self,
         binder: &mut Binder,
@@ -41,27 +45,33 @@ impl Bind for Expression {
 }
 
 impl<T: Bind> Bind for Commented<T> {
+    type Output = T::Output;
+
     fn bind(
         &self,
         binder: &mut Binder,
-    ) {
+    ) -> Self::Output {
         self.item().bind(binder)
     }
 }
 
 impl<T: Bind> Bind for SpannedItem<T> {
+    type Output = T::Output;
+
     fn bind(
         &self,
         binder: &mut Binder,
-    ) {
+    ) -> Self::Output {
         self.item().bind(binder)
     }
 }
 impl Bind for FunctionDeclaration {
+    type Output = Option<(Identifier, Item)>;
+
     fn bind(
         &self,
         binder: &mut Binder,
-    ) {
-        binder.insert_function(self);
+    ) -> Self::Output {
+        binder.insert_function(self)
     }
 }

@@ -11,7 +11,7 @@ impl PrettyPrint for Ast {
         _indentation: usize,
     ) -> String {
         let mut buf = String::new();
-        for node in &self.nodes {
+        for node in &self.modules {
             buf.push_str(&node.pretty_print(interner, 0));
         }
         buf
