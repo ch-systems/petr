@@ -13,7 +13,7 @@ use std::{
     rc::Rc,
 };
 
-pub use config::FormatterConfig;
+pub use config::{FormatterConfig, FormatterConfigBuilder};
 use constants::{CLOSE_COMMENT_STR, INDENTATION_CHARACTER, OPEN_COMMENT_STR};
 use ctx::FormatterContext;
 use swim_ast::*;

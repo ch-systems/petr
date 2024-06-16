@@ -95,15 +95,15 @@ fn main() {
             }
         },
         Commands::Fmt { path } => {
-            let manifest = swim_pkg::manifest::find_manifest().expect("Failed to find manifest");
+            let manifest = swim_pkg::manifest::find_manifest(Some(path.clone())).expect("Failed to find manifest");
             let files = load_files(&path);
-            swim_fmt::format_sources(files, manifest.formatter).expect("TODO errs");
+            swim_fmt::format_sources(files, manifest.formatter.into()).expect("TODO errs");
         },
     }
 }
 
 fn load_project_and_dependencies(path: &PathBuf) -> (swim_pkg::Lockfile, Vec<(PathBuf, String)>) {
-    let manifest = swim_pkg::manifest::find_manifest().expect("Failed to find manifest");
+    let manifest = swim_pkg::manifest::find_manifest(Some(path.clone())).expect("Failed to find manifest");
     let dependencies = manifest.dependencies;
     let (lockfile, _) = swim_pkg::load_dependencies(dependencies);
 

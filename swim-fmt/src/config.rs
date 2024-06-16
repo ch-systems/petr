@@ -1,6 +1,4 @@
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Serialize, Deserialize, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct FormatterConfig {
     put_fn_params_on_new_lines: bool,
     use_set_notation_for_types: bool,
