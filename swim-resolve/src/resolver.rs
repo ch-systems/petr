@@ -8,6 +8,8 @@ use crate::resolved::{QueryableResolvedItems, ResolvedItems};
 pub enum ResolutionError {
     #[error("Function parameter not found: {0}")]
     FunctionParameterNotFound(String),
+    #[error("Symbol not found: {0}")]
+    NotFound(String),
 }
 
 pub(crate) struct Resolver {
@@ -148,7 +150,19 @@ impl Resolver {
                         // I don't think we have to do anything here but not sure
                     },
                     Binding(_) => todo!(),
-                    Module(_) => todo!(),
+                    // TODO not sure if we can skip this, or if we should resolve it during imports
+                    Module(id) => {
+                        ()
+                        /*
+                        let module = binder.get_module(*id);
+                        let scope = module.root_scope;
+                        let scope = binder.iter_scope(scope);
+                        for (name, item) in scope {
+                            todo!()
+
+                        }
+                        */
+                    },
                     Import { .. } => { // do nothing?
                          // find the module that the import refers to
                          // the first ident is either a top-level module or one that is in this scope
@@ -268,7 +282,8 @@ impl Resolve for FunctionDeclaration {
 
         let body = match self.body.resolve(resolver, binder, scope_id) {
             Some(x) => x,
-            None => todo!("Error recov"),
+            // TODO: could insert a dummy func as an error recovery tactic, so name resolution failures don't cascade
+            None => return None,
         };
 
         Some(Function {
@@ -433,13 +448,19 @@ impl Resolve for swim_ast::FunctionCall {
         let func_name = self.func_name;
         let resolved_id = match binder.find_symbol_in_scope(func_name.id, scope_id) {
             Some(Item::Function(resolved_id, _func_scope)) => resolved_id,
+            Some(Item::Import { path, .. }) => return None,
+            /*
             Some(Item::Import { path, .. }) => {
+                dbg!(&"found import");
                 let mut path_iter = path.iter();
                 let Some(first_item) = binder.find_symbol_in_scope(
                     path_iter.next().expect("import with no items was parsed -- should be an invariant").id,
                     scope_id,
                 ) else {
-                    todo!("push import item not found error")
+                    resolver
+                        .errs
+                        .push(ResolutionError::NotFound(resolver.interner.get(func_name.id).to_string()));
+                    return None;
                 };
 
                 let first_item = match first_item {
@@ -467,6 +488,7 @@ impl Resolve for swim_ast::FunctionCall {
                     None => todo!("func not found error"),
                 }
             },
+            */
             _ => {
                 todo!("push error");
             },

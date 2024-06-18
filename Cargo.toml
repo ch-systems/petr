@@ -11,5 +11,5 @@ members = [
     "swim-resolve",
     "swim-ir",
     "swim-vm",
-    "swim-pkg",
+    "swim-pkg", "swim-profiling",
 ]

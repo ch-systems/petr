@@ -54,14 +54,14 @@ fn main() {
             path,
             time,
         } => {
-            let start = Instant::now();
+            let mut timings = swim_profiling::Timings::default();
+            timings.start("full compile");
+            timings.start("load project and dependencies");
             let (lockfile, buf, _build_plan) = load_project_and_dependencies(&path);
             let lockfile_toml = toml::to_string(&lockfile).expect("Failed to serialize lockfile to TOML");
             fs::write("swim.lock", lockfile_toml).expect("Failed to write lockfile");
-            if time {
-                let duration = start.elapsed();
-                println!("loading project and dependencies time: {:?}", duration);
-            }
+
+            timings.end("load project and dependencies");
 
             // convert pathbufs into strings for the parser
             let buf = buf
@@ -69,56 +69,48 @@ fn main() {
                 .map(|(pathbuf, s)| (pathbuf.to_string_lossy().to_string(), s))
                 .collect::<Vec<_>>();
 
-            let parse_start = Instant::now();
+            timings.start("parse");
             // parse
             let parser = Parser::new(buf);
             let (ast, parse_errs, interner, source_map) = parser.into_result();
-            if time {
-                let duration = parse_start.elapsed();
-                println!("name binding time: {:?}", duration);
-            }
+            timings.end("parse");
+
             render_errors(parse_errs, &source_map);
             // errs.append(&mut parse_errs);
             // resolve symbols
-            let resolution_start = Instant::now();
+            timings.start("symbol resolution");
             let (resolution_errs, resolved) = swim_resolve::resolve_symbols(ast, interner);
-            if time {
-                let duration = resolution_start.elapsed();
-                println!("name resolution time: {:?}", duration);
-            }
+            timings.end("symbol resolution");
+
             // TODO impl diagnostic for resolution errors
             if !resolution_errs.is_empty() {
                 dbg!(&resolution_errs);
             }
             // errs.append(&mut resolution_errs);
 
-            let typecheck_start = Instant::now();
+            timings.start("type check");
             // type check
             let (type_errs, type_checker) = swim_typecheck::type_check(resolved);
 
-            if time {
-                let duration = typecheck_start.elapsed();
-                println!("typechecking time: {:?}", duration);
-            }
+            timings.end("type check");
+
             // TODO impl diagnostic for type errors
             if !type_errs.is_empty() {
                 dbg!(&type_errs);
             }
             // errs.append(&mut type_errs);
 
-            let lowerer_start = Instant::now();
+            timings.start("lowering");
             let lowerer: Lowerer = Lowerer::new(type_checker);
-            if time {
-                let duration = lowerer_start.elapsed();
-                println!("lowering to IR time: {:?}", duration);
-            }
+            timings.end("lowering");
 
             if print_ir {
                 println!("{}", lowerer.pretty_print());
             }
+
             let (data, instructions) = lowerer.finalize();
 
-            let execution_start = Instant::now();
+            timings.start("execution");
             match target.to_lowercase().as_str() {
                 "vm" => {
                     let mut vm = Vm::new(instructions, data);
@@ -129,13 +121,10 @@ fn main() {
                     eprintln!("Invalid target: {}", target);
                 },
             }
-
+            timings.end("execution");
+            timings.end("full compile");
             if time {
-                let duration = execution_start.elapsed();
-                println!("Target execution time: {:?}", duration);
-
-                let total_duration = start.elapsed();
-                println!("Total execution time: {:?}", total_duration);
+                println!("{}", timings.render());
             }
         },
         Commands::Fmt { path, time } => {

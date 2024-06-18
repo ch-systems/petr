@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
 
-use swim_ast::{Ast, Expression, FunctionDeclaration, FunctionParameter, Ty, TypeDeclaration};
+use swim_ast::{Ast, Expression, FunctionDeclaration, Ty, TypeDeclaration};
 use swim_utils::{idx_map_key, Identifier, IndexMap, Path, SymbolId};
 // TODO:
-// i don't know if type cons needs a scope. Might be good to remove that.
+// - i don't know if type cons needs a scope. Might be good to remove that.
+// - replace "scope_chain.last().expect()" with "self.current_scope()" which doesn't return an option
 
 idx_map_key!(
     /// The ID type of a Scope in the Binder.
@@ -286,6 +287,9 @@ impl Binder {
         self.bindings.insert(binding)
     }
 
+    // TODO add optional prefix here:
+    // if Some(p) then this is a dependency, and p should be prepended to the path of each module
+    // If None then this is user code, and no prefix is needed
     pub fn from_ast(ast: &Ast) -> Self {
         let mut binder = Self::new();
 
@@ -298,7 +302,8 @@ impl Binder {
                     swim_ast::AstNode::ImportStatement(stmt) => stmt.bind(binder),
                 });
                 let exports = BTreeMap::from_iter(exports);
-                let module_id = binder.modules.insert(Module {
+                // TODO do I need to track this module id?
+                let _module_id = binder.modules.insert(Module {
                     root_scope: scope_id,
                     exports,
                 });
@@ -308,12 +313,12 @@ impl Binder {
         binder
     }
 
+    /// given a path, create a scope for each segment. The last scope is returned.
+    /// e.g. for the path "a.b.c", create scopes for "a", "b", and "c", and return the scope for "c"
     fn create_scope_from_path(
         &mut self,
         path: &Path,
     ) -> ScopeId {
-        // given a path, create a scope for each segment. The last scope is returned.
-        // e.g. for the path "a.b.c", create scopes for "a", "b", and "c", and return the scope for "c"
         let mut current_scope_id = *self.scope_chain.last().expect("there's always one scope: invariant");
         for segment in path.identifiers.iter() {
             let next_scope = self.create_orphan_scope(ScopeKind::Module(*segment));
@@ -359,32 +364,6 @@ impl Binder {
         self.scopes.insert(Scope::new(kind))
     }
 
-    // // TODO(sezna) replace "scope_chain.last().expect()" with "self.current_scope()" which doesn't return an option
-    // fn insert_module_into_current_scope(
-    //     &mut self,
-    //     name: swim_utils::Path,
-    //     module_item: Item,
-    // ) {
-    //     let mut current_parent_id = *self.scope_chain.last().expect("there's always at least one scope in the chain");
-    //     for (ix, part) in name.identifiers.iter().enumerate() {
-    //         let is_last = ix == name.identifiers.len() - 1;
-    //         let this_scope_id = self.create_orphan_scope(ScopeKind::Module(*part));
-    //         let this_scope = self.scopes.get_mut(this_scope_id);
-    //         let module = if is_last {
-    //             module_item.clone()
-    //         } else {
-    //             Item::Module(self.modules.insert(Module {
-    //                 root_scope: this_scope_id,
-    //                 exports:    BTreeMap::new(),
-    //             }))
-    //         };
-    //         this_scope.parent = Some(current_parent_id);
-    //         let current_parent = self.scopes.get_mut(current_parent_id);
-    //         current_parent.items.insert(part.id, module);
-    //         current_parent_id = this_scope_id;
-    //     }
-    // }
-
     fn with_specified_scope<F, R>(
         &mut self,
         scope: ScopeId,
@@ -398,6 +377,13 @@ impl Binder {
         let res = f(self, scope);
         self.scope_chain = old_scope_chain;
         res
+    }
+
+    pub fn iter_scope(
+        &self,
+        scope: ScopeId,
+    ) -> impl Iterator<Item = (&SymbolId, &Item)> {
+        self.scopes.get(scope).items.iter().map(|(k, v)| (k, v))
     }
 }
 
