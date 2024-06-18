@@ -131,6 +131,7 @@ impl TypeChecker {
             // and the parent type id here
         }
         for (id, func) in self.resolved.functions() {
+            println!("resolved function: {}", func.name.id);
             let typed_function = func.type_check(self);
             self.type_map.insert(
                 id.into(),

@@ -8,14 +8,18 @@ edition = "2021"
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
 swim-parse = { "path" = "../swim-parse" }
-swim-utils = { "path" = "../swim-utils" }
+swim-utils = { "path" = "../swim-utils", optional = true }
 swim-vm = { "path" = "../swim-vm" }
 swim-ir = { "path" = "../swim-ir" }
 swim-fmt = { path = "../swim-fmt" }
 swim-typecheck = { "path" = "../swim-typecheck" }
-swim-resolve = { "path" = "../swim-resolve" }
+swim-resolve = { "path" = "../swim-resolve", optional = true }
 swim-pkg = { "path" = "../swim-pkg" }
 swim-profiling = { path = "../swim-profiling" }
 miette = { version = "7.2.0", features = ["fancy"] }
 thiserror = "1.0.61"
 toml = "0.8.14"
+
+[features]
+debug = ["swim-utils/debug", "swim-resolve/debug"]
+default = ["dep:swim-utils", "dep:swim-resolve"]

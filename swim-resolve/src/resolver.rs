@@ -142,7 +142,6 @@ impl Resolver {
         let scopes_and_ids = binder.scope_iter().collect::<Vec<_>>();
         for (scope_id, scope) in scopes_and_ids {
             for (name, item) in scope.iter() {
-                println!("testing display for name: {}", name);
                 self.resolve_item(item, binder, scope_id)
             }
         }
@@ -155,7 +154,7 @@ impl Resolver {
         scope_id: ScopeId,
     ) {
         use Item::*;
-        match item {
+        match dbg!(item) {
             Function(func, func_scope) => self.resolve_function(binder, *func, *func_scope),
             Type(ty) => self.resolve_type(binder, *ty, scope_id),
             FunctionParameter(_ty) => {
@@ -168,6 +167,7 @@ impl Resolver {
                 let scope_id = module.root_scope;
                 let scope = binder.iter_scope(scope_id);
                 for (name, item) in scope {
+                    println!("resolving module item: {}", name);
                     self.resolve_item(item, binder, scope_id);
                 }
             },
