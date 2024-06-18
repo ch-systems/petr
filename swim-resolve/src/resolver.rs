@@ -141,69 +141,71 @@ impl Resolver {
         // Iterate over the binder's scopes and resolve all symbols
         let scopes_and_ids = binder.scope_iter().collect::<Vec<_>>();
         for (scope_id, scope) in scopes_and_ids {
-            for (_name, item) in scope.iter() {
-                use Item::*;
-                match item {
-                    Function(func, func_scope) => self.resolve_function(binder, *func, *func_scope),
-                    Type(ty) => self.resolve_type(binder, *ty, scope_id),
-                    FunctionParameter(_ty) => {
-                        // I don't think we have to do anything here but not sure
-                    },
-                    Binding(_) => todo!(),
-                    // TODO not sure if we can skip this, or if we should resolve it during imports
-                    Module(id) => {
-                        ()
-                        /*
-                        let module = binder.get_module(*id);
-                        let scope = module.root_scope;
-                        let scope = binder.iter_scope(scope);
-                        for (name, item) in scope {
-                            todo!()
-
-                        }
-                        */
-                    },
-                    Import { .. } => { // do nothing?
-                         // find the module that the import refers to
-                         // the first ident is either a top-level module or one that is in this scope
-                         // let mut path_iter = path.iter();
-                         // let Some(first_item) = binder.find_symbol_in_scope(
-                         //     path_iter.next().expect("import with no items was parsed -- should be an invariant").id,
-                         //     scope_id,
-                         // ) else {
-                         //     todo!("push import item not found error")
-                         // };
-
-                        // let first_item = match first_item {
-                        //     Item::Module(id) => id,
-                        //     _ => todo!("push error -- import path is not a module"),
-                        // };
-
-                        // let mut rover = binder.get_module(*first_item);
-                        // // iterate over the rest of the path to find the path item
-                        // for (ix, item) in path_iter.enumerate() {
-                        //     let is_last = ix == path.len() - 1;
-                        //     let Some(next_symbol) = binder.find_symbol_in_scope(item.id, rover.root_scope) else { todo!("push item not found err") };
-
-                        //     match next_item {
-                        //         Item::Module(id) => rover = binder.get_module(id),
-                        //         otherwise if is_last => {
-                        //             let alias = alias.unwrap_or_else(|| item.name);
-
-                        //         },
-                        //         _ => todo!("push error -- import path item is not a module"),
-                        //     }
-                        // }
-
-                        // todo!()
-                    },
-                }
+            for (name, item) in scope.iter() {
+                println!("testing display for name: {}", name);
+                self.resolve_item(item, binder, scope_id)
             }
         }
-        /*
-        let package = Package { binder, ast };
-        self.packages.insert(package_name, package);
-        */
+    }
+
+    fn resolve_item(
+        &mut self,
+        item: &Item,
+        binder: &Binder,
+        scope_id: ScopeId,
+    ) {
+        use Item::*;
+        match item {
+            Function(func, func_scope) => self.resolve_function(binder, *func, *func_scope),
+            Type(ty) => self.resolve_type(binder, *ty, scope_id),
+            FunctionParameter(_ty) => {
+                // I don't think we have to do anything here but not sure
+            },
+            Binding(_) => todo!(),
+            // TODO not sure if we can skip this, or if we should resolve it during imports
+            Module(id) => {
+                let module = binder.get_module(*id);
+                let scope_id = module.root_scope;
+                let scope = binder.iter_scope(scope_id);
+                for (name, item) in scope {
+                    self.resolve_item(item, binder, scope_id);
+                }
+            },
+            Import { .. } => { // do nothing?
+                 // find the module that the import refers to
+                 // the first ident is either a top-level module or one that is in this scope
+                 // let mut path_iter = path.iter();
+                 // let Some(first_item) = binder.find_symbol_in_scope(
+                 //     path_iter.next().expect("import with no items was parsed -- should be an invariant").id,
+                 //     scope_id,
+                 // ) else {
+                 //     todo!("push import item not found error")
+                 // };
+
+                // let first_item = match first_item {
+                //     Item::Module(id) => id,
+                //     _ => todo!("push error -- import path is not a module"),
+                // };
+
+                // let mut rover = binder.get_module(*first_item);
+                // // iterate over the rest of the path to find the path item
+                // for (ix, item) in path_iter.enumerate() {
+                //     let is_last = ix == path.len() - 1;
+                //     let Some(next_symbol) = binder.find_symbol_in_scope(item.id, rover.root_scope) else { todo!("push item not found err") };
+
+                //     match next_item {
+                //         Item::Module(id) => rover = binder.get_module(id),
+                //         otherwise if is_last => {
+                //             let alias = alias.unwrap_or_else(|| item.name);
+
+                //         },
+                //         _ => todo!("push error -- import path item is not a module"),
+                //     }
+                // }
+
+                // todo!()
+            },
+        }
     }
 
     fn resolve_type(
@@ -540,18 +542,6 @@ impl Resolve for swim_ast::TypeDeclaration {
         Some(TypeDeclaration { name: self.name })
     }
 }
-
-/*
-pub fn resolve(&mut self) -> Vec<ResolvedNode> {
-    // bind the AST
-    self.ast.nodes
-        .into_iter()
-        .map(|node| match node {
-            swim_ast::AstNode::FunctionDeclaration(decl) => decl.resolve(&mut self),
-            swim_ast::AstNode::TypeDeclaration(decl) => decl.bind(&mut self.binder),
-        })
-        .collect()
-        }*/
 
 #[cfg(test)]
 mod tests {

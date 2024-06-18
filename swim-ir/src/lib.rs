@@ -59,7 +59,7 @@ impl Lowerer {
                 // set entry point to func named main
                 type_checker
                     .functions()
-                    .find(|(_func_id, func)| &*type_checker.get_symbol(func.name.id) == "main")
+                    .find(|(_func_id, func)| dbg!(&*type_checker.get_symbol(func.name.id)) == "main")
                     .map(|(id, _)| id)
             },
             function_definitions: BTreeMap::default(),
@@ -85,20 +85,6 @@ impl Lowerer {
             program_section.push(IrOpcode::FunctionLabel(label));
             program_section.append(&mut body);
         }
-
-        // if let Some(entry_point) = self.entry_point {
-        //     // Add entry point function body to the program section
-        //     if let Some(entry_func) = self.function_definitions.get(todo!()) {
-        //         program_section.extend(entry_func.body.clone());
-        //     }
-        // }
-
-        // Add other function bodies to the program section
-        // for func in self.function_definitions.values() {
-        //     if func.label != FunctionLabel::from(0) {
-        //         program_section.extend(func.body.clone());
-        //     }
-        // }
 
         (self.data_section.clone(), program_section)
     }
@@ -310,6 +296,11 @@ impl Lowerer {
         let mut pc = 0;
 
         result.push_str("\n; PROGRAM_SECTION\n");
+        if let Some(entry_point) = self.entry_point {
+            result.push_str(&format!("\tENTRY: {}\n", Into::<usize>::into(entry_point)));
+        } else {
+            result.push_str("\tNO ENTRY POINT\n");
+        }
         for (id, func) in &self.function_definitions {
             result.push_str(&format!(
                 "{}function {}:\n",

@@ -266,10 +266,7 @@ impl Parse for Expression {
             Token::True | Token::False | Token::String | Token::Integer => Some(Expression::Literal(p.parse()?)),
             Token::Intrinsic => Some(Expression::IntrinsicCall(p.parse()?)),
             Token::Let => Some(Expression::Binding(p.parse()?)),
-            a => {
-                println!("need to parse expr {a:?} {}", p.slice());
-                None
-            },
+            _ => None,
         }
     }
 }

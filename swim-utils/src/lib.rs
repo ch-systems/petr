@@ -1,3 +1,7 @@
+//! Turning on the "Debug" feature for this crate will use an inefficient
+//! global lock to store the symbol names and render them as readable.
+//! For production uses, these IDs are turned into usizes.
+
 pub use common_types::*;
 pub use index_map::IndexMap;
 pub use sources::{error_printing::render as render_error, SourceId, Span, SpannedItem};

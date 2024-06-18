@@ -1,8 +1,3 @@
-// TODO:
-// make Commented a struct with a comment field
-// impl Spanned for Commented<SpannedItem<T>> and Commentable for SpannedItem<Commented<T>>
-// impl Spanned for most AST nodes
-
 use swim_utils::{PrettyPrint, SymbolInterner};
 
 use crate::Comment;

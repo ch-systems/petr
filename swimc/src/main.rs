@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf, time::Instant};
+use std::{fs, path::PathBuf};
 
 use clap::Parser as ClapParser;
 use swim_ir::Lowerer;
@@ -16,31 +16,47 @@ struct Cli {
 
 #[derive(ClapParser)]
 enum Commands {
-    #[command(about = "run the program")]
+    #[command(about = "Run the program on a target")]
     Run {
-        #[arg(short, long, help = "target to run on", value_parser = ["vm", "native"], default_value = "vm")]
-        target:   String,
-        #[arg(short = 'i', long, help = "print the IR to stdout")]
-        print_ir: bool,
+        #[arg(short, long, help = "Target to run on", value_parser = ["vm", "native"], default_value = "vm")]
+        target: String,
         #[arg(
             long,
-            help = "path to the directory which contains the swim.toml manifest and src subdir",
+            help = "Path to the directory which contains the swim.toml manifest and src subdir",
             default_value = "."
         )]
-        path:     PathBuf,
-        #[arg(long, help = "print the time it took to execute")]
-        time:     bool,
+        path:   PathBuf,
+        #[arg(short = 'm', long, help = "Print the timings table")]
+        time:   bool,
     },
-    #[command(about = "format all sources in the project")]
-    Fmt {
+    #[command(about = "Print the IR of the program to stdout")]
+    Ir {
         #[arg(
             long,
-            help = "path to the directory which contains the swim.toml manifest and src subdir",
+            help = "Path to the directory which contains the swim.toml manifest and src subdir",
             default_value = "."
         )]
         path: PathBuf,
-        #[arg(long, help = "print the time it took to execute")]
+    },
+    #[command(about = "Format all sources in the project")]
+    Fmt {
+        #[arg(
+            long,
+            help = "Path to the directory which contains the swim.toml manifest and src subdir",
+            default_value = "."
+        )]
+        path: PathBuf,
+        #[arg(short = 'm', long, help = "Print the timings table")]
         time: bool,
+    },
+    #[command(about = "List the project sources")]
+    Ls {
+        #[arg(
+            long,
+            help = "Path to the directory which contains the swim.toml manifest and src subdir",
+            default_value = "."
+        )]
+        path: PathBuf,
     },
 }
 
@@ -48,12 +64,7 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Run {
-            target,
-            print_ir,
-            path,
-            time,
-        } => {
+        Commands::Run { target, path, time } => {
             let mut timings = swim_profiling::Timings::default();
             timings.start("full compile");
             timings.start("load project and dependencies");
@@ -104,10 +115,6 @@ fn main() {
             let lowerer: Lowerer = Lowerer::new(type_checker);
             timings.end("lowering");
 
-            if print_ir {
-                println!("{}", lowerer.pretty_print());
-            }
-
             let (data, instructions) = lowerer.finalize();
 
             timings.start("execution");
@@ -128,16 +135,65 @@ fn main() {
             }
         },
         Commands::Fmt { path, time } => {
-            let start = Instant::now();
+            let mut timings = swim_profiling::Timings::default();
 
             let manifest = swim_pkg::manifest::find_manifest(Some(path.clone())).expect("Failed to find manifest");
+
+            timings.start("load files");
             let files = load_files(&path);
+            timings.end("load files");
+
+            timings.start("format");
             swim_fmt::format_sources(files, manifest.formatter.into()).expect("TODO errs");
+            timings.end("format");
 
             if time {
-                let duration = start.elapsed();
-                println!("Execution time: {:?}", duration);
+                println!("{}", timings.render());
             }
+        },
+        Commands::Ls { path } => {
+            let files = load_files(&path);
+            for (path, _) in files {
+                println!("{}", path.to_string_lossy());
+            }
+        },
+        Commands::Ir { path } => {
+            let (lockfile, buf, _build_plan) = load_project_and_dependencies(&path);
+            let lockfile_toml = toml::to_string(&lockfile).expect("Failed to serialize lockfile to TOML");
+            fs::write("swim.lock", lockfile_toml).expect("Failed to write lockfile");
+
+            // convert pathbufs into strings for the parser
+            let buf = buf
+                .into_iter()
+                .map(|(pathbuf, s)| (pathbuf.to_string_lossy().to_string(), s))
+                .collect::<Vec<_>>();
+
+            // parse
+            let parser = Parser::new(buf);
+            let (ast, parse_errs, interner, source_map) = parser.into_result();
+
+            render_errors(parse_errs, &source_map);
+            // errs.append(&mut parse_errs);
+            // resolve symbols
+            let (resolution_errs, resolved) = swim_resolve::resolve_symbols(ast, interner);
+
+            // TODO impl diagnostic for resolution errors
+            if !resolution_errs.is_empty() {
+                dbg!(&resolution_errs);
+            }
+            // errs.append(&mut resolution_errs);
+
+            // type check
+            let (type_errs, type_checker) = swim_typecheck::type_check(resolved);
+
+            // TODO impl diagnostic for type errors
+            if !type_errs.is_empty() {
+                dbg!(&type_errs);
+            }
+            // errs.append(&mut type_errs);
+            let lowerer: Lowerer = Lowerer::new(type_checker);
+
+            println!("{}", lowerer.pretty_print());
         },
     }
 }
@@ -152,24 +208,26 @@ fn load_project_and_dependencies(path: &PathBuf) -> (swim_pkg::Lockfile, Vec<(Pa
 }
 
 fn load_files(path: &PathBuf) -> Vec<(PathBuf, String)> {
-    let src_path = path.join("src");
-    let files = fs::read_dir(&src_path)
-        .expect("Failed to read src directory")
-        .filter_map(|entry| {
-            let entry = entry.expect("Failed to read directory entry");
-            if entry.path().extension().and_then(|s| s.to_str()) == Some("swim") {
-                Some(entry.path())
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>();
+    let mut buf = Vec::new();
 
-    let mut buf = Vec::with_capacity(files.len());
-    for file in files {
-        let source = fs::read_to_string(&file).expect("Failed to read file");
-        buf.push((file, source));
+    fn read_swim_files(
+        dir: &PathBuf,
+        buf: &mut Vec<(PathBuf, String)>,
+    ) {
+        let entries = fs::read_dir(dir).expect("Failed to read directory");
+        for entry in entries {
+            let entry = entry.expect("Failed to read directory entry");
+            let path = entry.path();
+            if path.is_dir() {
+                read_swim_files(&path, buf);
+            } else if path.extension().and_then(|s| s.to_str()) == Some("swim") {
+                let source = fs::read_to_string(&path).expect("Failed to read file");
+                buf.push((path, source));
+            }
+        }
     }
+
+    read_swim_files(&path.join("src"), &mut buf);
     buf
 }
 

@@ -107,7 +107,6 @@ impl TypeChecker {
 
     fn generic_type(
         &mut self,
-
         id: &Identifier,
     ) -> TypeVariable {
         for scope in self.generics_in_scope.iter().rev() {

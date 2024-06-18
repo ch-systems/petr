@@ -1,6 +1,13 @@
+//! Basic tools and abstractions for profiling performance and timing data and then displaying it.
+
+//! TODO/wishlist:
+//! use a .with(fn) pattern to ensure starts and stops always match
+//! keep a stack to know which events are sub-events of others, and show that in the
+//! table with indentation
+
 use std::{collections::HashMap, time::Duration};
 
-use cli_table::{format::Justify, Cell, CellStruct, Row, RowStruct, Style};
+use cli_table::{format::Justify, Cell, Row, RowStruct, Style};
 
 #[derive(Default)]
 pub struct Timings {

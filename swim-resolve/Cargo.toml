@@ -8,9 +8,13 @@ edition = "2021"
 [dependencies]
 swim-ast = { path = "../swim-ast" }
 swim-bind = { path = "../swim-bind" }
-swim-utils = { path = "../swim-utils" }
+swim-utils = { path = "../swim-utils", optional = true }
 thiserror = "1.0.61"
 
 [dev-dependencies]
 swim-parse = { path = "../swim-parse" }
 expect-test = "1.5.0"
+
+[features]
+debug = ["swim-utils/debug"]
+default = ["dep:swim-utils"]
