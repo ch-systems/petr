@@ -1,7 +1,7 @@
 use swim_ast::{Commented, Expression, ExpressionWithBindings, FunctionDeclaration, ImportStatement, TypeDeclaration};
 use swim_utils::{Identifier, SpannedItem};
 
-use crate::{Bind, Binder, Item};
+use crate::{binder::ScopeKind, Bind, Binder, Item};
 
 impl Bind for TypeDeclaration {
     type Output = Option<(Identifier, Item)>;
@@ -24,14 +24,12 @@ impl Bind for Expression {
         // only lists get their own scope for now
         match self {
             Expression::List(list) => {
-                binder.with_scope(|binder, _scope_id| {
-                    for item in list.elements.iter() {
-                        item.bind(binder);
-                    }
-                });
+                for item in list.elements.iter() {
+                    item.bind(binder);
+                }
             },
             Expression::Binding(ExpressionWithBindings { bindings, expression }) => {
-                binder.with_scope(|binder, _scope_id| {
+                binder.with_scope(ScopeKind::ExpressionWithBindings, |binder, _scope_id| {
                     for binding in bindings.iter() {
                         let binding_id = binder.insert_binding(*expression.clone());
                         binder.insert_into_current_scope(binding.name.id, Item::Binding(binding_id));

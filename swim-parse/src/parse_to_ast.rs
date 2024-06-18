@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 // using this crate's Parser, parse an AST.
 use swim_ast::*;
-use swim_utils::{Identifier, SpannedItem};
+use swim_utils::{Identifier, Path, SpannedItem};
 
 use crate::{
     parser::{Parse, ParseErrorKind, Token},
@@ -327,8 +327,20 @@ impl Parse for Module {
         match module_name.item() {
             Token::NewFile(name) => {
                 let name = p.source_map().get(*name).0;
-                let identifier_id = p.intern(Rc::from(name));
-                let name = Identifier { id: identifier_id };
+                let name = match file_name_to_module_name(name) {
+                    Ok(o) => o,
+                    Err(e) => {
+                        p.push_error(p.span().with_item(e));
+                        return None;
+                    },
+                };
+                // intern all identifiers in the name
+                let identifiers = name
+                    .into_iter()
+                    .map(|id| Identifier { id: p.intern(id) })
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice();
+                let name = Path { identifiers };
                 let nodes: Vec<_> = p.many::<SpannedItem<AstNode>>();
                 Some(Module { name, nodes })
             },
@@ -340,4 +352,68 @@ impl Parse for Module {
             },
         }
     }
+}
+
+/// given a file path, construct a module name.
+/// In an OS-independent way, finds the last `/src` in the path and uses the path after that.
+/// Removes slashes, converts hyphens to underscores, and removes the `.swim` extension.
+/// Returns a parse error if the name is not a valid identifier after these transformations.
+/// A name is not a valid identifier if it contains spaces, starts with a number, or contains any symbols.
+fn file_name_to_module_name(name: &str) -> Result<Vec<Rc<str>>, ParseErrorKind> {
+    use std::path::Path;
+    let path = Path::new(name);
+    let name = path
+        .components()
+        .rev()
+        .take_while(|comp| comp.as_os_str() != "src")
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .map(|comp| comp.as_os_str().to_string_lossy().replace("-", "_").replace(".swim", ""))
+        .map(Rc::from)
+        .collect::<Vec<_>>();
+    if name.iter().any(|part| !is_valid_identifier(part)) {
+        return Err(ParseErrorKind::InvalidIdentifier(name.join(",")));
+    }
+    Ok(name)
+}
+
+fn is_valid_identifier(name: &str) -> bool {
+    let mut chars = name.chars();
+    if let Some(first) = chars.next() {
+        if !first.is_alphabetic() && first != '_' {
+            return false;
+        }
+    }
+    chars.all(|c| c.is_alphanumeric() || c == '_')
+}
+#[test]
+fn test_file_name_to_module_name_simple() {
+    let file_name = "src/main.swim";
+    let expected = vec!["main".to_string()];
+    let result = file_name_to_module_name(file_name).unwrap();
+    assert_eq!(result, expected);
+}
+
+#[test]
+fn test_file_name_to_module_name_with_hyphen() {
+    let file_name = "src/my-module.swim";
+    let expected = vec!["my_module".to_string()];
+    let result = file_name_to_module_name(file_name).unwrap();
+    assert_eq!(result, expected);
+}
+
+#[test]
+fn test_file_name_to_module_name_nested_directory() {
+    let file_name = "src/subdir/mysubmodule.swim";
+    let expected = vec!["subdir".to_string(), "mysubmodule".to_string()];
+    let result = file_name_to_module_name(file_name).unwrap();
+    assert_eq!(result, expected);
+}
+
+#[test]
+fn test_file_name_to_module_name_invalid_identifier() {
+    let file_name = "src/123invalid.swim";
+    let result = file_name_to_module_name(file_name);
+    assert!(result.is_err());
 }

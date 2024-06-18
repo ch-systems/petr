@@ -1,5 +1,4 @@
 use swim_ast::{Ast, Commented, Expression, FunctionDeclaration, FunctionParameter};
-pub use swim_ast::{Intrinsic as IntrinsicName, Literal, Ty};
 use swim_bind::{Binder, FunctionId, Item, ScopeId, TypeId};
 use swim_utils::{Identifier, SpannedItem, SymbolInterner};
 use thiserror::Error;
@@ -434,7 +433,7 @@ impl Resolve for swim_ast::FunctionCall {
         let func_name = self.func_name;
         let resolved_id = match binder.find_symbol_in_scope(func_name.id, scope_id) {
             Some(Item::Function(resolved_id, _func_scope)) => resolved_id,
-            Some(Item::Import { path, alias }) => {
+            Some(Item::Import { path, .. }) => {
                 let mut path_iter = path.iter();
                 let Some(first_item) = binder.find_symbol_in_scope(
                     path_iter.next().expect("import with no items was parsed -- should be an invariant").id,

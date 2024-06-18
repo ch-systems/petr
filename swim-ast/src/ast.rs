@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use swim_utils::{Identifier, SpannedItem};
+use swim_utils::{Identifier, Path, SpannedItem};
 
 use crate::comments::Commented;
 
@@ -10,7 +10,7 @@ pub struct Ast {
 }
 
 pub struct Module {
-    pub name:  Identifier,
+    pub name:  Path,
     pub nodes: Vec<SpannedItem<AstNode>>,
 }
 

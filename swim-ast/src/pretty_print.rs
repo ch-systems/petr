@@ -24,7 +24,7 @@ impl PrettyPrint for Module {
         interner: &SymbolInterner,
         indentation: usize,
     ) -> String {
-        let mut buf = format!("{}module {} =\n", "  ".repeat(indentation), interner.get(self.name.id));
+        let mut buf = format!("{}module {} =\n", "  ".repeat(indentation), interner.get_path(&self.name));
         for node in &self.nodes {
             buf.push_str(&node.pretty_print(interner, 0));
         }

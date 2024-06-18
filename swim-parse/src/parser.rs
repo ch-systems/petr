@@ -88,6 +88,12 @@ pub enum ParseErrorKind {
     ExpectedOneOf(Vec<Token>, Token),
     #[error("Internal error in parser. Please file an issue on GitHub. {0}")]
     InternalError(String),
+    #[error("File name could not be converted to module name. Swim source names should be a valid identifier.")]
+    #[help(
+        "Identifiers cannot begin with numbers, contain spaces, or contain symbols other than an underscore or hyphen.\
+     Hyphens in file names are transformed into underscores."
+    )]
+    InvalidIdentifier(String),
 }
 impl ParseErrorKind {
     pub fn into_err(self) -> ParseError {

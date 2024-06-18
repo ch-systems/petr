@@ -9,6 +9,11 @@ pub struct Identifier {
     pub id: SymbolId,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Path {
+    pub identifiers: Box<[Identifier]>,
+}
+
 idx_map_key!(
     /// The ID of an ident in the symbol interner
     SymbolId
@@ -35,5 +40,12 @@ impl SymbolInterner {
         id: SymbolId,
     ) -> Rc<str> {
         self.symbol_map.get(id).clone()
+    }
+
+    pub fn get_path(
+        &self,
+        path: &Path,
+    ) -> Rc<str> {
+        Rc::from(path.identifiers.iter().map(|id| self.get(id.id)).collect::<Vec<_>>().join("."))
     }
 }

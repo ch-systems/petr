@@ -1,7 +1,9 @@
 use std::collections::BTreeMap;
 
 use swim_ast::{Ast, Expression, FunctionDeclaration, FunctionParameter, Ty, TypeDeclaration};
-use swim_utils::{idx_map_key, Identifier, IndexMap, SymbolId};
+use swim_utils::{idx_map_key, Identifier, IndexMap, Path, SymbolId};
+// TODO:
+// i don't know if type cons needs a scope. Might be good to remove that.
 
 idx_map_key!(
     /// The ID type of a Scope in the Binder.
@@ -56,8 +58,10 @@ pub struct Binder {
     functions:   IndexMap<FunctionId, FunctionDeclaration>,
     types:       IndexMap<TypeId, TypeDeclaration>,
     modules:     IndexMap<ModuleId, Module>,
+    root_scope:  ScopeId,
 }
 
+#[derive(Debug)]
 pub struct Module {
     pub root_scope: ScopeId,
     pub exports:    BTreeMap<Identifier, Item>,
@@ -66,19 +70,26 @@ pub struct Module {
 pub struct Scope<T> {
     parent: Option<ScopeId>,
     items:  BTreeMap<SymbolId, T>,
+    kind:   ScopeKind,
 }
 
-impl<T> Default for Scope<T> {
-    fn default() -> Self {
-        Self::new()
-    }
+/// Mainly just used for debugging what generated this scope.
+#[derive(Clone, Copy, Debug)]
+pub enum ScopeKind {
+    Module(Identifier),
+    Function,
+    Root,
+    TypeConstructor,
+    // an expression with `let`s
+    ExpressionWithBindings,
 }
 
 impl<T> Scope<T> {
-    pub fn new() -> Self {
+    pub fn new(kind: ScopeKind) -> Self {
         Self {
             parent: None,
-            items:  BTreeMap::new(),
+            items: BTreeMap::new(),
+            kind,
         }
     }
 
@@ -101,13 +112,21 @@ impl<T> Scope<T> {
 
 impl Binder {
     fn new() -> Self {
+        let mut scopes = IndexMap::default();
+        let root_scope = Scope {
+            parent: None,
+            items:  Default::default(),
+            kind:   ScopeKind::Root,
+        };
+        let root_scope = scopes.insert(root_scope);
         Self {
-            scopes:      IndexMap::default(),
-            scope_chain: Vec::new(),
-            functions:   IndexMap::default(),
-            types:       IndexMap::default(),
-            bindings:    IndexMap::default(),
-            modules:     IndexMap::default(),
+            scopes,
+            scope_chain: vec![root_scope],
+            root_scope,
+            functions: IndexMap::default(),
+            types: IndexMap::default(),
+            bindings: IndexMap::default(),
+            modules: IndexMap::default(),
         }
     }
 
@@ -157,12 +176,15 @@ impl Binder {
         self.scopes.get_mut(*scope_id).insert(name, item);
     }
 
-    fn push_scope(&mut self) -> ScopeId {
+    fn push_scope(
+        &mut self,
+        kind: ScopeKind,
+    ) -> ScopeId {
         let parent_id = self.scope_chain.last().cloned();
 
         let id = self.scopes.insert(Scope {
             parent: parent_id,
-            ..Scope::new()
+            ..Scope::new(kind)
         });
 
         self.scope_chain.push(id);
@@ -176,12 +198,13 @@ impl Binder {
 
     pub fn with_scope<F, R>(
         &mut self,
+        kind: ScopeKind,
         f: F,
     ) -> R
     where
         F: FnOnce(&mut Self, ScopeId) -> R,
     {
-        let id = self.push_scope();
+        let id = self.push_scope(kind);
         let res = f(self, id);
         self.pop_scope();
         res
@@ -201,7 +224,7 @@ impl Binder {
         ty_decl.variants.iter().for_each(|variant| {
             let span = variant.span();
             let variant = variant.item();
-            let (fields_as_parameters, func_scope) = self.with_scope(|_, scope| {
+            let (fields_as_parameters, func_scope) = self.with_scope(ScopeKind::TypeConstructor, |_, scope| {
                 (
                     variant
                         .fields
@@ -241,7 +264,7 @@ impl Binder {
         arg: &FunctionDeclaration,
     ) -> Option<(Identifier, Item)> {
         let function_id = self.functions.insert(arg.clone());
-        let func_body_scope = self.with_scope(|binder, function_body_scope| {
+        let func_body_scope = self.with_scope(ScopeKind::Function, |binder, function_body_scope| {
             for param in arg.parameters.iter() {
                 binder.insert_into_current_scope(param.name.id, Item::FunctionParameter(param.ty));
             }
@@ -267,21 +290,52 @@ impl Binder {
         let mut binder = Self::new();
 
         ast.modules.iter().for_each(|module| {
-            binder.with_scope(|binder, scope_id| {
+            let module_scope = binder.create_scope_from_path(&module.name);
+            binder.with_specified_scope(module_scope, |binder, scope_id| {
                 let exports = module.nodes.iter().filter_map(|node| match node.item() {
                     swim_ast::AstNode::FunctionDeclaration(decl) => decl.bind(binder),
                     swim_ast::AstNode::TypeDeclaration(decl) => decl.bind(binder),
                     swim_ast::AstNode::ImportStatement(stmt) => stmt.bind(binder),
                 });
                 let exports = BTreeMap::from_iter(exports);
-                binder.modules.insert(Module {
+                let module_id = binder.modules.insert(Module {
                     root_scope: scope_id,
                     exports,
                 });
-            })
+            });
         });
 
         binder
+    }
+
+    fn create_scope_from_path(
+        &mut self,
+        path: &Path,
+    ) -> ScopeId {
+        // given a path, create a scope for each segment. The last scope is returned.
+        // e.g. for the path "a.b.c", create scopes for "a", "b", and "c", and return the scope for "c"
+        let mut current_scope_id = *self.scope_chain.last().expect("there's always one scope: invariant");
+        for segment in path.identifiers.iter() {
+            let next_scope = self.create_orphan_scope(ScopeKind::Module(*segment));
+            let module = Module {
+                root_scope: next_scope,
+                exports:    BTreeMap::new(),
+            };
+            let module_id = self.modules.insert(module);
+            self.insert_into_specified_scope(current_scope_id, *segment, Item::Module(module_id));
+            current_scope_id = next_scope
+        }
+        current_scope_id
+    }
+
+    pub fn insert_into_specified_scope(
+        &mut self,
+        scope: ScopeId,
+        name: Identifier,
+        item: Item,
+    ) {
+        let scope = self.scopes.get_mut(scope);
+        scope.insert(name.id, item);
     }
 
     pub fn get_module(
@@ -296,6 +350,54 @@ impl Binder {
         binding_id: BindingId,
     ) -> &Expression {
         self.bindings.get(binding_id)
+    }
+
+    pub fn create_orphan_scope(
+        &mut self,
+        kind: ScopeKind,
+    ) -> ScopeId {
+        self.scopes.insert(Scope::new(kind))
+    }
+
+    // // TODO(sezna) replace "scope_chain.last().expect()" with "self.current_scope()" which doesn't return an option
+    // fn insert_module_into_current_scope(
+    //     &mut self,
+    //     name: swim_utils::Path,
+    //     module_item: Item,
+    // ) {
+    //     let mut current_parent_id = *self.scope_chain.last().expect("there's always at least one scope in the chain");
+    //     for (ix, part) in name.identifiers.iter().enumerate() {
+    //         let is_last = ix == name.identifiers.len() - 1;
+    //         let this_scope_id = self.create_orphan_scope(ScopeKind::Module(*part));
+    //         let this_scope = self.scopes.get_mut(this_scope_id);
+    //         let module = if is_last {
+    //             module_item.clone()
+    //         } else {
+    //             Item::Module(self.modules.insert(Module {
+    //                 root_scope: this_scope_id,
+    //                 exports:    BTreeMap::new(),
+    //             }))
+    //         };
+    //         this_scope.parent = Some(current_parent_id);
+    //         let current_parent = self.scopes.get_mut(current_parent_id);
+    //         current_parent.items.insert(part.id, module);
+    //         current_parent_id = this_scope_id;
+    //     }
+    // }
+
+    fn with_specified_scope<F, R>(
+        &mut self,
+        scope: ScopeId,
+        f: F,
+    ) -> R
+    where
+        F: FnOnce(&mut Self, ScopeId) -> R,
+    {
+        let old_scope_chain = self.scope_chain.clone();
+        self.scope_chain = vec![self.root_scope, scope];
+        let res = f(self, scope);
+        self.scope_chain = old_scope_chain;
+        res
     }
 }
 
@@ -334,8 +436,20 @@ mod tests {
         interner: &SymbolInterner,
     ) -> String {
         let mut result = String::new();
+        result.push_str("__Scopes__\n");
         for (scope_id, scope) in binder.scopes.iter() {
-            result.push_str(&format!("Scope {:?}:\n", scope_id));
+            result.push_str(&format!(
+                "{}: {} (parent {}):\n",
+                Into::<usize>::into(scope_id),
+                match scope.kind {
+                    ScopeKind::Module(name) => format!("Module {}", interner.get(name.id)),
+                    ScopeKind::Function => "Function".into(),
+                    ScopeKind::Root => "Root".into(),
+                    ScopeKind::TypeConstructor => "Type Cons".into(),
+                    ScopeKind::ExpressionWithBindings => "Expr w/ Bindings".into(),
+                },
+                scope.parent.map(|x| x.to_string()).unwrap_or_else(|| "none".into())
+            ));
             for (symbol_id, item) in &scope.items {
                 let symbol_name = interner.get(*symbol_id);
                 let item_description = match item {
@@ -347,7 +461,9 @@ mod tests {
                     Item::FunctionParameter(param) => {
                         format!("FunctionParameter {:?}", param)
                     },
-                    Item::Module(_) => todo!(),
+                    Item::Module(a) => {
+                        format!("Module {:?}", binder.modules.get(*a))
+                    },
                     Item::Import { path, alias } => todo!(),
                 };
                 result.push_str(&format!("  {}: {}\n", symbol_name, item_description));
@@ -361,15 +477,18 @@ mod tests {
         check(
             "type trinary_boolean = True | False | maybe ",
             expect![[r#"
-                    Scope ScopeId(0):
-                      trinary_boolean: Type TypeId(0)
-                      True: Function FunctionId(0)
-                      False: Function FunctionId(1)
-                      maybe: Function FunctionId(2)
-                    Scope ScopeId(1):
-                    Scope ScopeId(2):
-                    Scope ScopeId(3):
-                "#]],
+                __Scopes__
+                0: Root (parent none):
+                  test: Module Module { root_scope: ScopeId(1), exports: {} }
+                1: Module test (parent none):
+                  trinary_boolean: Type TypeId(0)
+                  True: Function FunctionId(0)
+                  False: Function FunctionId(1)
+                  maybe: Function FunctionId(2)
+                2: Type Cons (parent scopeid1):
+                3: Type Cons (parent scopeid1):
+                4: Type Cons (parent scopeid1):
+            "#]],
         );
     }
     #[test]
@@ -377,9 +496,12 @@ mod tests {
         check(
             "function add(a in 'Int, b in 'Int) returns 'Int + 1 2",
             expect![[r#"
-                Scope ScopeId(0):
+                __Scopes__
+                0: Root (parent none):
+                  test: Module Module { root_scope: ScopeId(1), exports: {} }
+                1: Module test (parent none):
                   add: Function FunctionId(0)
-                Scope ScopeId(1):
+                2: Function (parent scopeid1):
                   a: FunctionParameter Named(Identifier { id: SymbolId(3) })
                   b: FunctionParameter Named(Identifier { id: SymbolId(3) })
             "#]],
@@ -391,9 +513,12 @@ mod tests {
         check(
             "function add(a in 'Int, b in  'Int) returns 'Int [ 1, 2, 3, 4, 5, 6 ]",
             expect![[r#"
-                Scope ScopeId(0):
+                __Scopes__
+                0: Root (parent none):
+                  test: Module Module { root_scope: ScopeId(1), exports: {} }
+                1: Module test (parent none):
                   add: Function FunctionId(0)
-                Scope ScopeId(1):
+                2: Function (parent scopeid1):
                   a: FunctionParameter Named(Identifier { id: SymbolId(3) })
                   b: FunctionParameter Named(Identifier { id: SymbolId(3) })
             "#]],

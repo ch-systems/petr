@@ -6,8 +6,6 @@ use std::{
 
 use structopt::StructOpt;
 use swim_fmt::{ctx::FormatterContext, format_sources, Formattable};
-use swim_parse::Parser;
-use swim_utils::render_error;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "formatter")]
