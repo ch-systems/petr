@@ -54,7 +54,7 @@ impl Resolve for petr_ast::Ty {
                 Some(Item::Type(id)) => Type::Named(*id),
                 Some(_) => {
                     todo!("push error -- symbol is not type");
-                    return None;
+                    // return None;
                 },
                 None => Type::Generic(*name),
             },
@@ -141,7 +141,7 @@ impl Resolver {
         // Iterate over the binder's scopes and resolve all symbols
         let scopes_and_ids = binder.scope_iter().collect::<Vec<_>>();
         for (scope_id, scope) in scopes_and_ids {
-            for (name, item) in scope.iter() {
+            for (_name, item) in scope.iter() {
                 self.resolve_item(item, binder, scope_id)
             }
         }
@@ -335,19 +335,21 @@ impl Resolve for Expression {
                 let item = match binder.find_symbol_in_scope(var.id, scope_id) {
                     Some(item @ Item::FunctionParameter(_) | item @ Item::Binding(_)) => item,
                     _ => todo!("variable references non-variable item"),
+                    /*
                     None => {
                         let var_name = resolver.interner.get(var.id);
                         todo!();
                         // resolver.errs.push(ResolutionError::NotFound(var_name.to_string()));
                         return None;
                     },
+                    */
                 };
                 match item {
                     Item::Binding(binding_id) => {
                         // TODO not sure what to do here
-                        let binding = binder.get_binding(*binding_id);
-
-                        Expr::new(ExprKind::Variable { name: *var, ty: todo!() })
+                        let _binding = binder.get_binding(*binding_id);
+                        todo!()
+                        //Expr::new(ExprKind::Variable { name: *var, ty: todo!() })
                     },
                     Item::FunctionParameter(ty) => {
                         let ty = match ty.resolve(resolver, binder, scope_id) {
@@ -355,7 +357,7 @@ impl Resolve for Expression {
 
                             None => {
                                 todo!("not found err");
-                                Type::ErrorRecovery
+                                // Type::ErrorRecovery
                             },
                         };
 
@@ -600,7 +602,7 @@ mod tests {
                         x.args.iter().map(|x| x.to_string(resolver)).collect::<Vec<_>>().join(", ")
                     ),
                     ExprKind::TypeConstructor => todo!(),
-                    ExprKind::ExpressionWithBindings { bindings, expression } => todo!(),
+                    ExprKind::ExpressionWithBindings { .. } => todo!(),
                 }
             }
         }

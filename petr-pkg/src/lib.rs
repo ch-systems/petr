@@ -65,7 +65,7 @@ pub fn load_dependencies(deps: BTreeMap<String, Dependency>) -> (Lockfile, Build
     let mut entries = Vec::new();
     let mut files = Vec::new();
 
-    for (dep_name, dep_source) in deps {
+    for (_dep_name, dep_source) in deps {
         let dep = match dep_source {
             Dependency::Git(ref git_dep) => load_git_dependency(git_dep),
             Dependency::Path(ref path_dep) => load_path_dependency(path_dep, path_dep.path.clone()),

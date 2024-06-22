@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables)]
 use std::process::Command;
 
 use cranelift::{
@@ -97,7 +98,7 @@ impl IrContext {
         let mut builder = FunctionBuilder::new(&mut ctx.func, &mut builder_ctx);
         builder.func.signature = sig;
 
-        self.lower_function_body(&function, &mut builder);
+        self.lower_function_body(&function, &mut builder).expect("TODO err");
         self.module
             .define_function(func_id, &mut ctx)
             .map_err(|e| IrErrorKind::GenericIRError(e.to_string()))?;
@@ -121,8 +122,8 @@ impl IrContext {
 
     fn lower_function_body(
         &self,
-        function: &petr_ir::Function,
-        builder: &mut FunctionBuilder,
+        _function: &petr_ir::Function,
+        _builder: &mut FunctionBuilder,
     ) -> Result<(), IrError> {
         todo!()
         // let entry_block = builder.create_block();

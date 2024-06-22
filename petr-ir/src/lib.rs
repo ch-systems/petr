@@ -7,7 +7,7 @@
 
 use std::{collections::BTreeMap, rc::Rc};
 
-use petr_typecheck::{petrType, Function as TypeCheckedFunction, FunctionId, TypeChecker, TypeVariable, TypedExpr};
+use petr_typecheck::{Function as TypeCheckedFunction, FunctionId, TypeChecker, TypeVariable, TypedExpr};
 use petr_utils::{Identifier, IndexMap, SymbolId};
 
 mod error;
@@ -215,7 +215,7 @@ impl Lowerer {
         param_ty: &TypeVariable,
     ) -> IrTy {
         let realized_ty = self.type_checker.realize_type(param_ty);
-        use petrType::*;
+        use petr_typecheck::PetrType::*;
         match realized_ty {
             Unit => IrTy::Unit,
             Integer => IrTy::Int64,
@@ -311,7 +311,7 @@ impl Lowerer {
     }
 }
 
-type VariableScope = BTreeMap<SymbolId, Reg>;
+// type VariableScope = BTreeMap<SymbolId, Reg>;
 
 enum ReturnDestination {
     Reg(Reg),
@@ -322,6 +322,7 @@ fn fits_in_reg(_: &TypeVariable) -> bool {
     true
 }
 
+#[allow(dead_code)]
 fn literal_to_ir_ty(param_ty: petr_typecheck::Literal) -> IrTy {
     use petr_typecheck::Literal::*;
     match param_ty {

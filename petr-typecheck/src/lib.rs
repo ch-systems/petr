@@ -59,7 +59,7 @@ pub struct TypeChecker {
 
 pub type TypeVariable = Type<&'static str>;
 
-pub enum petrType {
+pub enum PetrType {
     Unit,
     Integer,
     Boolean,
@@ -73,17 +73,17 @@ impl TypeChecker {
     pub fn realize_type(
         &self,
         ty: &TypeVariable,
-    ) -> petrType {
+    ) -> PetrType {
         let ty = ty.clone();
         let int_ty = tp!(int);
         let bool_ty = tp!(bool);
         let unit_ty = tp!(unit);
         let string_ty = tp!(string);
         match ty {
-            ty if ty == int_ty => petrType::Integer,
-            ty if ty == bool_ty => petrType::Boolean,
-            ty if ty == unit_ty => petrType::Unit,
-            ty if ty == string_ty => petrType::String,
+            ty if ty == int_ty => PetrType::Integer,
+            ty if ty == bool_ty => PetrType::Boolean,
+            ty if ty == unit_ty => PetrType::Unit,
+            ty if ty == string_ty => PetrType::String,
             other => todo!("{other:?}"),
         }
     }
@@ -390,7 +390,7 @@ impl TypeCheck for Expr {
                 // type constructor expressions take inputs that should line up with a type decl and return a type
                 todo!()
             },
-            ExprKind::ExpressionWithBindings { bindings, expression } => todo!(),
+            ExprKind::ExpressionWithBindings { .. } => todo!(),
         }
     }
 }

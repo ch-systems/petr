@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{Dependency, GitDependency};
+use crate::Dependency;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Manifest {
@@ -109,7 +109,7 @@ fn what_is_my_manifest_format() {
         formatter:    Default::default(),
         dependencies: BTreeMap::from_iter(vec![(
             "std".to_string(),
-            Dependency::Git(GitDependency {
+            Dependency::Git(crate::GitDependency {
                 git:    "https://github.com/sezna/petr-std".into(),
                 branch: None,
                 tag:    None,

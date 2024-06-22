@@ -43,7 +43,7 @@ impl Timings {
     }
 
     pub fn render(&self) -> String {
-        let unended = self.pending.iter().filter(|(k, v)| !v.is_empty()).collect::<Vec<_>>();
+        let unended = self.pending.iter().filter(|(_k, v)| !v.is_empty()).collect::<Vec<_>>();
         if !unended.is_empty() {
             eprintln!("Profiling error: some events were not ended");
             eprintln!("{:?}", unended);
