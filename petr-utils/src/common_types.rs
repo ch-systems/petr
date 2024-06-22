@@ -5,7 +5,9 @@ use std::rc::Rc;
 #[cfg(feature = "debug")]
 use lazy_static::lazy_static;
 
-use crate::{idx_map_key, IndexMap};
+#[cfg(not(feature = "debug"))]
+use crate::idx_map_key;
+use crate::IndexMap;
 #[cfg(feature = "debug")]
 lazy_static! {
     pub static ref SYMBOL_INTERNER: std::sync::RwLock<Vec<String>> = std::sync::RwLock::new(Vec::new());

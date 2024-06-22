@@ -131,7 +131,6 @@ impl TypeChecker {
             // and the parent type id here
         }
         for (id, func) in self.resolved.functions() {
-            println!("resolved function: {}", func.name.id);
             let typed_function = func.type_check(self);
             self.type_map.insert(
                 id.into(),
@@ -356,7 +355,6 @@ impl TypeCheck for Expr {
                 // unify args with params
                 // return the func return type
                 let func_decl = ctx.get_untyped_function(call.function).clone();
-                dbg!(&call.args.len(), func_decl.params.len());
                 if call.args.len() != func_decl.params.len() {
                     ctx.push_error(TypeCheckErrorKind::ArgumentCountMismatch {
                         expected: func_decl.params.len(),

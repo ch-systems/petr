@@ -154,7 +154,7 @@ impl Resolver {
         scope_id: ScopeId,
     ) {
         use Item::*;
-        match dbg!(item) {
+        match item {
             Function(func, func_scope) => self.resolve_function(binder, *func, *func_scope),
             Type(ty) => self.resolve_type(binder, *ty, scope_id),
             FunctionParameter(_ty) => {
@@ -166,11 +166,7 @@ impl Resolver {
                 let module = binder.get_module(*id);
                 let scope_id = module.root_scope;
                 let scope = binder.iter_scope(scope_id);
-                for (name, item) in scope {
-                    println!("resolving module item: {}", name);
-                    if format!("{}", name).as_str() == "main" {
-                        dbg!(&item);
-                    };
+                for (_name, item) in scope {
                     self.resolve_item(item, binder, scope_id);
                 }
             },
@@ -237,10 +233,8 @@ impl Resolver {
         // - the body
         let func = binder.get_function(func_id).clone();
         let Some(func) = func.resolve(self, binder, scope_id) else {
-            println!("could not find function");
             return;
         };
-        println!("inserted function into self.resolved: {}", func.name.id);
         self.resolved.insert_function(func_id, func);
     }
 
@@ -458,11 +452,9 @@ impl Resolve for petr_ast::FunctionCall {
         let resolved_id = match binder.find_symbol_in_scope(func_name.id, scope_id) {
             Some(Item::Function(resolved_id, _func_scope)) => resolved_id,
             Some(Item::Import { path, .. }) => {
-                dbg!(&"found import");
                 let mut path_iter = path.iter();
                 let Some(first_item) = ({
                     let item = path_iter.next().expect("import with no items was parsed -- should be an invariant");
-                    println!("in function call resolution, looking for path item {}", item.id);
                     binder.find_symbol_in_scope(item.id, scope_id)
                 }) else {
                     resolver
@@ -480,7 +472,7 @@ impl Resolve for petr_ast::FunctionCall {
                 // iterate over the rest of the path to find the path item
                 let mut func_id = None;
                 for (ix, item) in path_iter.enumerate() {
-                    let is_last = ix == path.len() - 1;
+                    let is_last = ix == path.len() - 2; // -2 because we advanced the iter by one already
                     let Some(next_symbol) = binder.find_symbol_in_scope(item.id, rover.root_scope) else {
                         todo!("push item not found err")
                     };
@@ -488,7 +480,7 @@ impl Resolve for petr_ast::FunctionCall {
                     match next_symbol {
                         Item::Module(id) => rover = binder.get_module(*id),
                         Item::Function(func, _scope) if is_last => func_id = Some(func),
-                        _ => todo!("push error -- import path item is not a module"),
+                        a => todo!("push error -- import path item is not a module, it is a {a:?}"),
                     }
                 }
                 match func_id {

@@ -55,7 +55,7 @@ impl Lowerer {
                 // set entry point to func named main
                 type_checker
                     .functions()
-                    .find(|(_func_id, func)| dbg!(&*type_checker.get_symbol(func.name.id)) == "main")
+                    .find(|(_func_id, func)| &*type_checker.get_symbol(func.name.id) == "main")
                     .map(|(id, _)| id)
             },
             function_definitions: BTreeMap::default(),
@@ -74,6 +74,8 @@ impl Lowerer {
         // insert jump to entry point as first instr
         if let Some(entry_point) = self.entry_point {
             program_section.push(IrOpcode::JumpImmediate(entry_point));
+        } else {
+            program_section.push(IrOpcode::Return());
         }
 
         for (label, Function { label: _label, mut body }) in self.function_definitions {

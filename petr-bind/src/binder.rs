@@ -71,7 +71,9 @@ pub struct Module {
 pub struct Scope<T> {
     parent: Option<ScopeId>,
     items:  BTreeMap<SymbolId, T>,
-    kind:   ScopeKind,
+    #[allow(dead_code)]
+    // this will be read but is also very useful for debugging
+    kind: ScopeKind,
 }
 
 /// Mainly just used for debugging what generated this scope.
@@ -86,14 +88,6 @@ pub enum ScopeKind {
 }
 
 impl<T> Scope<T> {
-    pub fn new(kind: ScopeKind) -> Self {
-        Self {
-            parent: None,
-            items: BTreeMap::new(),
-            kind,
-        }
-    }
-
     pub fn insert(
         &mut self,
         k: SymbolId,
@@ -152,7 +146,6 @@ impl Binder {
         scope_id: ScopeId,
     ) -> Option<&Item> {
         let scope = self.scopes.get(scope_id);
-        println!("searching for {:?} in scope {:?}", name, scope.kind);
         if let Some(item) = scope.items.get(&name) {
             return Some(item);
         }
@@ -182,12 +175,7 @@ impl Binder {
         &mut self,
         kind: ScopeKind,
     ) -> ScopeId {
-        let parent_id = self.scope_chain.last().cloned();
-
-        let id = self.scopes.insert(Scope {
-            parent: parent_id,
-            ..Scope::new(kind)
-        });
+        let id = self.create_scope(kind);
 
         self.scope_chain.push(id);
 
@@ -322,7 +310,7 @@ impl Binder {
     ) -> ScopeId {
         let mut current_scope_id = *self.scope_chain.last().expect("there's always one scope: invariant");
         for segment in path.identifiers.iter() {
-            let next_scope = self.create_orphan_scope(ScopeKind::Module(*segment));
+            let next_scope = self.create_scope(ScopeKind::Module(*segment));
             let module = Module {
                 root_scope: next_scope,
                 exports:    BTreeMap::new(),
@@ -358,11 +346,16 @@ impl Binder {
         self.bindings.get(binding_id)
     }
 
-    pub fn create_orphan_scope(
+    pub fn create_scope(
         &mut self,
         kind: ScopeKind,
     ) -> ScopeId {
-        self.scopes.insert(Scope::new(kind))
+        let scope = Scope {
+            parent: Some(*self.scope_chain.last().expect("always at least one scope")),
+            items: BTreeMap::new(),
+            kind,
+        };
+        self.scopes.insert(scope)
     }
 
     fn with_specified_scope<F, R>(
