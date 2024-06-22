@@ -41,9 +41,9 @@ impl From<usize> for SymbolId {
     }
 }
 #[cfg(feature = "debug")]
-impl Into<usize> for SymbolId {
-    fn into(self) -> usize {
-        self.0
+impl From<SymbolId> for usize {
+    fn from(o: SymbolId) -> usize {
+        o.0
     }
 }
 #[cfg(feature = "debug")]

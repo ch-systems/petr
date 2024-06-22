@@ -205,7 +205,7 @@ impl Lowerer {
         lit: &petr_typecheck::Literal,
     ) -> DataLabel {
         use petr_typecheck::Literal::*;
-        
+
         self.data_section.insert(match lit {
             Integer(val) => DataSectionEntry::Int64(*val),
             Boolean(val) => DataSectionEntry::Bool(*val),

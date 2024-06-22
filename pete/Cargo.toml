@@ -17,8 +17,8 @@ petr-resolve = { "path" = "../petr-resolve", optional = true }
 petr-pkg = { "path" = "../petr-pkg" }
 petr-profiling = { path = "../petr-profiling" }
 miette = { version = "7.2.0", features = ["fancy"] }
-thiserror = "1.0.61"
-toml = "0.8.14"
+thiserror = "1.0"
+toml = "0.8"
 
 [features]
 debug = ["petr-utils/debug", "petr-resolve/debug"]

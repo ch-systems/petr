@@ -11,4 +11,3 @@ git2 = "0.19.0"
 serde = { version = "1.0.203", features = ["derive"] }
 toml = "0.8.14"
 petr-fmt = { path = "../petr-fmt" }
-petgraph = "0.6.5"
