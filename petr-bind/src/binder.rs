@@ -69,21 +69,32 @@ pub struct Module {
 }
 
 pub struct Scope<T> {
+    /// A `Scope` always has a parent, unless it is the root scope of the user code.
+    /// All scopes are descendents of one single root scope.
     parent: Option<ScopeId>,
+    /// A mapping of the symbols that were declared in this scope. Note that any scopes that are
+    /// children of this scope inherit these symbols as well.
     items:  BTreeMap<SymbolId, T>,
     #[allow(dead_code)]
     // this will be read but is also very useful for debugging
     kind: ScopeKind,
 }
 
-/// Mainly just used for debugging what generated this scope.
+/// Not used in the compiler heavily yet, but extremely useful for understanding what kind of scope
+/// you are in.
 #[derive(Clone, Copy, Debug)]
 pub enum ScopeKind {
+    /// A module scope. This is the top level scope for a module.
     Module(Identifier),
+    /// A function scope. This is the scope of a function body. Notably, function scopes are where
+    /// all the function parameters are declared.
     Function,
+    /// The root scope of the user code. There is only ever one ScopeKind::Root in a compilation.
+    /// All scopes are descendents of the root.
     Root,
+    /// This might not be needed -- the scope within a type constructor function.
     TypeConstructor,
-    // an expression with `let`s
+    /// For a let... expression, this is the scope of the expression and its bindings.
     ExpressionWithBindings,
 }
 
