@@ -10,6 +10,17 @@ use petr_pkg::BuildPlan;
 use petr_utils::{IndexMap, SourceId, SpannedItem};
 use petr_vm::Vm;
 
+mod error {
+    use thiserror::Error;
+    #[derive(Error, Debug)]
+    pub enum PeteError {
+        #[error(transparent)]
+        IoError(#[from] std::io::Error),
+        #[error(transparent)]
+        TomlSeriatlizeError(#[from] toml::ser::Error),
+    }
+}
+
 #[derive(ClapParser)]
 #[command(version = "0.0", author = "Alex H <alex@alex-hansen.com>")]
 struct Cli {
@@ -63,7 +74,7 @@ enum Commands {
     },
 }
 
-fn main() {
+fn main() -> Result<(), error::PeteError> {
     let cli = Cli::parse();
 
     match cli.command {
@@ -148,7 +159,7 @@ fn main() {
             timings.end("load files");
 
             timings.start("format");
-            petr_fmt::format_sources(files, manifest.formatter.into()).expect("TODO errs");
+            petr_fmt::format_sources(files, manifest.formatter.into())?;
             timings.end("format");
 
             if time {
@@ -163,9 +174,9 @@ fn main() {
         },
         Commands::Ir { path } => {
             let (lockfile, buf, _build_plan) = load_project_and_dependencies(&path);
-            let lockfile_toml = toml::to_string(&lockfile).expect("Failed to serialize lockfile to TOML");
+            let lockfile_toml = toml::to_string(&lockfile)?;
             let lockfile_path = path.join("petr.lock");
-            fs::write(lockfile_path, lockfile_toml).expect("Failed to write lockfile");
+            fs::write(lockfile_path, lockfile_toml)?;
 
             // convert pathbufs into strings for the parser
             let buf = buf
@@ -201,6 +212,7 @@ fn main() {
             println!("{}", lowerer.pretty_print());
         },
     }
+    Ok(())
 }
 
 fn load_project_and_dependencies(path: &Path) -> (petr_pkg::Lockfile, Vec<(PathBuf, String)>, BuildPlan) {
