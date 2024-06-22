@@ -87,7 +87,7 @@ use std::{
 
 pub fn find_manifest(path: Option<PathBuf>) -> Result<Manifest, Box<dyn std::error::Error>> {
     fn search_dir(path: &Path) -> Option<PathBuf> {
-        let manifest_path = path.join("petr.toml");
+        let manifest_path = path.join("pete.toml");
         if manifest_path.exists() {
             return Some(manifest_path);
         }

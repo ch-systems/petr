@@ -22,7 +22,7 @@ enum Commands {
         target: String,
         #[arg(
             long,
-            help = "Path to the directory which contains the petr.toml manifest and src subdir",
+            help = "Path to the directory which contains the pete.toml manifest and src subdir",
             default_value = "."
         )]
         path:   PathBuf,
@@ -33,7 +33,7 @@ enum Commands {
     Ir {
         #[arg(
             long,
-            help = "Path to the directory which contains the petr.toml manifest and src subdir",
+            help = "Path to the directory which contains the pete.toml manifest and src subdir",
             default_value = "."
         )]
         path: PathBuf,
@@ -42,7 +42,7 @@ enum Commands {
     Fmt {
         #[arg(
             long,
-            help = "Path to the directory which contains the petr.toml manifest and src subdir",
+            help = "Path to the directory which contains the pete.toml manifest and src subdir",
             default_value = "."
         )]
         path: PathBuf,
@@ -53,7 +53,7 @@ enum Commands {
     Ls {
         #[arg(
             long,
-            help = "Path to the directory which contains the petr.toml manifest and src subdir",
+            help = "Path to the directory which contains the pete.toml manifest and src subdir",
             default_value = "."
         )]
         path: PathBuf,
@@ -220,7 +220,7 @@ fn load_files(path: &PathBuf) -> Vec<(PathBuf, String)> {
             let path = entry.path();
             if path.is_dir() {
                 read_petr_files(&path, buf);
-            } else if path.extension().and_then(|s| s.to_str()) == Some("petr") {
+            } else if path.extension().and_then(|s| s.to_str()) == Some("pt") {
                 let source = fs::read_to_string(&path).expect("Failed to read file");
                 buf.push((path, source));
             }

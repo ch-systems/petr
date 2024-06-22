@@ -250,9 +250,10 @@ fn load_path_dependency(
         })
         .collect();
 
-    let petr_toml_path = Path::new(&dep.path).join("petr.toml");
-    let manifest_content = fs::read_to_string(&petr_toml_path).expect("Failed to read petr.toml");
-    let manifest: Manifest = toml::from_str(&manifest_content).expect("Failed to parse petr.toml");
+    // TODO(alex) canonicalize path dependencies so they are relative to the pete.toml file
+    let petr_toml_path = Path::new(&dep.path).join("pete.toml");
+    let manifest_content = fs::read_to_string(&petr_toml_path).expect("Failed to read pete.toml");
+    let manifest: Manifest = toml::from_str(&manifest_content).expect("Failed to parse pete.toml");
 
     let lockfile_entry = LockfileEntry {
         name:       dep.path.clone(),

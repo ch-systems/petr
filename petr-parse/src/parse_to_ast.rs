@@ -366,7 +366,7 @@ fn file_name_to_module_name(name: &str) -> Result<Vec<Rc<str>>, ParseErrorKind> 
         .collect::<Vec<_>>()
         .into_iter()
         .rev()
-        .map(|comp| comp.as_os_str().to_string_lossy().replace("-", "_").replace(".petr", ""))
+        .map(|comp| comp.as_os_str().to_string_lossy().replace("-", "_").replace(".pt", ""))
         .map(Rc::from)
         .collect::<Vec<_>>();
     if name.iter().any(|part| !is_valid_identifier(part)) {
