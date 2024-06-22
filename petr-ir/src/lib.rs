@@ -372,6 +372,7 @@ mod tests {
                 0: Int64(42)
 
                 ; PROGRAM_SECTION
+                	ENTRY: 0
                 ENTRY: function 0:
                  0	ld v0 datalabel0
                  1	push v0
@@ -391,6 +392,7 @@ mod tests {
                 0: String("hello")
 
                 ; PROGRAM_SECTION
+                	ENTRY: 0
                 ENTRY: function 0:
                  0	ld v0 datalabel0
                  1	intrinsic @puts(v0)
@@ -412,6 +414,7 @@ mod tests {
                 1: Bool(true)
 
                 ; PROGRAM_SECTION
+                	ENTRY: 0
                 ENTRY: function 0:
                  0	ld v0 datalabel0
                  1	push v0
@@ -450,6 +453,7 @@ mod tests {
                 1: Int64(2)
 
                 ; PROGRAM_SECTION
+                	ENTRY: 1
                 function 0:
                  0	pop v0
                  1	pop v1
