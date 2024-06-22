@@ -75,6 +75,8 @@ impl Lowerer {
         if let Some(entry_point) = self.entry_point {
             program_section.push(IrOpcode::JumpImmediate(entry_point));
         } else {
+            // TODO use diagnostics here
+            eprintln!("Warning: Generating IR for program with no entry point");
             program_section.push(IrOpcode::Return());
         }
 
