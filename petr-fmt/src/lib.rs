@@ -230,7 +230,7 @@ impl Formattable for ExpressionWithBindings {
                 let mut buf = if is_first { "let ".to_string() } else { "    ".to_string() };
 
                 let name = ctx.interner.get(binding.name.id);
-                buf.push_str(&*name);
+                buf.push_str(&name);
                 buf.push_str(" = ");
                 let expr_lines = ctx.indented(|ctx| binding.val.format(ctx).lines);
 
@@ -634,7 +634,7 @@ pub trait Formattable {
         ];
 
         for config in &configs {
-            let result = self.try_config(ctx, config.clone());
+            let result = self.try_config(ctx, *config);
             if result.max_length() < ctx.config.max_line_length() {
                 return result;
             }

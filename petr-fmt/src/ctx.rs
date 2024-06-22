@@ -76,7 +76,7 @@ impl FormatterContext {
         config: FormatterConfig,
         f: impl Fn(&mut FormatterContext) -> crate::FormattedLines,
     ) -> crate::FormattedLines {
-        let old_config = self.config.clone();
+        let old_config = self.config;
         self.config = config;
         let res = f(self);
         self.config = old_config;

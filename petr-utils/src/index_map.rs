@@ -36,6 +36,10 @@ impl<K, V> IndexMap<K, V> {
     pub fn len(&self) -> usize {
         self.entries.len()
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
 }
 
 impl<K, V> Default for IndexMap<K, V>
@@ -83,6 +87,10 @@ where
             .expect("IDs are handed out by insertion, so this should never fail")
     }
 
+    // converting this into an IntoIter trait is kind of a pain in the butt...but should be done
+    // eventually.
+    // see https://github.com/sezna/petr/issues/39
+    #[allow(clippy::should_implement_trait)]
     pub fn into_iter(self) -> impl Iterator<Item = (K, V)> {
         self.entries.into_iter().enumerate().map(|(i, v)| (i.into(), v))
     }
@@ -115,9 +123,9 @@ macro_rules! idx_map_key {
             }
         }
 
-        impl Into<usize> for $name {
-            fn into(self) -> usize {
-                self.0
+        impl From<$name> for usize {
+            fn from(value: $name) -> usize {
+                value.0
             }
         }
 

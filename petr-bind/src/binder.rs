@@ -377,7 +377,7 @@ impl Binder {
         &self,
         scope: ScopeId,
     ) -> impl Iterator<Item = (&SymbolId, &Item)> {
-        self.scopes.get(scope).items.iter().map(|(k, v)| (k, v))
+        self.scopes.get(scope).items.iter()
     }
 }
 

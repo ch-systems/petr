@@ -174,8 +174,8 @@ impl TypeChecker {
 
         let mut ty = Type::arrow(tys[0].clone(), tys[1].clone());
 
-        for i in 2..tys.len() {
-            ty = Type::arrow(ty, tys[i].clone());
+        for item in tys.iter().skip(2) {
+            ty = Type::arrow(ty, item.clone());
         }
 
         ty
@@ -329,7 +329,7 @@ impl TypeCheck for Expr {
     ) -> Self::Output {
         match &self.kind {
             ExprKind::Literal(lit) => {
-                let ty = ctx.convert_literal_to_type(&lit);
+                let ty = ctx.convert_literal_to_type(lit);
                 TypedExpr::Literal { value: lit.clone(), ty }
             },
             ExprKind::List(exprs) => {

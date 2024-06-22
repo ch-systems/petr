@@ -103,10 +103,14 @@ impl ParseErrorKind {
 
 fn format_toks(toks: &[Token]) -> String {
     let mut buf = toks.iter().take(toks.len() - 1).map(|t| format!("{}", t)).collect::<Vec<_>>().join(", ");
-    if toks.len() == 2 {
-        buf.push_str(&format!(" or {}", toks.last().unwrap()));
-    } else if toks.len() > 2 {
-        buf.push_str(&format!(", or {}", toks.last().unwrap()));
+    match toks.len() {
+        2 => {
+            buf.push_str(&format!(" or {}", toks.last().unwrap()));
+        },
+        x if x > 2 => {
+            buf.push_str(&format!(", or {}", toks.last().unwrap()));
+        },
+        _ => (),
     }
     buf
 }
@@ -136,11 +140,9 @@ impl Parser {
             return self.errors.push(err.map(|err| err.into_err()));
         }
         let mut help_text = Vec::with_capacity(self.help.len());
-        let mut indentation = 0;
-        for help in &self.help {
+        for (indentation, help) in self.help.iter().enumerate() {
             let text = format!("{}{}{help}", "  ".repeat(indentation), if indentation == 0 { "" } else { "↪ " });
             help_text.push(text);
-            indentation += 1;
         }
         let err = err.map(|err| err.into_err().with_help(Some(help_text.join("\n"))));
         self.errors.push(err);
@@ -171,7 +173,7 @@ impl Parser {
         }
     }
 
-    pub fn new<'a>(sources: impl IntoIterator<Item = (impl Into<String>, impl Into<String>)>) -> Self {
+    pub fn new(sources: impl IntoIterator<Item = (impl Into<String>, impl Into<String>)>) -> Self {
         // TODO we hold two copies of the source for now: one in source_maps, and one outside the parser
         // for the lexer to hold on to and not have to do self-referential pointers.
         let sources = sources
@@ -206,6 +208,7 @@ impl Parser {
     }
 
     /// consume tokens until a node is produced
+    #[allow(clippy::type_complexity)]
     pub fn into_result(
         mut self
     ) -> (
@@ -308,9 +311,8 @@ impl Parser {
 
     pub fn advance(&mut self) -> SpannedItem<Token> {
         if self.file_barrier {
-            match self.peek().item() {
-                Token::NewFile(_) => return self.lexer.span().with_item(Token::Eof),
-                _ => (),
+            if let Token::NewFile(_) = self.peek().item() {
+                return self.lexer.span().with_item(Token::Eof);
             }
         }
         if let Some(tok) = self.peek.take() {
@@ -423,7 +425,7 @@ impl Parser {
         let res = f(self);
         match res {
             Some(res) => Ok(res),
-            None => return Err(self.restore_checkpoint(checkpoint)),
+            None => Err(self.restore_checkpoint(checkpoint)),
         }
     }
 
@@ -431,7 +433,7 @@ impl Parser {
         Checkpoint {
             errors: self.errors.len(),
             lexer:  self.lexer.clone(),
-            peek:   self.peek.clone(),
+            peek:   self.peek,
         }
     }
 

@@ -1,4 +1,7 @@
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use clap::Parser as ClapParser;
 use petr_ir::Lowerer;
@@ -200,8 +203,8 @@ fn main() {
     }
 }
 
-fn load_project_and_dependencies(path: &PathBuf) -> (petr_pkg::Lockfile, Vec<(PathBuf, String)>, BuildPlan) {
-    let manifest = petr_pkg::manifest::find_manifest(Some(path.clone())).expect("Failed to find manifest");
+fn load_project_and_dependencies(path: &Path) -> (petr_pkg::Lockfile, Vec<(PathBuf, String)>, BuildPlan) {
+    let manifest = petr_pkg::manifest::find_manifest(Some(path.to_path_buf())).expect("Failed to find manifest");
     let dependencies = manifest.dependencies;
     let (lockfile, build_plan) = petr_pkg::load_dependencies(dependencies);
 
@@ -209,7 +212,7 @@ fn load_project_and_dependencies(path: &PathBuf) -> (petr_pkg::Lockfile, Vec<(Pa
     (lockfile, files, build_plan)
 }
 
-fn load_files(path: &PathBuf) -> Vec<(PathBuf, String)> {
+fn load_files(path: &Path) -> Vec<(PathBuf, String)> {
     let mut buf = Vec::new();
 
     fn read_petr_files(

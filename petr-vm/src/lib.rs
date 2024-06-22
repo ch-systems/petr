@@ -150,7 +150,7 @@ impl Vm {
                         let str = &self.state.memory[ptr + 1..ptr + 1 + len];
                         let str = str.iter().flat_map(|num| num.to_ne_bytes()).collect::<Vec<u8>>();
                         // convert vec of usizes to string
-                        let string: String = str.iter().map(|&c| c as u8 as char).collect();
+                        let string: String = str.iter().map(|&c| c as char).collect();
                         println!("{}", string);
                     },
                 };
@@ -158,7 +158,7 @@ impl Vm {
             },
             IrOpcode::FunctionLabel(_) => Ok(Continue),
             IrOpcode::LoadImmediate(dest, imm) => {
-                self.set_register(dest, Value(imm as u64));
+                self.set_register(dest, Value(imm));
                 Ok(Continue)
             },
             IrOpcode::Copy(dest, src) => {
@@ -166,7 +166,7 @@ impl Vm {
                 self.set_register(dest, val);
                 Ok(Continue)
             },
-            IrOpcode::TerminateExecution() => return Ok(Terminate),
+            IrOpcode::TerminateExecution() => Ok(Terminate),
             IrOpcode::Jump(_) => todo!(),
             IrOpcode::Label(_) => todo!(),
             IrOpcode::Return() => {

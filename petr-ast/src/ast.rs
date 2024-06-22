@@ -146,12 +146,15 @@ pub enum Literal {
     String(Rc<str>),
 }
 
-impl ToString for Literal {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for Literal {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         match self {
-            Literal::Integer(i) => i.to_string(),
-            Literal::Boolean(b) => b.to_string(),
-            Literal::String(s) => format!("\"{s}\""),
+            Literal::Integer(i) => write!(f, "{}", i),
+            Literal::Boolean(b) => write!(f, "{}", b),
+            Literal::String(s) => write!(f, "\"{}\"", s),
         }
     }
 }

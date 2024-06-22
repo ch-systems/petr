@@ -375,7 +375,7 @@ impl Resolve for Expression {
                 for binding in &bound_expression.bindings {
                     let rhs = binding.val.resolve(resolver, binder, scope_id)?;
                     bindings.push(Binding {
-                        name:       binding.name.clone(),
+                        name:       binding.name,
                         expression: rhs,
                     });
                 }

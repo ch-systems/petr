@@ -205,12 +205,12 @@ impl Lowerer {
         lit: &petr_typecheck::Literal,
     ) -> DataLabel {
         use petr_typecheck::Literal::*;
-        let label = self.data_section.insert(match lit {
+        
+        self.data_section.insert(match lit {
             Integer(val) => DataSectionEntry::Int64(*val),
             Boolean(val) => DataSectionEntry::Bool(*val),
             String(val) => DataSectionEntry::String(val.clone()),
-        });
-        label
+        })
     }
 
     // convert a polytype type to an `IrTy`

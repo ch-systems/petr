@@ -83,13 +83,13 @@ fn order_dependencies(deps: Vec<LoadDependencyResult>) -> BuildPlan {
     let mut graph: BTreeMap<DependencyKey, Vec<DependencyKey>> = BTreeMap::new();
 
     for dep in &deps {
-        graph.entry(dep.key.clone()).or_insert(vec![]);
-        for (_, top_level_dependency) in &dep.lock.depends_on {
+        graph.entry(dep.key.clone()).or_default();
+        for top_level_dependency in dep.lock.depends_on.values() {
             let key = match top_level_dependency {
                 Dependency::Git(git_dep) => git_dep.git.clone(),
                 Dependency::Path(path_dep) => path_dep.path.clone(),
             };
-            graph.entry(dep.key.clone()).or_insert(vec![]).push(key);
+            graph.entry(dep.key.clone()).or_default().push(key);
 
             // Recursively include transient dependencies
             fn add_transient_dependencies(
@@ -102,10 +102,10 @@ fn order_dependencies(deps: Vec<LoadDependencyResult>) -> BuildPlan {
                     Dependency::Git(git_dep) => git_dep.git.clone(),
                     Dependency::Path(path_dep) => path_dep.path.clone(),
                 };
-                graph.entry(dep_key.clone()).or_insert(vec![]).push(key.clone());
+                graph.entry(dep_key.clone()).or_default().push(key.clone());
 
                 if let Some(dep) = deps.iter().find(|d| d.key == key) {
-                    for (_, trans_dependency) in &dep.lock.depends_on {
+                    for trans_dependency in dep.lock.depends_on.values() {
                         add_transient_dependencies(graph, &key, trans_dependency, deps);
                     }
                 }
@@ -116,12 +116,12 @@ fn order_dependencies(deps: Vec<LoadDependencyResult>) -> BuildPlan {
     }
 
     for dep in &deps {
-        for (_, dependency) in &dep.lock.depends_on {
+        for dependency in dep.lock.depends_on.values() {
             let dep_key = match dependency {
                 Dependency::Git(git_dep) => git_dep.git.parse().unwrap(),
                 Dependency::Path(path_dep) => path_dep.path.parse().unwrap(),
             };
-            graph.entry(dep_key).or_insert(vec![]).push(dep.key.clone());
+            graph.entry(dep_key).or_default().push(dep.key.clone());
         }
     }
 
@@ -159,7 +159,7 @@ fn order_dependencies(deps: Vec<LoadDependencyResult>) -> BuildPlan {
     // then sort them by the order of the `sorted_keys`
     let mut all_deps = deps.clone();
     for dep in &deps {
-        for (_, dependency) in &dep.lock.depends_on {
+        for dependency in dep.lock.depends_on.values() {
             let key = match dependency {
                 Dependency::Git(git_dep) => git_dep.git.clone(),
                 Dependency::Path(path_dep) => path_dep.path.clone(),
@@ -177,15 +177,15 @@ fn order_dependencies(deps: Vec<LoadDependencyResult>) -> BuildPlan {
     let items = sorted_keys
         .into_iter()
         .map(|key| {
-            let dep = all_deps.iter().find(|x| &x.key == &key).unwrap();
+            let dep = all_deps.iter().find(|x| x.key == key).unwrap();
             let path = Path::new(&dep.lock.name);
             BuildableItem {
                 path_to_source: path.to_path_buf(),
                 depends_on: dep
                     .lock
                     .depends_on
-                    .iter()
-                    .map(|(_, dep)| match dep {
+                    .values()
+                    .map(|dep| match dep {
                         Dependency::Git(git_dep) => git_dep.git.clone(),
                         Dependency::Path(path_dep) => path_dep.path.clone(),
                     })
@@ -218,7 +218,7 @@ fn load_git_dependency(dep: &GitDependency) -> LoadDependencyResult {
         fs::create_dir_all(&petr_dir).expect("Failed to create .petr directory");
     }
 
-    let repo_dir = petr_dir.join(&dep.git.replace("/", "_"));
+    let repo_dir = petr_dir.join(dep.git.replace("/", "_"));
 
     if !repo_dir.exists() {
         let _ = git2::Repository::clone(&dep.git, &repo_dir).expect("Failed to clone Git repository");
