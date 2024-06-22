@@ -1,0 +1,9 @@
+[package]
+name = "petr-vm"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+petr-ir = { path = "../petr-ir" }
+petr-utils = { path = "../petr-utils" }
+thiserror = "1.0.61"

@@ -1172,6 +1172,159 @@ dependencies = [
 ]
 
 [[package]]
+name = "petr-ast"
+version = "0.1.0"
+dependencies = [
+ "petr-utils",
+]
+
+[[package]]
+name = "petr-bind"
+version = "0.1.0"
+dependencies = [
+ "expect-test",
+ "petr-ast",
+ "petr-parse",
+ "petr-utils",
+]
+
+[[package]]
+name = "petr-codegen"
+version = "0.1.0"
+dependencies = [
+ "cranelift",
+ "cranelift-module",
+ "cranelift-native",
+ "cranelift-object",
+ "cranelift-reader",
+ "miette",
+ "petr-ir",
+ "thiserror",
+]
+
+[[package]]
+name = "petr-fmt"
+version = "0.1.0"
+dependencies = [
+ "expect-test",
+ "petr-ast",
+ "petr-parse",
+ "petr-utils",
+ "serde",
+ "structopt",
+]
+
+[[package]]
+name = "petr-ir"
+version = "0.1.0"
+dependencies = [
+ "expect-test",
+ "miette",
+ "petr-parse",
+ "petr-resolve",
+ "petr-typecheck",
+ "petr-utils",
+ "thiserror",
+]
+
+[[package]]
+name = "petr-parse"
+version = "0.1.0"
+dependencies = [
+ "expect-test",
+ "logos",
+ "miette",
+ "petr-ast",
+ "petr-utils",
+ "thiserror",
+]
+
+[[package]]
+name = "petr-pkg"
+version = "0.1.0"
+dependencies = [
+ "bcrypt",
+ "blake3",
+ "dirs",
+ "git2",
+ "petgraph",
+ "petr-fmt",
+ "serde",
+ "toml",
+]
+
+[[package]]
+name = "petr-profiling"
+version = "0.1.0"
+dependencies = [
+ "cli-table",
+ "num-format",
+]
+
+[[package]]
+name = "petr-resolve"
+version = "0.1.0"
+dependencies = [
+ "expect-test",
+ "petr-ast",
+ "petr-bind",
+ "petr-parse",
+ "petr-utils",
+ "thiserror",
+]
+
+[[package]]
+name = "petr-typecheck"
+version = "0.1.0"
+dependencies = [
+ "expect-test",
+ "miette",
+ "petr-bind",
+ "petr-parse",
+ "petr-resolve",
+ "petr-utils",
+ "polytype",
+ "thiserror",
+]
+
+[[package]]
+name = "petr-utils"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "miette",
+ "thiserror",
+]
+
+[[package]]
+name = "petr-vm"
+version = "0.1.0"
+dependencies = [
+ "petr-ir",
+ "petr-utils",
+ "thiserror",
+]
+
+[[package]]
+name = "petrc"
+version = "0.1.0"
+dependencies = [
+ "clap 4.5.4",
+ "miette",
+ "petr-fmt",
+ "petr-ir",
+ "petr-parse",
+ "petr-pkg",
+ "petr-profiling",
+ "petr-resolve",
+ "petr-typecheck",
+ "petr-utils",
+ "petr-vm",
+ "thiserror",
+ "toml",
+]
+
+[[package]]
 name = "pkg-config"
 version = "0.3.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1422,159 +1575,6 @@ name = "supports-unicode"
 version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b7401a30af6cb5818bb64852270bb722533397edcfc7344954a38f420819ece2"
-
-[[package]]
-name = "swim-ast"
-version = "0.1.0"
-dependencies = [
- "swim-utils",
-]
-
-[[package]]
-name = "swim-bind"
-version = "0.1.0"
-dependencies = [
- "expect-test",
- "swim-ast",
- "swim-parse",
- "swim-utils",
-]
-
-[[package]]
-name = "swim-codegen"
-version = "0.1.0"
-dependencies = [
- "cranelift",
- "cranelift-module",
- "cranelift-native",
- "cranelift-object",
- "cranelift-reader",
- "miette",
- "swim-ir",
- "thiserror",
-]
-
-[[package]]
-name = "swim-fmt"
-version = "0.1.0"
-dependencies = [
- "expect-test",
- "serde",
- "structopt",
- "swim-ast",
- "swim-parse",
- "swim-utils",
-]
-
-[[package]]
-name = "swim-ir"
-version = "0.1.0"
-dependencies = [
- "expect-test",
- "miette",
- "swim-parse",
- "swim-resolve",
- "swim-typecheck",
- "swim-utils",
- "thiserror",
-]
-
-[[package]]
-name = "swim-parse"
-version = "0.1.0"
-dependencies = [
- "expect-test",
- "logos",
- "miette",
- "swim-ast",
- "swim-utils",
- "thiserror",
-]
-
-[[package]]
-name = "swim-pkg"
-version = "0.1.0"
-dependencies = [
- "bcrypt",
- "blake3",
- "dirs",
- "git2",
- "petgraph",
- "serde",
- "swim-fmt",
- "toml",
-]
-
-[[package]]
-name = "swim-profiling"
-version = "0.1.0"
-dependencies = [
- "cli-table",
- "num-format",
-]
-
-[[package]]
-name = "swim-resolve"
-version = "0.1.0"
-dependencies = [
- "expect-test",
- "swim-ast",
- "swim-bind",
- "swim-parse",
- "swim-utils",
- "thiserror",
-]
-
-[[package]]
-name = "swim-typecheck"
-version = "0.1.0"
-dependencies = [
- "expect-test",
- "miette",
- "polytype",
- "swim-bind",
- "swim-parse",
- "swim-resolve",
- "swim-utils",
- "thiserror",
-]
-
-[[package]]
-name = "swim-utils"
-version = "0.1.0"
-dependencies = [
- "lazy_static",
- "miette",
- "thiserror",
-]
-
-[[package]]
-name = "swim-vm"
-version = "0.1.0"
-dependencies = [
- "swim-ir",
- "swim-utils",
- "thiserror",
-]
-
-[[package]]
-name = "swimc"
-version = "0.1.0"
-dependencies = [
- "clap 4.5.4",
- "miette",
- "swim-fmt",
- "swim-ir",
- "swim-parse",
- "swim-pkg",
- "swim-profiling",
- "swim-resolve",
- "swim-typecheck",
- "swim-utils",
- "swim-vm",
- "thiserror",
- "toml",
-]
 
 [[package]]
 name = "syn"

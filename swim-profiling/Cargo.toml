@@ -1,8 +1,0 @@
-[package]
-name = "swim-profiling"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-cli-table = "0.4"
-num-format = "0.4.4"

@@ -1,0 +1,25 @@
+[package]
+name = "petrc"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = { version = "4.5.4", features = ["derive"] }
+petr-parse = { "path" = "../petr-parse" }
+petr-utils = { "path" = "../petr-utils", optional = true }
+petr-vm = { "path" = "../petr-vm" }
+petr-ir = { "path" = "../petr-ir" }
+petr-fmt = { path = "../petr-fmt" }
+petr-typecheck = { "path" = "../petr-typecheck" }
+petr-resolve = { "path" = "../petr-resolve", optional = true }
+petr-pkg = { "path" = "../petr-pkg" }
+petr-profiling = { path = "../petr-profiling" }
+miette = { version = "7.2.0", features = ["fancy"] }
+thiserror = "1.0.61"
+toml = "0.8.14"
+
+[features]
+debug = ["petr-utils/debug", "petr-resolve/debug"]
+default = ["dep:petr-utils", "dep:petr-resolve"]

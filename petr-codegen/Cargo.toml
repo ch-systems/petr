@@ -1,0 +1,18 @@
+[package]
+name = "petr-codegen"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+petr-ir = { path = "../petr-ir" }
+
+cranelift = "0.108.1"
+cranelift-native = "0.108.1"
+cranelift-reader = "0.108.1"
+cranelift-object = { version = "0.108.1" }
+cranelift-module = "0.108.1"
+
+miette = { version = "7.2.0", features = ["fancy"] }
+thiserror = "1.0.61"
