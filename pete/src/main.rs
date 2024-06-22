@@ -70,7 +70,8 @@ fn main() {
             timings.start("load project and dependencies");
             let (lockfile, buf, _build_plan) = load_project_and_dependencies(&path);
             let lockfile_toml = toml::to_string(&lockfile).expect("Failed to serialize lockfile to TOML");
-            fs::write("petr.lock", lockfile_toml).expect("Failed to write lockfile");
+            let lockfile_path = path.join("petr.lock");
+            fs::write(lockfile_path, lockfile_toml).expect("Failed to write lockfile");
 
             timings.end("load project and dependencies");
 
@@ -160,7 +161,8 @@ fn main() {
         Commands::Ir { path } => {
             let (lockfile, buf, _build_plan) = load_project_and_dependencies(&path);
             let lockfile_toml = toml::to_string(&lockfile).expect("Failed to serialize lockfile to TOML");
-            fs::write("petr.lock", lockfile_toml).expect("Failed to write lockfile");
+            let lockfile_path = path.join("petr.lock");
+            fs::write(lockfile_path, lockfile_toml).expect("Failed to write lockfile");
 
             // convert pathbufs into strings for the parser
             let buf = buf
