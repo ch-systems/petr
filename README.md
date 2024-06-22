@@ -16,10 +16,10 @@ petr-ast
    │                                                                                     
    ▼                                                                    ┌───►petr-codegen
 petr-parse────►petr-bind────►petr-resolve────►petr-typecheck───► petr-ir│                
-   │                                                                    └───►petr-vm     
-   │                                                                                     
-   ▼                                                                                     
-petr-fmt───────────────────────┐                                                         
+   │                                                                    ├───►petr-vm     
+   │                                                                    │                 
+   ▼                                                                    │                 
+petr-fmt───────────────────────┬────────────────────────────────────────┘                                                      
                                │                                                         
                                │                                                         
                                │                                                         
