@@ -1,10 +1,10 @@
 use std::{
     fs,
-    io::{self, Write},
+    io::{self},
     path::PathBuf,
 };
 
-use petr_fmt::{ctx::FormatterContext, format_sources, Formattable};
+use petr_fmt::{format_sources, FormatterConfigBuilder};
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
@@ -26,7 +26,7 @@ fn main() -> io::Result<()> {
     let sources = opt.input.iter().map(fs::read_to_string).collect::<Result<Vec<_>, _>>()?;
 
     let sources = opt.input.into_iter().zip(sources).collect::<Vec<_>>();
+    let config = FormatterConfigBuilder::default().backup(opt.backup).build();
 
-    // TODO use opt to set config
-    format_sources(sources, Default::default())
+    format_sources(sources, config)
 }

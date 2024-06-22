@@ -388,7 +388,11 @@ fn is_valid_identifier(name: &str) -> bool {
 fn test_file_name_to_module_name_simple() {
     let file_name = "src/main.petr";
     let expected = vec!["main".to_string()];
-    let result = file_name_to_module_name(file_name).unwrap();
+    let result = file_name_to_module_name(file_name)
+        .unwrap()
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<_>>();
     assert_eq!(result, expected);
 }
 
@@ -396,7 +400,11 @@ fn test_file_name_to_module_name_simple() {
 fn test_file_name_to_module_name_with_hyphen() {
     let file_name = "src/my-module.petr";
     let expected = vec!["my_module".to_string()];
-    let result = file_name_to_module_name(file_name).unwrap();
+    let result = file_name_to_module_name(file_name)
+        .unwrap()
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<_>>();
     assert_eq!(result, expected);
 }
 
@@ -404,7 +412,11 @@ fn test_file_name_to_module_name_with_hyphen() {
 fn test_file_name_to_module_name_nested_directory() {
     let file_name = "src/subdir/mysubmodule.petr";
     let expected = vec!["subdir".to_string(), "mysubmodule".to_string()];
-    let result = file_name_to_module_name(file_name).unwrap();
+    let result = file_name_to_module_name(file_name)
+        .unwrap()
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<_>>();
     assert_eq!(result, expected);
 }
 

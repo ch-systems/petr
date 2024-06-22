@@ -2,6 +2,8 @@
 //! about dependencies, pulling them in, creating lockfiles,
 //! etc.
 
+// TODO revisit this
+#![allow(dead_code)]
 pub mod manifest;
 
 use manifest::Manifest;

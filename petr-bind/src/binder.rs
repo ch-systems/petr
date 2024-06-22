@@ -451,7 +451,7 @@ mod tests {
                     Item::Module(a) => {
                         format!("Module {:?}", binder.modules.get(*a))
                     },
-                    Item::Import { path, alias } => todo!(),
+                    Item::Import { .. } => todo!(),
                 };
                 result.push_str(&format!("  {}: {}\n", symbol_name, item_description));
             }

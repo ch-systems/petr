@@ -38,10 +38,6 @@ pub struct Lowerer {
     function_label_assigner: usize,
     type_checker: TypeChecker,
     variables_in_scope: Vec<BTreeMap<SymbolId, Reg>>,
-    /// What register functions expect their return jump destination to be stored in
-    /// when they are called. TODO: use a context API for this so it is impossible to generate
-    /// a function call without setting the return dest.
-    function_return_destinations: BTreeMap<FunctionId, Reg>,
 }
 
 #[derive(Debug, Clone)]
@@ -67,7 +63,6 @@ impl Lowerer {
             function_label_assigner: 0,
             type_checker,
             variables_in_scope: Default::default(),
-            function_return_destinations: Default::default(),
         };
         lowerer.lower_all_functions().expect("errors should get caught before lowering");
         lowerer
@@ -165,7 +160,7 @@ impl Lowerer {
                     },
                 })
             },
-            FunctionCall { func, args, ty } => {
+            FunctionCall { func, args, ty: _ty } => {
                 let mut buf = Vec::with_capacity(args.len());
                 // push all args onto the stack in order
                 for (_arg_name, arg_expr) in args {
@@ -179,7 +174,7 @@ impl Lowerer {
                 buf.push(IrOpcode::JumpImmediate(*func));
                 Ok(buf)
             },
-            List { elements, ty } => todo!(),
+            List { .. } => todo!(),
             Unit => todo!(),
             Variable { name, ty } => {
                 let var_reg = self
@@ -196,7 +191,7 @@ impl Lowerer {
                     })],
                 })
             },
-            Intrinsic { ty, intrinsic } => self.lower_intrinsic(intrinsic, return_destination),
+            Intrinsic { ty: _ty, intrinsic } => self.lower_intrinsic(intrinsic, return_destination),
             ErrorRecovery => Err(LoweringError),
         }
     }
@@ -322,7 +317,7 @@ enum ReturnDestination {
     Reg(Reg),
     Stack,
 }
-fn fits_in_reg(param_ty: &TypeVariable) -> bool {
+fn fits_in_reg(_: &TypeVariable) -> bool {
     // TODO
     true
 }
@@ -356,6 +351,9 @@ mod tests {
             panic!("fmt failed: code didn't parse");
         }
         let (errs, resolved) = resolve_symbols(ast, interner);
+        if !errs.is_empty() {
+            dbg!(&errs);
+        }
         let type_checker = TypeChecker::new(resolved);
         let lowerer = Lowerer::new(type_checker);
         let res = lowerer.pretty_print();
