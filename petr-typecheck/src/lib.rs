@@ -501,7 +501,7 @@ mod tests {
             errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
             panic!("fmt failed: code didn't parse");
         }
-        let (errs, resolved) = resolve_symbols(ast, interner);
+        let (errs, resolved) = resolve_symbols(ast, interner, Default::default());
         assert!(errs.is_empty(), "can't typecheck: unresolved symbols");
         let type_checker = TypeChecker::new(resolved);
         let res = pretty_print_type_checker(type_checker);

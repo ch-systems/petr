@@ -49,7 +49,7 @@ pub enum Item {
     Type(TypeId),
     FunctionParameter(Ty),
     Module(ModuleId),
-    Import { path: Box<[Identifier]>, alias: Option<Identifier> },
+    Import { path: Path, alias: Option<Identifier> },
 }
 
 pub struct Binder {
@@ -193,6 +193,20 @@ impl Binder {
         id
     }
 
+    pub fn get_scope(
+        &self,
+        scope: ScopeId,
+    ) -> &Scope<Item> {
+        self.scopes.get(scope)
+    }
+
+    pub fn get_scope_kind(
+        &self,
+        scope: ScopeId,
+    ) -> ScopeKind {
+        self.scopes.get(scope).kind
+    }
+
     fn pop_scope(&mut self) {
         let _ = self.scope_chain.pop();
     }
@@ -309,6 +323,61 @@ impl Binder {
                 });
             });
         });
+
+        binder
+    }
+
+    pub fn from_ast_and_deps(
+        ast: &Ast,
+        // TODO better type here
+        dependencies: Vec<(
+            /* Key */ String,
+            /*Name from manifest*/ Identifier,
+            /*Things this depends on*/ Vec<String>,
+            Ast,
+        )>,
+    ) -> Self {
+        let mut binder = Self::new();
+
+        for dependency in dependencies {
+            let (key, name, _depends_on, dep_ast) = dependency;
+            let dep_scope = binder.create_scope_from_path(&Path::new(vec![name]));
+            binder.with_specified_scope(dep_scope, |binder, scope_id| {
+                for module in dep_ast.modules {
+                    let module_scope = binder.create_scope_from_path(&module.name);
+                    binder.with_specified_scope(module_scope, |binder, scope_id| {
+                        let exports = module.nodes.iter().filter_map(|node| match node.item() {
+                            petr_ast::AstNode::FunctionDeclaration(decl) => decl.bind(binder),
+                            petr_ast::AstNode::TypeDeclaration(decl) => decl.bind(binder),
+                            petr_ast::AstNode::ImportStatement(stmt) => stmt.bind(binder),
+                        });
+                        let exports = BTreeMap::from_iter(exports);
+                        // TODO do I need to track this module id?
+                        let _module_id = binder.modules.insert(Module {
+                            root_scope: scope_id,
+                            exports,
+                        });
+                    });
+                }
+            })
+        }
+
+        for module in &ast.modules {
+            let module_scope = binder.create_scope_from_path(&module.name);
+            binder.with_specified_scope(module_scope, |binder, scope_id| {
+                let exports = module.nodes.iter().filter_map(|node| match node.item() {
+                    petr_ast::AstNode::FunctionDeclaration(decl) => decl.bind(binder),
+                    petr_ast::AstNode::TypeDeclaration(decl) => decl.bind(binder),
+                    petr_ast::AstNode::ImportStatement(stmt) => stmt.bind(binder),
+                });
+                let exports = BTreeMap::from_iter(exports);
+                // TODO do I need to track this module id?
+                let _module_id = binder.modules.insert(Module {
+                    root_scope: scope_id,
+                    exports,
+                });
+            });
+        }
 
         binder
     }

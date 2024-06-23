@@ -8,6 +8,19 @@ pub mod manifest;
 
 use manifest::Manifest;
 use serde::{Deserialize, Serialize};
+use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
+
+pub mod error {
+    use thiserror::Error;
+    #[derive(Error, Debug)]
+    pub enum PkgError {
+        // TODO stop using generic errors and use codes instead
+        #[error("Pkg Error: {0}")]
+        Generic(String),
+        #[error(transparent)]
+        Io(#[from] std::io::Error),
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
@@ -49,37 +62,49 @@ use std::{
 /// An ordered list of dependencies to build in order.
 #[derive(Debug)]
 pub struct BuildPlan {
-    items: Vec<BuildableItem>,
+    pub items: Vec<BuildableItem>,
 }
 
 #[derive(Debug)]
 pub struct BuildableItem {
-    path_to_source: PathBuf,
-    depends_on: Vec<DependencyKey>,
-    key: DependencyKey,
+    pub path_to_source: PathBuf,
+    pub depends_on: Vec<DependencyKey>,
+    pub key: DependencyKey,
+    pub manifest: Manifest,
 }
 
 pub type DependencyKey = String;
 
-pub fn load_dependencies(deps: BTreeMap<String, Dependency>) -> (Lockfile, BuildPlan) {
+pub fn load_dependencies(deps: BTreeMap<String, Dependency>) -> Result<(Lockfile, BuildPlan), crate::error::PkgError> {
     let mut entries = Vec::new();
     let mut files = Vec::new();
 
-    for (_dep_name, dep_source) in deps {
+    // TODO should probably use dep_name instead of manifest.name so user
+    // can control how a library shows up in their code
+    let mut stdout = StandardStream::stdout(ColorChoice::Always);
+    stdout.set_color(ColorSpec::new().set_bold(true))?;
+    println!("Fetching {} {}", deps.len(), if deps.len() == 1 { "dependency" } else { "dependencies" });
+
+    for (dep_name, dep_source) in deps {
+        // TODO better styling for compilation prints
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::Green)).set_bold(true))?;
+        print!("Fetching ");
+        stdout.set_color(ColorSpec::new().set_fg(None).set_bold(false))?;
+        println!("{dep_name}");
         let dep = match dep_source {
             Dependency::Git(ref git_dep) => load_git_dependency(git_dep),
             Dependency::Path(ref path_dep) => load_path_dependency(path_dep, path_dep.path.clone()),
-        };
+        }?;
 
         entries.push(dep.lock.clone());
         files.push(dep);
     }
 
     let lockfile = Lockfile { entries };
-    (lockfile, order_dependencies(files))
+    Ok((lockfile, order_dependencies(files)?))
 }
 
-fn order_dependencies(deps: Vec<LoadDependencyResult>) -> BuildPlan {
+fn order_dependencies(deps: Vec<LoadDependencyResult>) -> Result<BuildPlan, crate::error::PkgError> {
     let mut graph: BTreeMap<DependencyKey, Vec<DependencyKey>> = BTreeMap::new();
 
     for dep in &deps {
@@ -168,7 +193,7 @@ fn order_dependencies(deps: Vec<LoadDependencyResult>) -> BuildPlan {
                 let transient_dep = match dependency {
                     Dependency::Git(git_dep) => load_git_dependency(git_dep),
                     Dependency::Path(path_dep) => load_path_dependency(path_dep, key.clone()),
-                };
+                }?;
                 all_deps.push(transient_dep);
             }
         }
@@ -191,11 +216,12 @@ fn order_dependencies(deps: Vec<LoadDependencyResult>) -> BuildPlan {
                     })
                     .collect(),
                 key,
+                manifest: dep.manifest.clone(),
             }
         })
         .collect();
 
-    BuildPlan { items }
+    Ok(BuildPlan { items })
 }
 
 #[derive(Clone)]
@@ -207,7 +233,7 @@ struct LoadDependencyResult {
     key:      String,
 }
 
-fn load_git_dependency(dep: &GitDependency) -> LoadDependencyResult {
+fn load_git_dependency(dep: &GitDependency) -> Result<LoadDependencyResult, error::PkgError> {
     // determine an os-independent directory in `~/.petr` to store clones in. On windows this is `C:\Users\<user>\.petr`, on UNIX systems this is `~/.petr`
     // etc.
     // clone the git repository into the directory, then read all files in the directory (potentially using load_path_dependency)
@@ -218,7 +244,7 @@ fn load_git_dependency(dep: &GitDependency) -> LoadDependencyResult {
         fs::create_dir_all(&petr_dir).expect("Failed to create .petr directory");
     }
 
-    let repo_dir = petr_dir.join(dep.git.replace("/", "_"));
+    let repo_dir = petr_dir.join(dep.git.replace('/', "_"));
 
     if !repo_dir.exists() {
         let _ = git2::Repository::clone(&dep.git, &repo_dir).expect("Failed to clone Git repository");
@@ -234,9 +260,9 @@ fn load_git_dependency(dep: &GitDependency) -> LoadDependencyResult {
 fn load_path_dependency(
     dep: &PathDependency,
     key: DependencyKey,
-) -> LoadDependencyResult {
+) -> Result<LoadDependencyResult, error::PkgError> {
     let path = Path::new(&dep.path).join("src");
-    let entries = fs::read_dir(&path).unwrap_or_else(|_| panic!("Failed to read directory: {}", dep.path));
+    let entries = fs::read_dir(path).unwrap_or_else(|_| panic!("Failed to read directory: {}", dep.path));
 
     let files: Vec<_> = entries
         .filter_map(|entry| {
@@ -254,7 +280,8 @@ fn load_path_dependency(
 
     // TODO(alex) canonicalize path dependencies so they are relative to the pete.toml file
     let petr_toml_path = Path::new(&dep.path).join("pete.toml");
-    let manifest_content = fs::read_to_string(&petr_toml_path).expect("Failed to read pete.toml");
+    let manifest_content = fs::read_to_string(&petr_toml_path)
+        .map_err(|e| error::PkgError::Generic(format!("Could not read petr.toml file at {petr_toml_path:?}: {e:?}")))?;
     let manifest: Manifest = toml::from_str(&manifest_content).expect("Failed to parse pete.toml");
 
     let lockfile_entry = LockfileEntry {
@@ -263,12 +290,12 @@ fn load_path_dependency(
         depends_on: manifest.dependencies.clone(),
     };
 
-    LoadDependencyResult {
+    Ok(LoadDependencyResult {
         lock: lockfile_entry,
         files,
         manifest,
         key,
-    }
+    })
 }
 
 fn calculate_lockfile_hash(sources: Vec<(String, String)>) -> String {

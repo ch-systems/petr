@@ -142,6 +142,7 @@ pub struct Lexer {
     sources: LexedSources,
     source: SourceId,
     has_started_lexing: bool,
+    offset: usize,
 }
 
 impl Lexer {
@@ -156,11 +157,34 @@ impl Lexer {
             sources: map,
             source: 0.into(),
             has_started_lexing: false,
+            offset: 0,
         }
     }
 
+    pub fn new_with_offset_into_sources(
+        sources: impl IntoIterator<Item = &'static str>,
+        offset: usize,
+    ) -> Self {
+        let mut map: IndexMap<_, _> = Default::default();
+        let sources = sources.into_iter();
+        for source in sources {
+            let lexer = Token::lexer(source);
+            map.insert(lexer);
+        }
+        Self {
+            sources: map,
+            source: 0.into(),
+            offset,
+            has_started_lexing: false,
+        }
+    }
+
+    pub fn current_source(&self) -> SourceId {
+        (Into::<usize>::into(self.source) + self.offset).into()
+    }
+
     pub fn span(&self) -> Span {
-        Span::new(self.source, self.current_lexer().span().into())
+        Span::new(self.current_source(), self.current_lexer().span().into())
     }
 
     pub fn slice(&self) -> &str {
@@ -171,13 +195,13 @@ impl Lexer {
         let pre_advance_span = self.span();
         if !self.has_started_lexing {
             self.has_started_lexing = true;
-            return self.span().with_item(Token::NewFile(self.source));
+            return self.span().with_item(Token::NewFile(self.current_source()));
         }
         let current_lexer = self.current_lexer_mut();
 
         match current_lexer.next() {
             None => match self.advance_lexer() {
-                Some(_) => self.span().with_item(Token::NewFile(self.source)),
+                Some(_) => self.span().with_item(Token::NewFile(self.current_source())),
 
                 None => pre_advance_span.with_item(Token::Eof),
             },

@@ -355,7 +355,7 @@ mod tests {
             errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
             panic!("fmt failed: code didn't parse");
         }
-        let (errs, resolved) = resolve_symbols(ast, interner);
+        let (errs, resolved) = resolve_symbols(ast, interner, Default::default());
         if !errs.is_empty() {
             dbg!(&errs);
         }

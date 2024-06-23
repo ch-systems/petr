@@ -1236,6 +1236,8 @@ dependencies = [
  "git2",
  "petr-fmt",
  "serde",
+ "termcolor",
+ "thiserror",
  "toml",
 ]
 
@@ -1251,6 +1253,7 @@ dependencies = [
 name = "petr-resolve"
 version = "0.1.0"
 dependencies = [
+ "either",
  "expect-test",
  "petr-ast",
  "petr-bind",

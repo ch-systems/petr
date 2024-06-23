@@ -112,7 +112,7 @@ impl Parse for ImportStatement {
             let path: Vec<Identifier> = p.sequence_one_or_more(Token::Dot)?;
             let alias = if p.try_token(Token::As).is_some() { Some(p.parse()?) } else { None };
             Some(Self {
-                path: path.into_boxed_slice(),
+                path: Path::new(path),
                 visibility,
                 alias,
             })
@@ -129,7 +129,7 @@ impl Parse for FunctionDeclaration {
                 Token::ExportFunctionKeyword => Visibility::Exported,
                 _ => unreachable!(),
             };
-            let name = p.parse()?;
+            let name: Identifier = p.parse()?;
             p.token(Token::OpenParen)?;
             let parameters = if p.try_token(Token::CloseParen).is_some() {
                 vec![].into_boxed_slice()
@@ -366,7 +366,7 @@ fn file_name_to_module_name(name: &str) -> Result<Vec<Rc<str>>, ParseErrorKind> 
         .collect::<Vec<_>>()
         .into_iter()
         .rev()
-        .map(|comp| comp.as_os_str().to_string_lossy().replace("-", "_").replace(".pt", ""))
+        .map(|comp| comp.as_os_str().to_string_lossy().replace('-', "_").replace(".pt", ""))
         .map(Rc::from)
         .collect::<Vec<_>>();
     if name.iter().any(|part| !is_valid_identifier(part)) {

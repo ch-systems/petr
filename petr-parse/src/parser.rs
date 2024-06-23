@@ -173,7 +173,11 @@ impl Parser {
         }
     }
 
-    pub fn new(sources: impl IntoIterator<Item = (impl Into<String>, impl Into<String>)>) -> Self {
+    pub fn new_with_existing_interner_and_source_map(
+        sources: impl IntoIterator<Item = (impl Into<String>, impl Into<String>)>,
+        interner: SymbolInterner,
+        mut source_map: IndexMap<SourceId, (&'static str, &'static str)>,
+    ) -> Self {
         // TODO we hold two copies of the source for now: one in source_maps, and one outside the parser
         // for the lexer to hold on to and not have to do self-referential pointers.
         let sources = sources
@@ -185,22 +189,28 @@ impl Parser {
             })
             .collect::<Vec<_>>();
         let sources_for_lexer = sources.iter().map(|(_, source)| *source);
+
+        let lexer = Lexer::new_with_offset_into_sources(sources_for_lexer, source_map.len());
+
+        for (name, source) in sources.into_iter() {
+            source_map.insert((name, source));
+        }
+
         Self {
-            interner:     SymbolInterner::default(),
-            lexer:        Lexer::new(sources_for_lexer),
-            errors:       Default::default(),
-            comments:     Default::default(),
-            peek:         None,
-            source_map:   {
-                let mut source_map = IndexMap::default();
-                for (name, source) in sources.into_iter() {
-                    source_map.insert((name, source));
-                }
-                source_map
-            },
-            help:         Default::default(),
+            // reuse the interner if provided, otherwise create a new one
+            interner,
+            lexer,
+            errors: Default::default(),
+            comments: Default::default(),
+            peek: None,
+            source_map,
+            help: Default::default(),
             file_barrier: false,
         }
+    }
+
+    pub fn new(sources: impl IntoIterator<Item = (impl Into<String>, impl Into<String>)>) -> Self {
+        Self::new_with_existing_interner_and_source_map(sources, Default::default(), Default::default())
     }
 
     pub fn drain_comments(&mut self) -> Vec<Comment> {
