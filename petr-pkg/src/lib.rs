@@ -79,12 +79,9 @@ pub fn load_dependencies(deps: BTreeMap<String, Dependency>) -> Result<(Lockfile
     let mut entries = Vec::new();
     let mut files = Vec::new();
 
+    let mut stdout = StandardStream::stdout(ColorChoice::Always);
     // TODO should probably use dep_name instead of manifest.name so user
     // can control how a library shows up in their code
-    let mut stdout = StandardStream::stdout(ColorChoice::Always);
-    stdout.set_color(ColorSpec::new().set_bold(true))?;
-    println!("Fetching {} {}", deps.len(), if deps.len() == 1 { "dependency" } else { "dependencies" });
-
     for (dep_name, dep_source) in deps {
         // TODO better styling for compilation prints
         stdout.set_color(ColorSpec::new().set_fg(Some(Color::Green)).set_bold(true))?;

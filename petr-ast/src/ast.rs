@@ -116,7 +116,11 @@ pub enum Expression {
 pub struct ExpressionWithBindings {
     pub bindings:   Vec<Binding>,
     pub expression: Box<Expression>,
+    pub expr_id:    ExprId,
 }
+
+#[derive(Clone, Debug, PartialOrd, Ord, Eq, PartialEq, Copy)]
+pub struct ExprId(pub usize);
 
 #[derive(Clone)]
 pub struct Binding {

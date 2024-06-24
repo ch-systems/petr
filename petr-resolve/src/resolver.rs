@@ -1,5 +1,5 @@
 use petr_ast::{Ast, Commented, Expression, FunctionDeclaration, FunctionParameter};
-use petr_bind::{Binder, FunctionId, Item, ScopeId, ScopeKind, TypeId};
+use petr_bind::{Binder, FunctionId, Item, ScopeId, TypeId};
 use petr_utils::{Identifier, SpannedItem, SymbolInterner};
 use thiserror::Error;
 
@@ -119,7 +119,7 @@ pub struct Intrinsic {
 }
 
 impl Resolver {
-    // TODO: one for dependencies/packages which creates more scopes in the same binder
+    #[cfg(test)]
     pub fn new_from_single_ast(
         ast: Ast,
         interner: SymbolInterner,
@@ -181,7 +181,17 @@ impl Resolver {
             FunctionParameter(_ty) => {
                 // I don't think we have to do anything here but not sure
             },
-            Binding(_) => todo!(),
+            Binding(a) => {
+                let binding = binder.get_binding(*a);
+                let resolved_expr = binding.val.resolve(self, binder, scope_id).expect("TODO err");
+                self.resolved.bindings.insert(
+                    *a,
+                    crate::resolver::Binding {
+                        name:       binding.name,
+                        expression: resolved_expr,
+                    },
+                );
+            },
             // TODO not sure if we can skip this, or if we should resolve it during imports
             Module(id) => {
                 let module = binder.get_module(*id);
@@ -349,7 +359,7 @@ impl Resolve for Expression {
             Expression::Variable(var) => {
                 let item = match binder.find_symbol_in_scope(var.id, scope_id) {
                     Some(item @ Item::FunctionParameter(_) | item @ Item::Binding(_)) => item,
-                    _ => todo!("variable references non-variable item"),
+                    a => todo!("variable references non-variable item: {a:?}"),
                     /*
                     None => {
                         let var_name = resolver.interner.get(var.id);
@@ -361,10 +371,16 @@ impl Resolve for Expression {
                 };
                 match item {
                     Item::Binding(binding_id) => {
-                        // TODO not sure what to do here
-                        let _binding = binder.get_binding(*binding_id);
-                        todo!()
-                        //Expr::new(ExprKind::Variable { name: *var, ty: todo!() })
+                        let binding = binder.get_binding(*binding_id);
+                        //                        let expr = binding.resolve(resolver, binder, scope_id).expect("TODO errs");
+                        //                        resolver.resolved.bindings.insert(*binding_id, expr.clone());
+
+                        Expr::new(ExprKind::Variable {
+                            name: *var,
+                            // I Think this works for inference -- instantiating a new generic
+                            // type. Should revisit for soundness.
+                            ty:   Type::Generic(binding.name),
+                        })
                     },
                     Item::FunctionParameter(ty) => {
                         let ty = match ty.resolve(resolver, binder, scope_id) {
@@ -392,6 +408,7 @@ impl Resolve for Expression {
                 Expr::new(ExprKind::Intrinsic(resolved))
             },
             Expression::Binding(bound_expression) => {
+                let scope_id = binder.get_expr_scope(bound_expression.expr_id).expect("invariant: scope should exist");
                 let mut bindings: Vec<Binding> = Vec::with_capacity(bound_expression.bindings.len());
                 for binding in &bound_expression.bindings {
                     let rhs = binding.val.resolve(resolver, binder, scope_id)?;
@@ -501,7 +518,7 @@ impl Resolve for petr_ast::FunctionCall {
                     match next_symbol {
                         Item::Module(id) => rover = binder.get_module(*id),
                         Item::Function(func, _scope) if is_last => func_id = Some(*func),
-                        Item::Import { path, alias } => match path.resolve(resolver, binder, scope_id) {
+                        Item::Import { path, alias: _ } => match path.resolve(resolver, binder, scope_id) {
                             Some(either::Left(func)) => func_id = Some(func),
                             Some(either::Right(_ty)) => todo!("push error -- tried to call ty as func"),
                             None => todo!("push error -- import not found"),
@@ -569,7 +586,7 @@ impl Resolve for petr_utils::Path {
                 Item::Module(id) => rover = binder.get_module(*id),
                 Item::Function(func, _scope) if is_last => return Some(either::Either::Left(*func)),
                 Item::Type(ty) if is_last => return Some(either::Either::Right(*ty)),
-                Item::Import { path, alias } => match path.resolve(resolver, binder, scope_id) {
+                Item::Import { path, alias: _ } => match path.resolve(resolver, binder, scope_id) {
                     Some(either::Left(func)) => return Some(either::Left(func)),
                     Some(either::Right(ty)) => return Some(either::Right(ty)),
                     None => todo!("push error -- import not found"),
@@ -578,7 +595,7 @@ impl Resolve for petr_utils::Path {
             }
         }
 
-        todo!("import of module not supported, must be type or function")
+        todo!("import of module not supported yet, must be type or function")
     }
 }
 

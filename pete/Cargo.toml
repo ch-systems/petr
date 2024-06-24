@@ -19,6 +19,7 @@ petr-profiling = { path = "../petr-profiling" }
 miette = { version = "7.2.0", features = ["fancy"] }
 thiserror = "1.0"
 toml = "0.8"
+termcolor = "1.4.1"
 
 [features]
 debug = ["petr-utils/debug", "petr-resolve/debug"]

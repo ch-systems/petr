@@ -10,6 +10,7 @@ use petr_parse::Parser;
 use petr_pkg::BuildPlan;
 use petr_utils::{Identifier, IndexMap, SourceId, SpannedItem};
 use petr_vm::Vm;
+use termcolor::{ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 mod error {
     use thiserror::Error;
@@ -129,41 +130,7 @@ fn main() -> Result<(), error::PeteError> {
             }
         },
         Commands::Ir { path } => {
-            let (lockfile, buf, _build_plan) = load_project_and_dependencies(&path)?;
-            let lockfile_toml = toml::to_string(&lockfile)?;
-            let lockfile_path = path.join("petr.lock");
-            fs::write(lockfile_path, lockfile_toml)?;
-
-            // convert pathbufs into strings for the parser
-            let buf = buf
-                .into_iter()
-                .map(|(pathbuf, s)| (pathbuf.to_string_lossy().to_string(), s))
-                .collect::<Vec<_>>();
-
-            // parse
-            let parser = Parser::new(buf);
-            let (ast, parse_errs, interner, source_map) = parser.into_result();
-
-            render_errors(parse_errs, &source_map);
-            // errs.append(&mut parse_errs);
-            // resolve symbols
-            let (resolution_errs, resolved) = petr_resolve::resolve_symbols(ast, interner, todo!("copy dependencies behavior to IR"));
-
-            // TODO impl diagnostic for resolution errors
-            if !resolution_errs.is_empty() {
-                dbg!(&resolution_errs);
-            }
-            // errs.append(&mut resolution_errs);
-
-            // type check
-            let (type_errs, type_checker) = petr_typecheck::type_check(resolved);
-
-            // TODO impl diagnostic for type errors
-            if !type_errs.is_empty() {
-                dbg!(&type_errs);
-            }
-            // errs.append(&mut type_errs);
-            let lowerer: Lowerer = Lowerer::new(type_checker);
+            let lowerer = compile(path, &mut petr_profiling::Timings::default())?;
 
             println!("{}", lowerer.pretty_print());
         },
@@ -175,6 +142,26 @@ fn main() -> Result<(), error::PeteError> {
 fn load_project_and_dependencies(path: &Path) -> Result<(petr_pkg::Lockfile, Vec<(PathBuf, String)>, BuildPlan), crate::error::PeteError> {
     let manifest = petr_pkg::manifest::find_manifest(Some(path.to_path_buf())).expect("Failed to find manifest");
     let dependencies = manifest.dependencies;
+    let mut stdout = StandardStream::stdout(ColorChoice::Always);
+
+    if !dependencies.is_empty() {
+        stdout.set_color(ColorSpec::new().set_bold(true))?;
+        /*
+        todo!(
+            "instead of saying fetching, pay attention to if it already exists
+        and print if it does or doesn't. also, check if checksum agrees with lockfile
+        and use rev etc on github dep to determine thet key"
+        );
+        */
+        println!(
+            "Fetching {} {} for package {}",
+            dependencies.len(),
+            if dependencies.len() == 1 { "dependency" } else { "dependencies" },
+            manifest.name
+        );
+
+        stdout.set_color(ColorSpec::new().set_bold(false))?;
+    }
     let (lockfile, build_plan) = petr_pkg::load_dependencies(dependencies)?;
 
     let files = load_files(path);

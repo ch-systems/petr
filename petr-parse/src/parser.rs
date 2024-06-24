@@ -7,7 +7,7 @@ use std::rc::Rc;
 use lexer::Lexer;
 pub use lexer::Token;
 use miette::Diagnostic;
-use petr_ast::{Ast, Comment, List, Module};
+use petr_ast::{Ast, Comment, ExprId, List, Module};
 use petr_utils::{IndexMap, SourceId, Span, SpannedItem, SymbolId, SymbolInterner};
 use thiserror::Error;
 
@@ -118,14 +118,17 @@ fn format_toks(toks: &[Token]) -> String {
 type Result<T> = std::result::Result<T, ParseError>;
 
 pub struct Parser {
-    interner:     SymbolInterner,
-    lexer:        Lexer,
-    errors:       Vec<SpannedItem<ParseError>>,
-    comments:     Vec<SpannedItem<Comment>>,
-    peek:         Option<SpannedItem<Token>>,
+    interner: SymbolInterner,
+    /// some exprs need to be assigned an ID, because they generate a scope
+    /// which is stored in the binder and needs to be retrieved later
+    expr_id_assigner: usize,
+    lexer: Lexer,
+    errors: Vec<SpannedItem<ParseError>>,
+    comments: Vec<SpannedItem<Comment>>,
+    peek: Option<SpannedItem<Token>>,
     // the tuple is the file name and content
-    source_map:   IndexMap<SourceId, (&'static str, &'static str)>,
-    help:         Vec<String>,
+    source_map: IndexMap<SourceId, (&'static str, &'static str)>,
+    help: Vec<String>,
     /// whether or not to continue advancing if one source file ends
     /// TODO can maybe remove this now that modules aren't spanned items
     file_barrier: bool,
@@ -206,7 +209,14 @@ impl Parser {
             source_map,
             help: Default::default(),
             file_barrier: false,
+            expr_id_assigner: 0,
         }
+    }
+
+    pub fn new_expr_id(&mut self) -> ExprId {
+        let id = self.expr_id_assigner;
+        self.expr_id_assigner += 1;
+        ExprId(id)
     }
 
     pub fn new(sources: impl IntoIterator<Item = (impl Into<String>, impl Into<String>)>) -> Self {

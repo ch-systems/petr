@@ -282,6 +282,7 @@ impl Parse for ExpressionWithBindings {
         Some(ExpressionWithBindings {
             bindings,
             expression: Box::new(expression),
+            expr_id: p.new_expr_id(),
         })
     }
 }
