@@ -1,7 +1,7 @@
 use petr_ast::{Commented, Expression, ExpressionWithBindings, FunctionDeclaration, ImportStatement, TypeDeclaration};
 use petr_utils::{Identifier, SpannedItem};
 
-use crate::{binder::ScopeKind, Bind, Binder, Item, ScopeId};
+use crate::{binder::ScopeKind, Bind, Binder, Item};
 
 impl Bind for TypeDeclaration {
     type Output = Option<(Identifier, Item)>;
@@ -22,7 +22,6 @@ impl Bind for Expression {
         &self,
         binder: &mut Binder,
     ) -> Self::Output {
-        println!("binding expr");
         // only lists get their own scope for now
         match self {
             Expression::List(list) => {
@@ -41,7 +40,6 @@ impl Bind for Expression {
                     // TODO: functions get inserted as Items with scopes, so we should probably
                     // insert bound expressions as an Item with their own scope, not sure how yet.
                     expression.bind(binder);
-                    println!("inserting binder into expression");
                     binder.insert_expression(*expr_id, scope_id);
                     //
                 })

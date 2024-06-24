@@ -435,9 +435,14 @@ impl TypeCheck for Expr {
             },
             ExprKind::Unit => TypedExpr::Unit,
             ExprKind::ErrorRecovery => TypedExpr::ErrorRecovery,
-            ExprKind::Variable { name, ty } => TypedExpr::Variable {
-                ty:   ctx.to_type_var(ty),
-                name: *name,
+            ExprKind::Variable { name, ty } => {
+                // look up variable in scope
+                // find its expr return type
+
+                TypedExpr::Variable {
+                    ty:   ctx.to_type_var(ty),
+                    name: *name,
+                }
             },
             ExprKind::Intrinsic(intrinsic) => intrinsic.type_check(ctx),
             ExprKind::TypeConstructor => {

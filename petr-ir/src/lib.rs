@@ -64,7 +64,6 @@ impl Lowerer {
             type_checker,
             variables_in_scope: Default::default(),
         };
-        println!("about to lower all fns");
         lowerer.lower_all_functions().expect("errors should get caught before lowering");
         lowerer
     }
@@ -103,7 +102,6 @@ impl Lowerer {
         let func_label = self.new_function_label();
         let mut buf = vec![];
         self.with_variable_context(|ctx| -> Result<_, _> {
-            println!("working on fn");
             // TODO: func should have type checked types...not just the AST type
             for (param_name, param_ty) in &func.params {
                 // in order, assign parameters to registers
@@ -122,7 +120,6 @@ impl Lowerer {
                     todo!("make reg a ptr to the value")
                 }
             }
-            println!("func");
 
             // TODO we could support other return dests
             let return_dest = ReturnDestination::Stack;
@@ -154,7 +151,6 @@ impl Lowerer {
         body: &TypedExpr,
         return_destination: ReturnDestination,
     ) -> Result<Vec<IrOpcode>, LoweringError> {
-        println!("lowering expr");
         use TypedExpr::*;
 
         match body {
@@ -186,13 +182,6 @@ impl Lowerer {
             List { .. } => todo!(),
             Unit => todo!(),
             Variable { name, ty } => {
-                for (ix, map) in self.variables_in_scope.iter().enumerate() {
-                    println!("scope {}", ix);
-                    for (var, item) in map {
-                        println!("var {}", var);
-                    }
-                }
-                println!("looking for var {}", name.id);
                 let var_reg = self
                     .get_variable(name.id)
                     .unwrap_or_else(|| panic!("var {} did not exist TODO err", name.id));
@@ -209,7 +198,6 @@ impl Lowerer {
             ExprWithBindings { bindings, expression } => self.with_variable_context(|ctx| -> Result<_, _> {
                 let mut buf = vec![];
                 for (name, expr) in bindings {
-                    println!("doing expr with bindings");
                     let reg = ctx.fresh_reg();
                     let mut expr = ctx.lower_expr(expr, ReturnDestination::Reg(reg))?;
                     buf.append(&mut expr);
@@ -264,7 +252,6 @@ impl Lowerer {
         return_destination: ReturnDestination,
     ) -> Result<Vec<IrOpcode>, LoweringError> {
         let mut buf = vec![];
-        println!("lower intrinsic");
         match intrinsic {
             petr_typecheck::Intrinsic::Puts(arg) => {
                 // puts takes one arg and it is a string
