@@ -42,7 +42,7 @@ impl PrettyPrint for ImportStatement {
             "{}{} {}",
             "  ".repeat(indentation),
             if self.is_exported() { "export" } else { "import" },
-            self.path.iter().map(|id| interner.get(id.id)).collect::<Vec<_>>().join("."),
+            self.path.identifiers.iter().map(|id| interner.get(id.id)).collect::<Vec<_>>().join("."),
         );
         if let Some(alias) = self.alias {
             buf.push_str(&format!(" as {}", interner.get(alias.id)));

@@ -23,6 +23,28 @@ pub struct Path {
     pub identifiers: Box<[Identifier]>,
 }
 
+impl Path {
+    pub fn new(identifiers: Vec<Identifier>) -> Self {
+        Self {
+            identifiers: identifiers.into_boxed_slice(),
+        }
+    }
+}
+
+impl Path {
+    pub fn len(&self) -> usize {
+        self.identifiers.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.identifiers.is_empty()
+    }
+
+    pub fn iter(&self) -> std::slice::Iter<'_, Identifier> {
+        self.identifiers.iter()
+    }
+}
+
 #[cfg(not(feature = "debug"))]
 idx_map_key!(
     /// The ID of an ident in the symbol interner

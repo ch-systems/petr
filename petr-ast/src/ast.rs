@@ -9,6 +9,31 @@ pub struct Ast {
     pub modules: Vec<Module>,
 }
 
+impl std::fmt::Debug for Ast {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        writeln!(f, "AST")?;
+        for module in self.modules.iter() {
+            let path = module.name.iter().map(|x| format!("{}", x.id)).collect::<Vec<_>>().join(".");
+            writeln!(f, "Module: {path}")?;
+            for node in module.nodes.iter() {
+                match node.item() {
+                    AstNode::FunctionDeclaration(fun) => writeln!(f, "  Function: {}", fun.item().name.id)?,
+                    AstNode::TypeDeclaration(ty) => writeln!(f, "  Type: {}", ty.item().name.id)?,
+                    AstNode::ImportStatement(i) => writeln!(
+                        f,
+                        "  Import: {}",
+                        i.item().path.iter().map(|x| format!("{}", x.id)).collect::<Vec<_>>().join(".")
+                    )?,
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 pub struct Module {
     pub name:  Path,
     pub nodes: Vec<SpannedItem<AstNode>>,
@@ -27,7 +52,7 @@ pub enum AstNode {
 }
 
 pub struct ImportStatement {
-    pub path:       Box<[Identifier]>,
+    pub path:       Path,
     pub alias:      Option<Identifier>,
     pub visibility: Visibility,
 }
@@ -49,7 +74,7 @@ impl TypeDeclaration {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Visibility {
     Local,
     Exported,
@@ -91,7 +116,11 @@ pub enum Expression {
 pub struct ExpressionWithBindings {
     pub bindings:   Vec<Binding>,
     pub expression: Box<Expression>,
+    pub expr_id:    ExprId,
 }
+
+#[derive(Clone, Debug, PartialOrd, Ord, Eq, PartialEq, Copy)]
+pub struct ExprId(pub usize);
 
 #[derive(Clone)]
 pub struct Binding {

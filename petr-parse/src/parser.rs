@@ -7,7 +7,7 @@ use std::rc::Rc;
 use lexer::Lexer;
 pub use lexer::Token;
 use miette::Diagnostic;
-use petr_ast::{Ast, Comment, List, Module};
+use petr_ast::{Ast, Comment, ExprId, List, Module};
 use petr_utils::{IndexMap, SourceId, Span, SpannedItem, SymbolId, SymbolInterner};
 use thiserror::Error;
 
@@ -118,14 +118,17 @@ fn format_toks(toks: &[Token]) -> String {
 type Result<T> = std::result::Result<T, ParseError>;
 
 pub struct Parser {
-    interner:     SymbolInterner,
-    lexer:        Lexer,
-    errors:       Vec<SpannedItem<ParseError>>,
-    comments:     Vec<SpannedItem<Comment>>,
-    peek:         Option<SpannedItem<Token>>,
+    interner: SymbolInterner,
+    /// some exprs need to be assigned an ID, because they generate a scope
+    /// which is stored in the binder and needs to be retrieved later
+    expr_id_assigner: usize,
+    lexer: Lexer,
+    errors: Vec<SpannedItem<ParseError>>,
+    comments: Vec<SpannedItem<Comment>>,
+    peek: Option<SpannedItem<Token>>,
     // the tuple is the file name and content
-    source_map:   IndexMap<SourceId, (&'static str, &'static str)>,
-    help:         Vec<String>,
+    source_map: IndexMap<SourceId, (&'static str, &'static str)>,
+    help: Vec<String>,
     /// whether or not to continue advancing if one source file ends
     /// TODO can maybe remove this now that modules aren't spanned items
     file_barrier: bool,
@@ -173,7 +176,11 @@ impl Parser {
         }
     }
 
-    pub fn new(sources: impl IntoIterator<Item = (impl Into<String>, impl Into<String>)>) -> Self {
+    pub fn new_with_existing_interner_and_source_map(
+        sources: impl IntoIterator<Item = (impl Into<String>, impl Into<String>)>,
+        interner: SymbolInterner,
+        mut source_map: IndexMap<SourceId, (&'static str, &'static str)>,
+    ) -> Self {
         // TODO we hold two copies of the source for now: one in source_maps, and one outside the parser
         // for the lexer to hold on to and not have to do self-referential pointers.
         let sources = sources
@@ -185,22 +192,35 @@ impl Parser {
             })
             .collect::<Vec<_>>();
         let sources_for_lexer = sources.iter().map(|(_, source)| *source);
-        Self {
-            interner:     SymbolInterner::default(),
-            lexer:        Lexer::new(sources_for_lexer),
-            errors:       Default::default(),
-            comments:     Default::default(),
-            peek:         None,
-            source_map:   {
-                let mut source_map = IndexMap::default();
-                for (name, source) in sources.into_iter() {
-                    source_map.insert((name, source));
-                }
-                source_map
-            },
-            help:         Default::default(),
-            file_barrier: false,
+
+        let lexer = Lexer::new_with_offset_into_sources(sources_for_lexer, source_map.len());
+
+        for (name, source) in sources.into_iter() {
+            source_map.insert((name, source));
         }
+
+        Self {
+            // reuse the interner if provided, otherwise create a new one
+            interner,
+            lexer,
+            errors: Default::default(),
+            comments: Default::default(),
+            peek: None,
+            source_map,
+            help: Default::default(),
+            file_barrier: false,
+            expr_id_assigner: 0,
+        }
+    }
+
+    pub fn new_expr_id(&mut self) -> ExprId {
+        let id = self.expr_id_assigner;
+        self.expr_id_assigner += 1;
+        ExprId(id)
+    }
+
+    pub fn new(sources: impl IntoIterator<Item = (impl Into<String>, impl Into<String>)>) -> Self {
+        Self::new_with_existing_interner_and_source_map(sources, Default::default(), Default::default())
     }
 
     pub fn drain_comments(&mut self) -> Vec<Comment> {

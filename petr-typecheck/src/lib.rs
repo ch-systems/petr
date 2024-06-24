@@ -59,11 +59,13 @@ pub struct TypeChecker {
 
 pub type TypeVariable = Type<&'static str>;
 
+/// TODO get rid of this type and use polytype directly
 pub enum PetrType {
     Unit,
     Integer,
     Boolean,
     String,
+    Variable(usize),
 }
 
 impl TypeChecker {
@@ -84,6 +86,7 @@ impl TypeChecker {
             ty if ty == bool_ty => PetrType::Boolean,
             ty if ty == unit_ty => PetrType::Unit,
             ty if ty == string_ty => PetrType::String,
+            Type::Variable(otherwise) => PetrType::Variable(otherwise),
             other => todo!("{other:?}"),
         }
     }
@@ -277,6 +280,17 @@ pub enum Intrinsic {
     Puts(Box<TypedExpr>),
 }
 
+impl std::fmt::Debug for Intrinsic {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        match self {
+            Intrinsic::Puts(expr) => write!(f, "puts({:?})", expr),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub enum TypedExpr {
     FunctionCall {
@@ -303,6 +317,47 @@ pub enum TypedExpr {
     },
     // TODO put a span here?
     ErrorRecovery,
+    ExprWithBindings {
+        bindings:   Vec<(Identifier, TypedExpr)>,
+        expression: Box<TypedExpr>,
+    },
+}
+
+impl std::fmt::Debug for TypedExpr {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        use TypedExpr::*;
+        match self {
+            FunctionCall { func, args, .. } => {
+                write!(f, "function call to {} with args: ", func)?;
+                for (name, arg) in args {
+                    write!(f, "{}: {:?}, ", name.id, arg)?;
+                }
+                Ok(())
+            },
+            Literal { value, .. } => write!(f, "literal: {}", value),
+            List { elements, .. } => {
+                write!(f, "list: [")?;
+                for elem in elements {
+                    write!(f, "{:?}, ", elem)?;
+                }
+                write!(f, "]")
+            },
+            Unit => write!(f, "unit"),
+            Variable { name, .. } => write!(f, "variable: {}", name.id),
+            Intrinsic { intrinsic, .. } => write!(f, "intrinsic: {:?}", intrinsic),
+            ErrorRecovery => write!(f, "error recovery"),
+            ExprWithBindings { bindings, expression } => {
+                write!(f, "bindings: ")?;
+                for (name, expr) in bindings {
+                    write!(f, "{}: {:?}, ", name.id, expr)?;
+                }
+                write!(f, "expression: {:?}", expression)
+            },
+        }
+    }
 }
 
 impl TypedExpr {
@@ -316,6 +371,7 @@ impl TypedExpr {
             Variable { ty, .. } => ty.clone(),
             Intrinsic { ty, .. } => ty.clone(),
             ErrorRecovery => tp!(error),
+            ExprWithBindings { expression, .. } => expression.ty(),
         }
     }
 }
@@ -379,16 +435,35 @@ impl TypeCheck for Expr {
             },
             ExprKind::Unit => TypedExpr::Unit,
             ExprKind::ErrorRecovery => TypedExpr::ErrorRecovery,
-            ExprKind::Variable { name, ty } => TypedExpr::Variable {
-                ty:   ctx.to_type_var(ty),
-                name: *name,
+            ExprKind::Variable { name, ty } => {
+                // look up variable in scope
+                // find its expr return type
+
+                TypedExpr::Variable {
+                    ty:   ctx.to_type_var(ty),
+                    name: *name,
+                }
             },
             ExprKind::Intrinsic(intrinsic) => intrinsic.type_check(ctx),
             ExprKind::TypeConstructor => {
                 // type constructor expressions take inputs that should line up with a type decl and return a type
                 todo!()
             },
-            ExprKind::ExpressionWithBindings { .. } => todo!(),
+            ExprKind::ExpressionWithBindings { bindings, expression } => {
+                // for each binding, type check the rhs
+                ctx.with_type_scope(|ctx| {
+                    let mut type_checked_bindings = Vec::with_capacity(bindings.len());
+                    for binding in bindings {
+                        let binding_ty = binding.expression.type_check(ctx);
+                        type_checked_bindings.push((binding.name, binding_ty));
+                    }
+
+                    TypedExpr::ExprWithBindings {
+                        bindings:   type_checked_bindings,
+                        expression: Box::new(expression.type_check(ctx)),
+                    }
+                })
+            },
         }
     }
 }
@@ -487,7 +562,7 @@ mod tests {
 
     use expect_test::{expect, Expect};
     use petr_resolve::resolve_symbols;
-    use petr_utils::render_error;
+    use petr_utils::{render_error, SymbolInterner};
 
     use super::*;
     fn check(
@@ -501,7 +576,7 @@ mod tests {
             errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
             panic!("fmt failed: code didn't parse");
         }
-        let (errs, resolved) = resolve_symbols(ast, interner);
+        let (errs, resolved) = resolve_symbols(ast, interner, Default::default());
         assert!(errs.is_empty(), "can't typecheck: unresolved symbols");
         let type_checker = TypeChecker::new(resolved);
         let res = pretty_print_type_checker(type_checker);
@@ -523,12 +598,25 @@ mod tests {
                     let func = type_checker.resolved.get_function(*id);
 
                     let name = type_checker.resolved.interner.get(func.name.id);
+
                     format!("function {}", name)
                 },
             };
             s.push_str(&text);
             s.push_str(" → ");
             s.push_str(&ty.to_string());
+
+            s.push('\n');
+            match id {
+                TypeOrFunctionId::TypeId(_) => (),
+                TypeOrFunctionId::FunctionId(func) => {
+                    let func = type_checker.typed_functions.get(func).unwrap();
+                    let body = &func.body;
+                    s.push_str(&pretty_print_typed_expr(&type_checker.resolved.interner, body));
+                    s.push('\n');
+                },
+            }
+
             s.push('\n');
         }
 
@@ -539,6 +627,39 @@ mod tests {
             }
         }
         s
+    }
+
+    fn pretty_print_typed_expr(
+        interner: &SymbolInterner,
+        typed_expr: &TypedExpr,
+    ) -> String {
+        match typed_expr {
+            TypedExpr::ExprWithBindings { bindings, expression } => {
+                let mut s = String::new();
+                for (name, expr) in bindings {
+                    let ident = interner.get(name.id);
+                    s.push_str(&format!("{ident}: {:?} ({}),\n", expr, expr.ty()));
+                }
+                s.push_str(&format!("{:?} ({})", pretty_print_typed_expr(interner, expression), expression.ty()));
+                s
+            },
+            TypedExpr::Variable { name, ty } => {
+                let name = interner.get(name.id);
+                format!("variable: {name} ({ty})")
+            },
+
+            TypedExpr::FunctionCall { func, args, ty } => {
+                let mut s = String::new();
+                s.push_str(&format!("function call to {} with args: ", func));
+                for (name, arg) in args {
+                    let name = interner.get(name.id);
+                    s.push_str(&format!("{name}: {:?}, ", arg.ty()));
+                }
+                s.push_str(&format!("returns {ty}"));
+                s
+            },
+            otherwise => format!("{:?}", otherwise),
+        }
     }
 
     #[test]
@@ -743,5 +864,33 @@ mod tests {
                 Failed to unify types: Failure(int, error)
             "#]],
         );
+    }
+
+    #[test]
+    fn infer_let_bindings() {
+        check(
+            r#"
+            function hi(x in 'int, y in 'int) returns 'int
+    let a = x,
+        b = y,
+        c = 20,
+        d = 30,
+        e = 42,
+    a
+function main() returns 'int ~hi(1, 2)"#,
+            expect![[r#"
+                function hi → (int → int) → int
+                a: variable: symbolid2 (int),
+                b: variable: symbolid4 (int),
+                c: literal: 20 (int),
+                d: literal: 30 (int),
+                e: literal: 42 (int),
+                "variable: a (int)" (int)
+
+                function main → int
+                function call to functionid0 with args: x: Constructed("int", []), y: Constructed("int", []), 
+
+            "#]],
+        )
     }
 }

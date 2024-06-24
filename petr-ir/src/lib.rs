@@ -114,6 +114,7 @@ impl Lowerer {
                     };
                     buf.push(IrOpcode::StackPop(ty_reg));
                     // insert param into mapping
+
                     ctx.insert_var(param_name, param_reg);
                 } else {
                     todo!("make reg a ptr to the value")
@@ -182,21 +183,30 @@ impl Lowerer {
             Unit => todo!(),
             Variable { name, ty } => {
                 let var_reg = self
-                    .variables_in_scope
-                    .last()
-                    .expect("should be at least one scope")
-                    .get(&name.id)
-                    .expect("var did not exist TODO err");
+                    .get_variable(name.id)
+                    .unwrap_or_else(|| panic!("var {} did not exist TODO err", name.id));
                 Ok(match return_destination {
-                    ReturnDestination::Reg(reg) => vec![IrOpcode::Copy(reg, *var_reg)],
+                    ReturnDestination::Reg(reg) => vec![IrOpcode::Copy(reg, var_reg)],
                     ReturnDestination::Stack => vec![IrOpcode::StackPush(TypedReg {
                         ty:  self.to_ir_type(ty),
-                        reg: *var_reg,
+                        reg: var_reg,
                     })],
                 })
             },
             Intrinsic { ty: _ty, intrinsic } => self.lower_intrinsic(intrinsic, return_destination),
             ErrorRecovery => Err(LoweringError),
+            ExprWithBindings { bindings, expression } => self.with_variable_context(|ctx| -> Result<_, _> {
+                let mut buf = vec![];
+                for (name, expr) in bindings {
+                    let reg = ctx.fresh_reg();
+                    let mut expr = ctx.lower_expr(expr, ReturnDestination::Reg(reg))?;
+                    buf.append(&mut expr);
+                    ctx.insert_var(name, reg);
+                }
+                let mut expr = ctx.lower_expr(expression, return_destination)?;
+                buf.append(&mut expr);
+                Ok(buf)
+            }),
         }
     }
 
@@ -225,6 +235,7 @@ impl Lowerer {
             Integer => IrTy::Int64,
             Boolean => IrTy::Boolean,
             String => IrTy::String,
+            Variable(_) => todo!("untyped variable"),
         }
     }
 
@@ -262,6 +273,18 @@ impl Lowerer {
             },
         }
         Ok(buf)
+    }
+
+    fn get_variable(
+        &self,
+        id: SymbolId,
+    ) -> Option<Reg> {
+        for scope in self.variables_in_scope.iter().rev() {
+            if let Some(reg) = scope.get(&id) {
+                return Some(*reg);
+            }
+        }
+        None
     }
 
     /// Produces a new context for variables in a scope to be allocated
@@ -355,7 +378,7 @@ mod tests {
             errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
             panic!("fmt failed: code didn't parse");
         }
-        let (errs, resolved) = resolve_symbols(ast, interner);
+        let (errs, resolved) = resolve_symbols(ast, interner, Default::default());
         if !errs.is_empty() {
             dbg!(&errs);
         }
@@ -449,8 +472,8 @@ mod tests {
     fn func_args() {
         check(
             r#"
-                function add(x in 'int, y in 'int) returns 'int x
-                function main() returns 'int ~add(1, 2)
+                function test(x in 'int, y in 'int) returns 'int x
+                function main() returns 'int ~test(1, 2)
                 "#,
             expect![[r#"
                 ; DATA_SECTION
@@ -477,7 +500,7 @@ mod tests {
     }
 
     #[test]
-    fn let_bindings() {
+    fn let_bindings_with_ops() {
         check(
             r#"
                 function add(x in 'int, y in 'int) returns 'int
@@ -486,26 +509,23 @@ mod tests {
                     + a + b + x y
                 function main() returns 'int ~add(1, 2)
                 "#,
-            expect![[r#"
-                ; DATA_SECTION
-                0: Int64(1)
-                1: Int64(2)
-
-                ; PROGRAM_SECTION
-                function 0:
-                 0	pop v0
-                 1	pop v1
-                 2	push v0
-                 3	ret
-                ENTRY: function 1:
-                 4	ld v2 datalabel0
-                 5	push v2
-                 6	ld v3 datalabel1
-                 7	push v3
-                 8	ppc
-                 9	jumpi functionid0
-                 10	ret
-            "#]],
+            expect![[r#""#]],
+        );
+    }
+    #[test]
+    fn let_bindings() {
+        check(
+            r#"
+                function hi(x in 'int, y in 'int) returns 'int
+                    let a = x,
+                        b = y,
+                        c = 20,
+                        d = 30,
+                        e = 42,
+                    a
+                function main() returns 'int ~hi(1, 2)
+                "#,
+            expect![[r#""#]],
         );
     }
 }

@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use petr_ast::{Ast, Expression, FunctionDeclaration, Ty, TypeDeclaration};
+use petr_ast::{Ast, Binding, ExprId, Expression, FunctionDeclaration, Ty, TypeDeclaration};
 use petr_utils::{idx_map_key, Identifier, IndexMap, Path, SymbolId};
 // TODO:
 // - i don't know if type cons needs a scope. Might be good to remove that.
@@ -14,11 +14,6 @@ idx_map_key!(
 idx_map_key!(
     /// The ID type of a functoin parameter
     FunctionParameterId
-);
-
-idx_map_key!(
-    /// The ID type of an Expr.
-   ExprId
 );
 
 idx_map_key!(
@@ -49,13 +44,16 @@ pub enum Item {
     Type(TypeId),
     FunctionParameter(Ty),
     Module(ModuleId),
-    Import { path: Box<[Identifier]>, alias: Option<Identifier> },
+    Import { path: Path, alias: Option<Identifier> },
 }
 
 pub struct Binder {
     scopes:      IndexMap<ScopeId, Scope<Item>>,
     scope_chain: Vec<ScopeId>,
-    bindings:    IndexMap<BindingId, Expression>,
+    /// Some expressions define their own scopes, like expressions with bindings
+    // TODO rename to expr_scopes
+    exprs: BTreeMap<ExprId, ScopeId>,
+    bindings:    IndexMap<BindingId, Binding>,
     functions:   IndexMap<FunctionId, FunctionDeclaration>,
     types:       IndexMap<TypeId, TypeDeclaration>,
     modules:     IndexMap<ModuleId, Module>,
@@ -69,21 +67,32 @@ pub struct Module {
 }
 
 pub struct Scope<T> {
+    /// A `Scope` always has a parent, unless it is the root scope of the user code.
+    /// All scopes are descendents of one single root scope.
     parent: Option<ScopeId>,
+    /// A mapping of the symbols that were declared in this scope. Note that any scopes that are
+    /// children of this scope inherit these symbols as well.
     items:  BTreeMap<SymbolId, T>,
     #[allow(dead_code)]
     // this will be read but is also very useful for debugging
     kind: ScopeKind,
 }
 
-/// Mainly just used for debugging what generated this scope.
+/// Not used in the compiler heavily yet, but extremely useful for understanding what kind of scope
+/// you are in.
 #[derive(Clone, Copy, Debug)]
 pub enum ScopeKind {
+    /// A module scope. This is the top level scope for a module.
     Module(Identifier),
+    /// A function scope. This is the scope of a function body. Notably, function scopes are where
+    /// all the function parameters are declared.
     Function,
+    /// The root scope of the user code. There is only ever one ScopeKind::Root in a compilation.
+    /// All scopes are descendents of the root.
     Root,
+    /// This might not be needed -- the scope within a type constructor function.
     TypeConstructor,
-    // an expression with `let`s
+    /// For a let... expression, this is the scope of the expression and its bindings.
     ExpressionWithBindings,
 }
 
@@ -122,7 +131,12 @@ impl Binder {
             types: IndexMap::default(),
             bindings: IndexMap::default(),
             modules: IndexMap::default(),
+            exprs: BTreeMap::new(),
         }
+    }
+
+    pub fn current_scope_id(&self) -> ScopeId {
+        *self.scope_chain.last().expect("there's always at least one scope")
     }
 
     pub fn get_function(
@@ -167,8 +181,8 @@ impl Binder {
         name: SymbolId,
         item: Item,
     ) {
-        let scope_id = self.scope_chain.last().expect("there's always at least one scope");
-        self.scopes.get_mut(*scope_id).insert(name, item);
+        let scope_id = self.current_scope_id();
+        self.scopes.get_mut(scope_id).insert(name, item);
     }
 
     fn push_scope(
@@ -180,6 +194,20 @@ impl Binder {
         self.scope_chain.push(id);
 
         id
+    }
+
+    pub fn get_scope(
+        &self,
+        scope: ScopeId,
+    ) -> &Scope<Item> {
+        self.scopes.get(scope)
+    }
+
+    pub fn get_scope_kind(
+        &self,
+        scope: ScopeId,
+    ) -> ScopeKind {
+        self.scopes.get(scope).kind
     }
 
     fn pop_scope(&mut self) {
@@ -251,19 +279,21 @@ impl Binder {
 
     pub(crate) fn insert_function(
         &mut self,
-        arg: &FunctionDeclaration,
+        func: &FunctionDeclaration,
     ) -> Option<(Identifier, Item)> {
-        let function_id = self.functions.insert(arg.clone());
+        let function_id = self.functions.insert(func.clone());
         let func_body_scope = self.with_scope(ScopeKind::Function, |binder, function_body_scope| {
-            for param in arg.parameters.iter() {
+            for param in func.parameters.iter() {
                 binder.insert_into_current_scope(param.name.id, Item::FunctionParameter(param.ty));
             }
+
+            func.body.bind(binder);
             function_body_scope
         });
         let item = Item::Function(function_id, func_body_scope);
-        self.insert_into_current_scope(arg.name.id, item.clone());
-        if arg.is_exported() {
-            Some((arg.name, item))
+        self.insert_into_current_scope(func.name.id, item.clone());
+        if func.is_exported() {
+            Some((func.name, item))
         } else {
             None
         }
@@ -271,7 +301,7 @@ impl Binder {
 
     pub(crate) fn insert_binding(
         &mut self,
-        binding: Expression,
+        binding: Binding,
     ) -> BindingId {
         self.bindings.insert(binding)
     }
@@ -302,13 +332,68 @@ impl Binder {
         binder
     }
 
+    pub fn from_ast_and_deps(
+        ast: &Ast,
+        // TODO better type here
+        dependencies: Vec<(
+            /* Key */ String,
+            /*Name from manifest*/ Identifier,
+            /*Things this depends on*/ Vec<String>,
+            Ast,
+        )>,
+    ) -> Self {
+        let mut binder = Self::new();
+
+        for dependency in dependencies {
+            let (_key, name, _depends_on, dep_ast) = dependency;
+            let dep_scope = binder.create_scope_from_path(&Path::new(vec![name]));
+            binder.with_specified_scope(dep_scope, |binder, _scope_id| {
+                for module in dep_ast.modules {
+                    let module_scope = binder.create_scope_from_path(&module.name);
+                    binder.with_specified_scope(module_scope, |binder, scope_id| {
+                        let exports = module.nodes.iter().filter_map(|node| match node.item() {
+                            petr_ast::AstNode::FunctionDeclaration(decl) => decl.bind(binder),
+                            petr_ast::AstNode::TypeDeclaration(decl) => decl.bind(binder),
+                            petr_ast::AstNode::ImportStatement(stmt) => stmt.bind(binder),
+                        });
+                        let exports = BTreeMap::from_iter(exports);
+                        // TODO do I need to track this module id?
+                        let _module_id = binder.modules.insert(Module {
+                            root_scope: scope_id,
+                            exports,
+                        });
+                    });
+                }
+            })
+        }
+
+        for module in &ast.modules {
+            let module_scope = binder.create_scope_from_path(&module.name);
+            binder.with_specified_scope(module_scope, |binder, scope_id| {
+                let exports = module.nodes.iter().filter_map(|node| match node.item() {
+                    petr_ast::AstNode::FunctionDeclaration(decl) => decl.bind(binder),
+                    petr_ast::AstNode::TypeDeclaration(decl) => decl.bind(binder),
+                    petr_ast::AstNode::ImportStatement(stmt) => stmt.bind(binder),
+                });
+                let exports = BTreeMap::from_iter(exports);
+                // TODO do I need to track this module id?
+                let _module_id = binder.modules.insert(Module {
+                    root_scope: scope_id,
+                    exports,
+                });
+            });
+        }
+
+        binder
+    }
+
     /// given a path, create a scope for each segment. The last scope is returned.
     /// e.g. for the path "a.b.c", create scopes for "a", "b", and "c", and return the scope for "c"
     fn create_scope_from_path(
         &mut self,
         path: &Path,
     ) -> ScopeId {
-        let mut current_scope_id = *self.scope_chain.last().expect("there's always one scope: invariant");
+        let mut current_scope_id = self.current_scope_id();
         for segment in path.identifiers.iter() {
             let next_scope = self.create_scope(ScopeKind::Module(*segment));
             let module = Module {
@@ -342,7 +427,7 @@ impl Binder {
     pub fn get_binding(
         &self,
         binding_id: BindingId,
-    ) -> &Expression {
+    ) -> &Binding {
         self.bindings.get(binding_id)
     }
 
@@ -351,7 +436,7 @@ impl Binder {
         kind: ScopeKind,
     ) -> ScopeId {
         let scope = Scope {
-            parent: Some(*self.scope_chain.last().expect("always at least one scope")),
+            parent: Some(self.current_scope_id()),
             items: BTreeMap::new(),
             kind,
         };
@@ -378,6 +463,21 @@ impl Binder {
         scope: ScopeId,
     ) -> impl Iterator<Item = (&SymbolId, &Item)> {
         self.scopes.get(scope).items.iter()
+    }
+
+    pub fn insert_expression(
+        &mut self,
+        id: ExprId,
+        scope: ScopeId,
+    ) {
+        self.exprs.insert(id, scope);
+    }
+
+    pub fn get_expr_scope(
+        &self,
+        id: ExprId,
+    ) -> Option<ScopeId> {
+        self.exprs.get(&id).copied()
     }
 }
 

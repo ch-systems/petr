@@ -15,29 +15,49 @@ impl Bind for TypeDeclaration {
 }
 
 impl Bind for Expression {
+    // the scope that the expression lives in
     type Output = ();
 
     fn bind(
         &self,
         binder: &mut Binder,
-    ) {
+    ) -> Self::Output {
         // only lists get their own scope for now
         match self {
             Expression::List(list) => {
-                for item in list.elements.iter() {
-                    item.bind(binder);
-                }
+                list.bind(binder);
             },
-            Expression::Binding(ExpressionWithBindings { bindings, expression }) => {
-                binder.with_scope(ScopeKind::ExpressionWithBindings, |binder, _scope_id| {
+            Expression::Binding(ExpressionWithBindings {
+                bindings,
+                expression,
+                expr_id,
+            }) => {
+                binder.with_scope(ScopeKind::ExpressionWithBindings, |binder, scope_id| {
                     for binding in bindings.iter() {
-                        let binding_id = binder.insert_binding(*expression.clone());
+                        let binding_id = binder.insert_binding(binding.clone());
                         binder.insert_into_current_scope(binding.name.id, Item::Binding(binding_id));
                     }
+                    // TODO: functions get inserted as Items with scopes, so we should probably
+                    // insert bound expressions as an Item with their own scope, not sure how yet.
                     expression.bind(binder);
-                });
+                    binder.insert_expression(*expr_id, scope_id);
+                    //
+                })
             },
-            _ => self.bind(binder),
+            _ => (),
+        }
+    }
+}
+
+impl Bind for petr_ast::List {
+    type Output = ();
+
+    fn bind(
+        &self,
+        binder: &mut Binder,
+    ) -> Self::Output {
+        for item in self.elements.iter() {
+            item.bind(binder);
         }
     }
 }
@@ -87,7 +107,9 @@ impl Bind for ImportStatement {
         };
 
         // the alias, if any, or the last path element if there is no alias
-        let name = self.alias.unwrap_or_else(|| *self.path.last().expect("should never be empty"));
+        let name = self
+            .alias
+            .unwrap_or_else(|| *self.path.identifiers.last().expect("should never be empty"));
 
         binder.insert_into_current_scope(name.id, item.clone());
 

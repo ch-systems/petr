@@ -6,6 +6,7 @@ use crate::Dependency;
 pub struct Manifest {
     pub author:       Option<String>,
     pub license:      Option<String>,
+    pub name:         String,
     #[serde(default)]
     pub formatter:    FormatterConfigManifestFormat,
     #[serde(default)]
@@ -104,6 +105,7 @@ pub fn find_manifest(path: Option<PathBuf>) -> Result<Manifest, Box<dyn std::err
 #[test]
 fn what_is_my_manifest_format() {
     let manifest = Manifest {
+        name:         String::from("test package"),
         author:       Some("Alex Hansen <alex@alex-hansen.com>".into()),
         license:      Some("MIT".into()),
         formatter:    Default::default(),

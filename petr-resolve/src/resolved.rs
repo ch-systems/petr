@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
-use petr_bind::{FunctionId, TypeId};
+use petr_bind::{BindingId, FunctionId, TypeId};
 use petr_utils::SymbolInterner;
 
-use crate::resolver::{Function, TypeDeclaration};
+use crate::resolver::{Binding, Function, TypeDeclaration};
 /// Contains things that have already been resolved.
 /// Resolved items cannot be queried during resolution. This is because the resolution
 /// stage should only query the binder, then the type checking stage can query
@@ -12,6 +12,7 @@ use crate::resolver::{Function, TypeDeclaration};
 pub(crate) struct ResolvedItems {
     pub resolved_functions: BTreeMap<FunctionId, Function>,
     pub resolved_types:     BTreeMap<TypeId, TypeDeclaration>,
+    pub bindings:           BTreeMap<BindingId, Binding>,
 }
 
 impl ResolvedItems {
@@ -35,6 +36,7 @@ impl ResolvedItems {
         Self {
             resolved_functions: Default::default(),
             resolved_types:     Default::default(),
+            bindings:           Default::default(),
         }
     }
 }

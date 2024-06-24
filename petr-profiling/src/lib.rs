@@ -32,11 +32,11 @@ impl Timings {
         key: &'static str,
     ) {
         let Some(entry) = self.pending.get_mut(key) else {
-            eprintln!("Profiling error: tried to end event that didn't exist");
+            eprintln!("Profiling error: tried to end event {key} which didn't exist");
             return;
         };
         let Some(start) = entry.pop() else {
-            eprintln!("Profiling error: tried to end event that didn't exist");
+            eprintln!("Profiling error: tried to end event {key} which didn't exist");
             return;
         };
         self.entries.entry(key).or_default().push(ProfileEntry { time: start.elapsed() });
