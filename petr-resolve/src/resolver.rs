@@ -1,6 +1,8 @@
-use petr_ast::{Ast, Commented, Expression, FunctionDeclaration, FunctionParameter};
+use std::rc::Rc;
+
+use petr_ast::{Ast, Commented, Expression, FunctionDeclaration, FunctionParameter, OperatorExpression};
 use petr_bind::{Binder, FunctionId, Item, ScopeId, TypeId};
-use petr_utils::{Identifier, SpannedItem, SymbolInterner};
+use petr_utils::{Identifier, Path, SpannedItem, SymbolInterner};
 use thiserror::Error;
 
 use crate::resolved::{QueryableResolvedItems, ResolvedItems};
@@ -10,6 +12,8 @@ pub enum ResolutionError {
     FunctionParameterNotFound(String),
     #[error("Symbol not found: {0}")]
     NotFound(String),
+    #[error("Could not find implementation for operator: {0} at {1}")]
+    OperatorImplementationNotFound(String, String),
 }
 
 pub(crate) struct Resolver {
@@ -62,13 +66,13 @@ impl Resolve for petr_ast::Ty {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FunctionCall {
     pub function: FunctionId,
     pub args:     Vec<Expr>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Function {
     pub name:        Identifier,
     pub params:      Vec<(Identifier, Type)>,
@@ -76,7 +80,7 @@ pub struct Function {
     pub body:        Expr,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Expr {
     pub kind: ExprKind,
 }
@@ -93,7 +97,7 @@ impl Expr {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ExprKind {
     Literal(petr_ast::Literal),
     List(Box<[Expr]>),
@@ -106,13 +110,13 @@ pub enum ExprKind {
     ExpressionWithBindings { bindings: Vec<Binding>, expression: Box<Expr> },
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Binding {
     pub name:       Identifier,
     pub expression: Expr,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Intrinsic {
     pub intrinsic: petr_ast::Intrinsic,
     pub args:      Box<[Expr]>,
@@ -314,8 +318,11 @@ impl Resolve for FunctionDeclaration {
 
         let body = match self.body.resolve(resolver, binder, scope_id) {
             Some(x) => x,
-            // TODO: could insert a dummy func as an error recovery tactic, so name resolution failures don't cascade
-            None => return None,
+            // need to use an error recovery func here, so the FunctionId still exists in the
+            // resolved function map.
+            // If we were to return `None` and not resolve the function, then calls to this
+            // function would hold a reference `FunctionId(x)` which would not exist anymore.
+            None => Expr::error_recovery(),
         };
 
         Some(Function {
@@ -350,7 +357,36 @@ impl Resolve for Expression {
                 // TODO: do list combination type if list of unit, which functions like a block
                 Expr::new(ExprKind::List(list.into_boxed_slice()))
             },
-            Expression::Operator(_) => todo!("resolve into a function call to stdlib"),
+            Expression::Operator(op) => {
+                let OperatorExpression { lhs, rhs, op } = *op.clone();
+                // resolves to a call to stdlib
+                use petr_ast::Operator::*;
+                let func = match op.item() {
+                    Plus => "add",
+                    Minus => "sub",
+                    Star => "mul",
+                    Slash => "div",
+                };
+                let path = ["std", "ops", func];
+
+                let func_path = Path {
+                    identifiers: path.iter().map(|x| resolver.interner.insert(Rc::from(*x)).into()).collect(),
+                };
+
+                let Some(either::Left(function)) = func_path.resolve(resolver, binder, scope_id) else {
+                    resolver
+                        .errs
+                        .push(ResolutionError::OperatorImplementationNotFound(func.to_string(), path.join(".")));
+                    return None;
+                };
+
+                let call = FunctionCall {
+                    function,
+                    args: vec![lhs.resolve(resolver, binder, scope_id)?, rhs.resolve(resolver, binder, scope_id)?],
+                };
+
+                Expr::new(ExprKind::FunctionCall(call))
+            },
             Expression::FunctionCall(decl) => {
                 let resolved_call = decl.resolve(resolver, binder, scope_id)?;
 
@@ -486,54 +522,12 @@ impl Resolve for petr_ast::FunctionCall {
         binder: &Binder,
         scope_id: ScopeId,
     ) -> Option<Self::Resolved> {
-        let func_name = self.func_name;
-        let resolved_id = match binder.find_symbol_in_scope(func_name.id, scope_id) {
-            Some(Item::Function(resolved_id, _func_scope)) => *resolved_id,
-            Some(Item::Import { path, .. }) => {
-                let mut path_iter = path.iter();
-                let Some(first_item) = ({
-                    let item = path_iter.next().expect("import with no items was parsed -- should be an invariant");
-                    binder.find_symbol_in_scope(item.id, scope_id)
-                }) else {
-                    resolver
-                        .errs
-                        .push(ResolutionError::NotFound(resolver.interner.get(func_name.id).to_string()));
-                    return None;
-                };
-
-                let first_item = match first_item {
-                    Item::Module(id) => id,
-                    _ => todo!("push error -- import path is not a module"),
-                };
-
-                let mut rover = binder.get_module(*first_item);
-                // iterate over the rest of the path to find the path item
-                let mut func_id = None;
-                for (ix, item) in path_iter.enumerate() {
-                    let is_last = ix == path.len() - 2; // -2 because we advanced the iter by one already
-                    let Some(next_symbol) = binder.find_symbol_in_scope(item.id, rover.root_scope) else {
-                        todo!("push item not found err")
-                    };
-
-                    match next_symbol {
-                        Item::Module(id) => rover = binder.get_module(*id),
-                        Item::Function(func, _scope) if is_last => func_id = Some(*func),
-                        Item::Import { path, alias: _ } => match path.resolve(resolver, binder, scope_id) {
-                            Some(either::Left(func)) => func_id = Some(func),
-                            Some(either::Right(_ty)) => todo!("push error -- tried to call ty as func"),
-                            None => todo!("push error -- import not found"),
-                        },
-                        a => todo!("push error -- import path item is not a module, it is a {a:?}"),
-                    }
-                }
-                match func_id {
-                    Some(id) => id,
-                    None => todo!("func not found error"),
-                }
+        let resolved_id = match self.func_name.resolve(resolver, binder, scope_id) {
+            Some(either::Either::Left(func)) => func,
+            Some(either::Either::Right(_ty)) => {
+                todo!("push error -- tried to call ty as func");
             },
-            _ => {
-                todo!("push error");
-            },
+            _ => todo!("not found error"),
         };
 
         let args = self
@@ -570,7 +564,9 @@ impl Resolve for petr_utils::Path {
         };
 
         let first_item = match first_item {
-            Item::Module(id) => id,
+            Item::Module(id) if self.identifiers.len() > 1 => id,
+            Item::Function(f, _) if self.identifiers.len() == 1 => return Some(either::Either::Left(*f)),
+            Item::Type(t) if self.identifiers.len() == 1 => return Some(either::Either::Right(*t)),
             _ => todo!("push error -- import path is not a module"),
         };
 
@@ -677,7 +673,7 @@ mod tests {
                     },
                     ExprKind::Unit => "Unit".to_string(),
                     ExprKind::ErrorRecovery => "<error>".to_string(),
-                    ExprKind::Variable { .. } => todo!(),
+                    ExprKind::Variable { name, ty } => format!("{}: {}", resolver.interner.get(name.id), ty.to_string(resolver)),
                     ExprKind::Intrinsic(x) => format!(
                         "@{}({})",
                         x.intrinsic,
@@ -875,6 +871,24 @@ mod tests {
                 import test1.exported_func
 
                 function foo() returns 'int ~exported_func(5)
+
+               "#,
+            ],
+            expect![[r#""#]],
+        )
+    }
+
+    #[test]
+    fn import_something_from_another_file_with_alias() {
+        check_multiple(
+            vec![
+                r#"
+                Function exported_func(a in 'int) returns 'int a
+                "#,
+                r#"
+                import test1.exported_func as bar 
+
+                function foo() returns 'int ~bar(5)
 
                "#,
             ],

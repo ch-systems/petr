@@ -145,7 +145,7 @@ impl std::fmt::Display for Intrinsic {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Intrinsic {
     /// intrinsic for `libc` puts
     Puts,
@@ -153,7 +153,7 @@ pub enum Intrinsic {
 
 #[derive(Clone)]
 pub struct FunctionCall {
-    pub func_name: Identifier,
+    pub func_name: Path,
     pub args: Box<[Expression]>,
     // used for the formatter, primarily
     pub args_were_parenthesized: bool,

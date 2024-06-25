@@ -30,6 +30,17 @@ impl Parse for FunctionCall {
     }
 }
 
+impl Parse for Path {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        p.with_help("while parsing path", |p| -> Option<Self> {
+            let identifiers = p.sequence_one_or_more(Token::Dot)?;
+            Some(Path {
+                identifiers: identifiers.into_boxed_slice(),
+            })
+        })
+    }
+}
+
 impl Parse for TypeDeclaration {
     fn parse(p: &mut Parser) -> Option<Self> {
         p.with_help("while parsing type declaration", |p| -> Option<Self> {
@@ -370,8 +381,8 @@ fn file_name_to_module_name(name: &str) -> Result<Vec<Rc<str>>, ParseErrorKind> 
         .map(|comp| comp.as_os_str().to_string_lossy().replace('-', "_").replace(".pt", ""))
         .map(Rc::from)
         .collect::<Vec<_>>();
-    if name.iter().any(|part| !is_valid_identifier(part)) {
-        return Err(ParseErrorKind::InvalidIdentifier(name.join(",")));
+    if let Some(part) = name.iter().find(|part| !is_valid_identifier(part)) {
+        return Err(ParseErrorKind::InvalidIdentifier(part.to_string()));
     }
     Ok(name)
 }
@@ -387,7 +398,7 @@ fn is_valid_identifier(name: &str) -> bool {
 }
 #[test]
 fn test_file_name_to_module_name_simple() {
-    let file_name = "src/main.petr";
+    let file_name = "src/main.pt";
     let expected = vec!["main".to_string()];
     let result = file_name_to_module_name(file_name)
         .unwrap()
@@ -399,7 +410,7 @@ fn test_file_name_to_module_name_simple() {
 
 #[test]
 fn test_file_name_to_module_name_with_hyphen() {
-    let file_name = "src/my-module.petr";
+    let file_name = "src/my-module.pt";
     let expected = vec!["my_module".to_string()];
     let result = file_name_to_module_name(file_name)
         .unwrap()
@@ -411,7 +422,7 @@ fn test_file_name_to_module_name_with_hyphen() {
 
 #[test]
 fn test_file_name_to_module_name_nested_directory() {
-    let file_name = "src/subdir/mysubmodule.petr";
+    let file_name = "src/subdir/mysubmodule.pt";
     let expected = vec!["subdir".to_string(), "mysubmodule".to_string()];
     let result = file_name_to_module_name(file_name)
         .unwrap()
@@ -423,7 +434,7 @@ fn test_file_name_to_module_name_nested_directory() {
 
 #[test]
 fn test_file_name_to_module_name_invalid_identifier() {
-    let file_name = "src/123invalid.petr";
+    let file_name = "src/123invalid.pt";
     let result = file_name_to_module_name(file_name);
     assert!(result.is_err());
 }

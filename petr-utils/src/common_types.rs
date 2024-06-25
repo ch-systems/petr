@@ -18,6 +18,12 @@ pub struct Identifier {
     pub id: SymbolId,
 }
 
+impl From<SymbolId> for Identifier {
+    fn from(value: SymbolId) -> Self {
+        Identifier { id: value }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Path {
     pub identifiers: Box<[Identifier]>,
@@ -85,6 +91,13 @@ pub struct SymbolInterner {
 }
 
 impl SymbolInterner {
+    pub fn get_path(
+        &self,
+        path: &Path,
+    ) -> Vec<Rc<str>> {
+        path.iter().map(|id| self.get(id.id)).collect()
+    }
+
     #[cfg(not(feature = "debug"))]
     pub fn insert(
         &mut self,
@@ -116,14 +129,5 @@ impl SymbolInterner {
         id: SymbolId,
     ) -> Rc<str> {
         self.symbol_map.get(id).clone()
-    }
-}
-
-impl SymbolInterner {
-    pub fn get_path(
-        &self,
-        path: &Path,
-    ) -> Rc<str> {
-        Rc::from(path.identifiers.iter().map(|id| self.get(id.id)).collect::<Vec<_>>().join("."))
     }
 }
