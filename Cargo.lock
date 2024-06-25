@@ -1289,7 +1289,11 @@ dependencies = [
 name = "petr-vm"
 version = "0.1.0"
 dependencies = [
+ "expect-test",
  "petr-ir",
+ "petr-parse",
+ "petr-resolve",
+ "petr-typecheck",
  "petr-utils",
  "thiserror",
 ]

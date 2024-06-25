@@ -54,7 +54,7 @@ pub struct TypeChecker {
     typed_functions: BTreeMap<FunctionId, Function>,
     errors: Vec<TypeCheckError>,
     resolved: QueryableResolvedItems,
-    generics_in_scope: Vec<BTreeMap<Identifier, TypeVariable>>,
+    variable_scope: Vec<BTreeMap<Identifier, TypeVariable>>,
 }
 
 pub type TypeVariable = Type<&'static str>;
@@ -102,9 +102,9 @@ impl TypeChecker {
         &mut self,
         f: impl FnOnce(&mut Self) -> T,
     ) -> T {
-        self.generics_in_scope.push(Default::default());
+        self.variable_scope.push(Default::default());
         let res = f(self);
-        self.generics_in_scope.pop();
+        self.variable_scope.pop();
         res
     }
 
@@ -112,17 +112,29 @@ impl TypeChecker {
         &mut self,
         id: &Identifier,
     ) -> TypeVariable {
-        for scope in self.generics_in_scope.iter().rev() {
+        for scope in self.variable_scope.iter().rev() {
             if let Some(ty) = scope.get(id) {
                 return ty.clone();
             }
         }
         let fresh_ty = self.fresh_ty_var();
-        self.generics_in_scope
+        self.variable_scope
             .last_mut()
             .expect("looked for generic when no scope existed")
             .insert(*id, fresh_ty.clone());
         fresh_ty
+    }
+
+    fn find_variable(
+        &self,
+        id: Identifier,
+    ) -> Option<TypeVariable> {
+        for scope in self.variable_scope.iter().rev() {
+            if let Some(ty) = scope.get(&id) {
+                return Some(ty.clone());
+            }
+        }
+        None
     }
 
     fn fully_type_check(&mut self) {
@@ -157,11 +169,22 @@ impl TypeChecker {
             errors: Default::default(),
             typed_functions: Default::default(),
             resolved,
-            generics_in_scope: Default::default(),
+            variable_scope: Default::default(),
         };
 
         type_checker.fully_type_check();
         type_checker
+    }
+
+    pub fn insert_variable(
+        &mut self,
+        id: Identifier,
+        ty: TypeVariable,
+    ) {
+        self.variable_scope
+            .last_mut()
+            .expect("inserted variable when no scope existed")
+            .insert(id, ty);
     }
 
     pub fn fresh_ty_var(&mut self) -> TypeVariable {
@@ -438,11 +461,12 @@ impl TypeCheck for Expr {
             ExprKind::Variable { name, ty } => {
                 // look up variable in scope
                 // find its expr return type
+                let var_ty = ctx.find_variable(*name).expect("variable not found in scope");
+                let ty = ctx.to_type_var(ty);
 
-                TypedExpr::Variable {
-                    ty:   ctx.to_type_var(ty),
-                    name: *name,
-                }
+                ctx.unify(&var_ty, &ty);
+
+                TypedExpr::Variable { ty, name: *name }
             },
             ExprKind::Intrinsic(intrinsic) => intrinsic.type_check(ctx),
             ExprKind::TypeConstructor => {
@@ -455,6 +479,7 @@ impl TypeCheck for Expr {
                     let mut type_checked_bindings = Vec::with_capacity(bindings.len());
                     for binding in bindings {
                         let binding_ty = binding.expression.type_check(ctx);
+                        ctx.insert_variable(binding.name, binding_ty.ty());
                         type_checked_bindings.push((binding.name, binding_ty));
                     }
 
@@ -518,6 +543,10 @@ impl TypeCheck for petr_resolve::Function {
     ) -> Self::Output {
         ctx.with_type_scope(|ctx| {
             let params = self.params.iter().map(|(name, ty)| (*name, ctx.to_type_var(ty))).collect::<Vec<_>>();
+
+            for (name, ty) in &params {
+                ctx.insert_variable(*name, ty.clone());
+            }
 
             // unify types within the body with the parameter
             let body = self.body.type_check(ctx);

@@ -560,7 +560,7 @@ mod tests {
                 __Scopes__
                 0: Root (parent none):
                   test: Module Module { root_scope: ScopeId(1), exports: {} }
-                1: Module test (parent none):
+                1: Module test (parent scopeid0):
                   trinary_boolean: Type TypeId(0)
                   True: Function FunctionId(0)
                   False: Function FunctionId(1)
@@ -579,7 +579,7 @@ mod tests {
                 __Scopes__
                 0: Root (parent none):
                   test: Module Module { root_scope: ScopeId(1), exports: {} }
-                1: Module test (parent none):
+                1: Module test (parent scopeid0):
                   add: Function FunctionId(0)
                 2: Function (parent scopeid1):
                   a: FunctionParameter Named(Identifier { id: SymbolId(3) })
@@ -596,7 +596,7 @@ mod tests {
                 __Scopes__
                 0: Root (parent none):
                   test: Module Module { root_scope: ScopeId(1), exports: {} }
-                1: Module test (parent none):
+                1: Module test (parent scopeid0):
                   add: Function FunctionId(0)
                 2: Function (parent scopeid1):
                   a: FunctionParameter Named(Identifier { id: SymbolId(3) })

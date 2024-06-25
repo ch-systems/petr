@@ -103,7 +103,12 @@ impl Lowerer {
         let mut buf = vec![];
         self.with_variable_context(|ctx| -> Result<_, _> {
             // TODO: func should have type checked types...not just the AST type
-            for (param_name, param_ty) in &func.params {
+            // Pop parameters off the stack in reverse order -- the last parameter for the function
+            // will be the first thing popped off the stack
+            // When we lower a function call, we push them onto the stack from first to last. Since
+            // the stack is FILO, we reverse that order here.
+
+            for (param_name, param_ty) in func.params.iter().rev() {
                 // in order, assign parameters to registers
                 if fits_in_reg(param_ty) {
                     // load from stack into register
@@ -485,7 +490,7 @@ mod tests {
                 function 0:
                  0	pop v0
                  1	pop v1
-                 2	push v0
+                 2	push v1
                  3	ret
                 ENTRY: function 1:
                  4	ld v2 datalabel0
@@ -525,7 +530,35 @@ mod tests {
                     a
                 function main() returns 'int ~hi(1, 2)
                 "#,
-            expect![[r#""#]],
+            expect![[r#"
+                ; DATA_SECTION
+                0: Int64(20)
+                1: Int64(30)
+                2: Int64(42)
+                3: Int64(1)
+                4: Int64(2)
+
+                ; PROGRAM_SECTION
+                	ENTRY: 1
+                function 0:
+                 0	pop v0
+                 1	pop v1
+                 2	cp v2 v1
+                 3	cp v3 v0
+                 4	ld v4 datalabel0
+                 5	ld v5 datalabel1
+                 6	ld v6 datalabel2
+                 7	push v2
+                 8	ret
+                ENTRY: function 1:
+                 9	ld v7 datalabel3
+                 10	push v7
+                 11	ld v8 datalabel4
+                 12	push v8
+                 13	ppc
+                 14	jumpi functionid0
+                 15	ret
+            "#]],
         );
     }
 }
