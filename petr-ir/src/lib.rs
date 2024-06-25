@@ -103,7 +103,12 @@ impl Lowerer {
         let mut buf = vec![];
         self.with_variable_context(|ctx| -> Result<_, _> {
             // TODO: func should have type checked types...not just the AST type
-            for (param_name, param_ty) in &func.params {
+            // Pop parameters off the stack in reverse order -- the last parameter for the function
+            // will be the first thing popped off the stack
+            // When we lower a function call, we push them onto the stack from first to last. Since
+            // the stack is FILO, we reverse that order here.
+
+            for (param_name, param_ty) in func.params.iter().rev() {
                 // in order, assign parameters to registers
                 if fits_in_reg(param_ty) {
                     // load from stack into register

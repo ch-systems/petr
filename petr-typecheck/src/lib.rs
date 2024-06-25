@@ -181,7 +181,6 @@ impl TypeChecker {
         id: Identifier,
         ty: TypeVariable,
     ) {
-        println!("inserting variable {:?} with type {:?}", id, ty);
         self.variable_scope
             .last_mut()
             .expect("inserted variable when no scope existed")
@@ -462,7 +461,6 @@ impl TypeCheck for Expr {
             ExprKind::Variable { name, ty } => {
                 // look up variable in scope
                 // find its expr return type
-                dbg!(&ctx.variable_scope);
                 let var_ty = ctx.find_variable(*name).expect("variable not found in scope");
                 let ty = ctx.to_type_var(ty);
 
