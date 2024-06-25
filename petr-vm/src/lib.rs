@@ -34,7 +34,7 @@ impl Default for ProgramOffset {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Value(u64);
 
 #[derive(Debug, Error)]
@@ -87,6 +87,7 @@ impl Vm {
                 Err(e) => return Err(e),
             }
         }
+        println!("Program terminated with stack {:?}", self.state.stack);
         Ok(())
     }
 
