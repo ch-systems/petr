@@ -93,7 +93,7 @@ fn main() -> Result<(), error::PeteError> {
             timings.start("execution");
             match target.to_lowercase().as_str() {
                 "vm" => {
-                    let mut vm = Vm::new(instructions, data);
+                    let vm = Vm::new(instructions, data);
                     vm.run().expect("Failed to run vm");
                 },
                 "native" => todo!(),
