@@ -10,6 +10,62 @@ use petr_ir::{DataLabel, DataSectionEntry, Intrinsic, IrOpcode, Reg};
 use petr_utils::{idx_map_key, IndexMap};
 use thiserror::Error;
 
+#[cfg(test)]
+mod tests {
+
+    use expect_test::{expect, Expect};
+    use petr_ir::Lowerer;
+    use petr_resolve::resolve_symbols;
+    use petr_typecheck::TypeChecker;
+    use petr_utils::render_error;
+
+    use super::*;
+    fn check(
+        input: impl Into<String>,
+        expect: Expect,
+    ) {
+        let input = input.into();
+        let parser = petr_parse::Parser::new(vec![("test", input)]);
+        let (ast, errs, interner, source_map) = parser.into_result();
+        if !errs.is_empty() {
+            errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
+            panic!("fmt failed: code didn't parse");
+        }
+        let (errs, resolved) = resolve_symbols(ast, interner, Default::default());
+        if !errs.is_empty() {
+            dbg!(&errs);
+        }
+        let type_checker = TypeChecker::new(resolved);
+        let lowerer = Lowerer::new(type_checker);
+        let (data, ir) = lowerer.finalize();
+        let vm = Vm::new(ir, data);
+        let res = vm.run();
+
+        let res_as_u64 = res.unwrap().iter().map(|val| val.0).collect::<Vec<_>>();
+        let res = format!("{res_as_u64:?}");
+
+        expect.assert_eq(&res);
+    }
+
+    #[test]
+
+    fn let_bindings() {
+        check(
+            r#"
+function hi(x in 'int, y in 'int) returns 'int
+    let a = x,
+        b = y,
+        c = 20,
+        d = 30,
+        e = 12,
+    a
+function main() returns 'int ~hi(42, 3)
+"#,
+            expect!["[42]"],
+        )
+    }
+}
+
 pub struct Vm {
     state:        VmState,
     instructions: IndexMap<ProgramOffset, IrOpcode>,
@@ -78,7 +134,7 @@ impl Vm {
         }
     }
 
-    pub fn run(&mut self) -> Result<()> {
+    pub fn run(mut self) -> Result<Vec<Value>> {
         use VmControlFlow::*;
         loop {
             match self.execute() {
@@ -87,8 +143,7 @@ impl Vm {
                 Err(e) => return Err(e),
             }
         }
-        println!("Program terminated with stack {:?}", self.state.stack);
-        Ok(())
+        Ok(self.state.stack)
     }
 
     fn execute(&mut self) -> Result<VmControlFlow> {

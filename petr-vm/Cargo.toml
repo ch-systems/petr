@@ -7,3 +7,9 @@ edition = "2021"
 petr-ir = { path = "../petr-ir" }
 petr-utils = { path = "../petr-utils" }
 thiserror = "1.0.61"
+
+[dev-dependencies]
+petr-parse = { path = "../petr-parse" }
+expect-test = "1.5.0"
+petr-resolve = { path = "../petr-resolve" }
+petr-typecheck = { path = "../petr-typecheck" }
