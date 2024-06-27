@@ -1,5 +1,4 @@
-
-name: CI
+name: TODO check
 on:
   push: { branches: "main" }
 env:
@@ -7,6 +6,7 @@ env:
 
 jobs:
   check_todos:
+    steps:
     - name: TODO to Issue
       uses: alstr/todo-to-issue-action@v4.13.1
 
