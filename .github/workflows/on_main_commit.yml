@@ -6,6 +6,7 @@ env:
 
 jobs:
   check_todos:
+    runs-on: ubuntu-latest
     steps:
     - name: TODO to Issue
       uses: alstr/todo-to-issue-action@v4.13.1
