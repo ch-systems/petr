@@ -2,6 +2,8 @@
 name: CI
 on:
   push: { branches: "main" }
+env:
+  PROJECTS_SECRET: ${{ secrets.PROJECTS_SECRET }}
 
 jobs:
   check_todos:
