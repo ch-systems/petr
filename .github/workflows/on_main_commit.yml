@@ -1,0 +1,10 @@
+
+name: CI
+on:
+  push: { branches: "main" }
+
+jobs:
+  check_todos:
+    - name: TODO to Issue
+      uses: alstr/todo-to-issue-action@v4.13.1
+
