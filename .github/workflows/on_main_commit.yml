@@ -10,8 +10,7 @@ on:
   push:
     branches: 
       - main
-env:
-  PROJECTS_SECRET: ${{ secrets.PROJECTS_SECRET }}
+
 permissions:
   issues: write
   repository-projects: read
@@ -23,8 +22,4 @@ jobs:
     steps:
     - name: todo-issue
       uses: DerJuulsn/todo-issue@v1.1.4
-
-    - name: TODO to Issue
-      uses: alstr/todo-to-issue-action@v4.13.1
-      env:
         GITHUB_TOKEN: ${{ secrets.PROJECTS_SECRET }}
