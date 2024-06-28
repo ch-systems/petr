@@ -4,9 +4,6 @@ on:
   push: { branches: "main" }
 env:
   PROJECTS_SECRET: ${{ secrets.PROJECTS_SECRET }}
-permissions:
-  contents: read
-  issues: write
 
 jobs:
   check_todos:
@@ -14,3 +11,5 @@ jobs:
     steps:
     - name: TODO to Issue
       uses: alstr/todo-to-issue-action@v4.13.1
+      with:
+        TOKEN: ${{ secrets.PROJECTS_SECRET }}
