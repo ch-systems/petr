@@ -1,0 +1,13 @@
+name: TODO check
+on:
+  push: { branches: "main" }
+env:
+  PROJECTS_SECRET: ${{ secrets.PROJECTS_SECRET }}
+
+jobs:
+  check_todos:
+    runs-on: ubuntu-latest
+    steps:
+    - name: TODO to Issue
+      uses: alstr/todo-to-issue-action@v4.13.1
+

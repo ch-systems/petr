@@ -21,3 +21,4 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run Clippy
         run: cargo clippy --all-targets --all-features
+
