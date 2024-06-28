@@ -4,6 +4,7 @@
 // - store position to jump back to after fn call
 // - terminate instructions in correct places (end of entry point)
 // - comments on IR ops
+// - dead code elimination
 
 use std::{collections::BTreeMap, rc::Rc};
 
@@ -15,7 +16,7 @@ mod opcodes;
 
 use error::*;
 use opcodes::*;
-pub use opcodes::{DataLabel, Intrinsic, IrOpcode, Reg};
+pub use opcodes::{DataLabel, Intrinsic, IrOpcode, Reg, ReservedRegister};
 
 pub fn lower(checker: TypeChecker) -> Result<(DataSection, Vec<IrOpcode>), LoweringError> {
     let lowerer = Lowerer::new(checker);
@@ -77,7 +78,7 @@ impl Lowerer {
         } else {
             // TODO use diagnostics here
             eprintln!("Warning: Generating IR for program with no entry point");
-            program_section.push(IrOpcode::Return());
+            program_section.push(IrOpcode::ReturnImmediate(0));
         }
 
         for (label, Function { label: _label, mut body }) in self.function_definitions {
@@ -94,6 +95,7 @@ impl Lowerer {
         FunctionLabel::from(label)
     }
 
+    /// this lowers a function declaration.
     fn lower_function(
         &mut self,
         id: FunctionId,
@@ -127,9 +129,13 @@ impl Lowerer {
             }
 
             // TODO we could support other return dests
-            let return_dest = ReturnDestination::Stack;
+            let return_reg = ctx.fresh_reg();
+            let return_dest = ReturnDestination::Reg(return_reg);
             let mut expr_body = ctx.lower_expr(&func.body, return_dest)?;
             buf.append(&mut expr_body);
+            // load return value into func return register
+
+            buf.push(IrOpcode::Copy(Reg::Reserved(ReservedRegister::ReturnValueRegister), return_reg));
 
             // jump back to caller
             buf.push(IrOpcode::Return());
@@ -159,22 +165,23 @@ impl Lowerer {
         use TypedExpr::*;
 
         match body {
-            Literal { value, ty } => {
+            Literal { value, ty: _ } => {
                 let data_label = self.insert_literal_data(value);
-                let ty = self.to_ir_type(ty);
                 Ok(match return_destination {
                     ReturnDestination::Reg(reg) => vec![IrOpcode::LoadData(reg, data_label)],
-                    ReturnDestination::Stack => {
-                        let reg = self.fresh_reg();
-                        vec![IrOpcode::LoadData(reg, data_label), IrOpcode::StackPush(TypedReg { ty, reg })]
-                    },
                 })
             },
             FunctionCall { func, args, ty: _ty } => {
                 let mut buf = Vec::with_capacity(args.len());
                 // push all args onto the stack in order
                 for (_arg_name, arg_expr) in args {
-                    let mut expr = self.lower_expr(arg_expr, ReturnDestination::Stack)?;
+                    let reg = self.fresh_reg();
+                    let mut expr = self.lower_expr(arg_expr, ReturnDestination::Reg(reg))?;
+                    expr.push(IrOpcode::StackPush(TypedReg {
+                        ty: self.to_ir_type(&arg_expr.ty()),
+                        reg,
+                    }));
+
                     buf.append(&mut expr);
                 }
                 // push current PC onto the stack
@@ -182,20 +189,24 @@ impl Lowerer {
 
                 // jump to the function
                 buf.push(IrOpcode::JumpImmediate(*func));
+
+                // after returning to this function, return the register
+                match return_destination {
+                    ReturnDestination::Reg(reg) => {
+                        buf.push(IrOpcode::Copy(reg, Reg::Reserved(ReservedRegister::ReturnValueRegister)));
+                    },
+                }
+                //
                 Ok(buf)
             },
             List { .. } => todo!(),
             Unit => todo!(),
-            Variable { name, ty } => {
+            Variable { name, ty: _ } => {
                 let var_reg = self
                     .get_variable(name.id)
                     .unwrap_or_else(|| panic!("var {} did not exist TODO err", name.id));
                 Ok(match return_destination {
                     ReturnDestination::Reg(reg) => vec![IrOpcode::Copy(reg, var_reg)],
-                    ReturnDestination::Stack => vec![IrOpcode::StackPush(TypedReg {
-                        ty:  self.to_ir_type(ty),
-                        reg: var_reg,
-                    })],
                 })
             },
             Intrinsic { ty: _ty, intrinsic } => self.lower_intrinsic(intrinsic, return_destination),
@@ -265,18 +276,23 @@ impl Lowerer {
                 buf.push(IrOpcode::Intrinsic(Intrinsic::Puts(TypedReg {
                     ty:  IrTy::Ptr(Box::new(IrTy::String)),
                     reg: arg_reg,
-                })))
+                })));
+                match return_destination {
+                    ReturnDestination::Reg(reg) => {
+                        buf.push(IrOpcode::LoadImmediate(reg, 0));
+                    },
+                }
+            },
+            petr_typecheck::Intrinsic::Add(lhs, rhs) => {
+                let lhs_reg = self.fresh_reg();
+                let rhs_reg = self.fresh_reg();
+                buf.append(&mut self.lower_expr(lhs, ReturnDestination::Reg(lhs_reg))?);
+                buf.append(&mut self.lower_expr(rhs, ReturnDestination::Reg(rhs_reg))?);
+                let ReturnDestination::Reg(return_reg) = return_destination;
+                buf.push(IrOpcode::Add(return_reg, lhs_reg, rhs_reg));
             },
         }
 
-        match return_destination {
-            ReturnDestination::Reg(reg) => {
-                buf.push(IrOpcode::LoadImmediate(reg, 0));
-            },
-            ReturnDestination::Stack => {
-                buf.push(IrOpcode::StackPushImmediate(0));
-            },
-        }
         Ok(buf)
     }
 
@@ -347,7 +363,6 @@ impl Lowerer {
 
 enum ReturnDestination {
     Reg(Reg),
-    Stack,
 }
 fn fits_in_reg(_: &TypeVariable) -> bool {
     // TODO
@@ -377,7 +392,10 @@ mod tests {
         expect: Expect,
     ) {
         let input = input.into();
-        let parser = petr_parse::Parser::new(vec![("test", input)]);
+        let parser = petr_parse::Parser::new(vec![
+            ("std/ops.pt", "function add(lhs in 'int, rhs in 'int) returns 'int @add lhs, rhs"),
+            ("test", &input),
+        ]);
         let (ast, errs, interner, source_map) = parser.into_result();
         if !errs.is_empty() {
             errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
@@ -405,11 +423,19 @@ mod tests {
                 0: Int64(42)
 
                 ; PROGRAM_SECTION
-                	ENTRY: 0
-                ENTRY: function 0:
-                 0	ld v0 datalabel0
-                 1	push v0
-                 2	ret
+                	ENTRY: 1
+                function 0:
+                 0	pop v0
+                 1	pop v1
+                 2	cp v3 v1
+                 3	cp v4 v0
+                 4	add v2 v3 v4
+                 5	cp rr(func return value) v2
+                 6	ret
+                ENTRY: function 1:
+                 7	ld v5 datalabel0
+                 8	cp rr(func return value) v5
+                 9	ret
             "#]],
         );
     }
@@ -425,12 +451,21 @@ mod tests {
                 0: String("hello")
 
                 ; PROGRAM_SECTION
-                	ENTRY: 0
-                ENTRY: function 0:
-                 0	ld v0 datalabel0
-                 1	intrinsic @puts(v0)
-                 2	pushi 0
-                 3	ret
+                	ENTRY: 1
+                function 0:
+                 0	pop v0
+                 1	pop v1
+                 2	cp v3 v1
+                 3	cp v4 v0
+                 4	add v2 v3 v4
+                 5	cp rr(func return value) v2
+                 6	ret
+                ENTRY: function 1:
+                 7	ld v6 datalabel0
+                 8	intrinsic @puts(v6)
+                 9	imm v5 0
+                 10	cp rr(func return value) v5
+                 11	ret
             "#]],
         );
     }
@@ -447,18 +482,28 @@ mod tests {
                 1: Bool(true)
 
                 ; PROGRAM_SECTION
-                	ENTRY: 0
-                ENTRY: function 0:
-                 0	ld v0 datalabel0
-                 1	push v0
-                 2	ppc
-                 3	jumpi functionid1
-                 4	ret
-                function 1:
-                 5	pop v1
-                 6	ld v2 datalabel1
-                 7	push v2
-                 8	ret
+                	ENTRY: 1
+                function 0:
+                 0	pop v0
+                 1	pop v1
+                 2	cp v3 v1
+                 3	cp v4 v0
+                 4	add v2 v3 v4
+                 5	cp rr(func return value) v2
+                 6	ret
+                ENTRY: function 1:
+                 7	ld v6 datalabel0
+                 8	push v6
+                 9	ppc
+                 10	jumpi functionid2
+                 11	cp v5 rr(func return value)
+                 12	cp rr(func return value) v5
+                 13	ret
+                function 2:
+                 14	pop v7
+                 15	ld v8 datalabel1
+                 16	cp rr(func return value) v8
+                 17	ret
             "#]],
         );
     }
@@ -469,7 +514,44 @@ mod tests {
                 function add(x in 'int, y in 'int) returns 'int + x y
                 function main() returns 'int ~add(1, 2)
                 "#,
-            expect![[r#""#]],
+            expect![[r#"
+                ; DATA_SECTION
+                0: Int64(1)
+                1: Int64(2)
+
+                ; PROGRAM_SECTION
+                	ENTRY: 2
+                function 0:
+                 0	pop v0
+                 1	pop v1
+                 2	cp v3 v1
+                 3	cp v4 v0
+                 4	add v2 v3 v4
+                 5	cp rr(func return value) v2
+                 6	ret
+                function 1:
+                 7	pop v5
+                 8	pop v6
+                 9	cp v8 v6
+                 10	push v8
+                 11	cp v9 v5
+                 12	push v9
+                 13	ppc
+                 14	jumpi functionid0
+                 15	cp v7 rr(func return value)
+                 16	cp rr(func return value) v7
+                 17	ret
+                ENTRY: function 2:
+                 18	ld v11 datalabel0
+                 19	push v11
+                 20	ld v12 datalabel1
+                 21	push v12
+                 22	ppc
+                 23	jumpi functionid1
+                 24	cp v10 rr(func return value)
+                 25	cp rr(func return value) v10
+                 26	ret
+            "#]],
         );
     }
 
@@ -486,20 +568,31 @@ mod tests {
                 1: Int64(2)
 
                 ; PROGRAM_SECTION
-                	ENTRY: 1
+                	ENTRY: 2
                 function 0:
                  0	pop v0
                  1	pop v1
-                 2	push v1
-                 3	ret
-                ENTRY: function 1:
-                 4	ld v2 datalabel0
-                 5	push v2
-                 6	ld v3 datalabel1
-                 7	push v3
-                 8	ppc
-                 9	jumpi functionid0
-                 10	ret
+                 2	cp v3 v1
+                 3	cp v4 v0
+                 4	add v2 v3 v4
+                 5	cp rr(func return value) v2
+                 6	ret
+                function 1:
+                 7	pop v5
+                 8	pop v6
+                 9	cp v7 v6
+                 10	cp rr(func return value) v7
+                 11	ret
+                ENTRY: function 2:
+                 12	ld v9 datalabel0
+                 13	push v9
+                 14	ld v10 datalabel1
+                 15	push v10
+                 16	ppc
+                 17	jumpi functionid1
+                 18	cp v8 rr(func return value)
+                 19	cp rr(func return value) v8
+                 20	ret
             "#]],
         );
     }
@@ -514,7 +607,60 @@ mod tests {
                     + a + b + x y
                 function main() returns 'int ~add(1, 2)
                 "#,
-            expect![[r#""#]],
+            expect![[r#"
+                ; DATA_SECTION
+                0: Int64(10)
+                1: Int64(20)
+                2: Int64(1)
+                3: Int64(2)
+
+                ; PROGRAM_SECTION
+                	ENTRY: 2
+                function 0:
+                 0	pop v0
+                 1	pop v1
+                 2	cp v3 v1
+                 3	cp v4 v0
+                 4	add v2 v3 v4
+                 5	cp rr(func return value) v2
+                 6	ret
+                function 1:
+                 7	pop v5
+                 8	pop v6
+                 9	ld v8 datalabel0
+                 10	ld v9 datalabel1
+                 11	cp v10 v8
+                 12	push v10
+                 13	cp v12 v9
+                 14	push v12
+                 15	cp v14 v6
+                 16	push v14
+                 17	cp v15 v5
+                 18	push v15
+                 19	ppc
+                 20	jumpi functionid0
+                 21	cp v13 rr(func return value)
+                 22	push v13
+                 23	ppc
+                 24	jumpi functionid0
+                 25	cp v11 rr(func return value)
+                 26	push v11
+                 27	ppc
+                 28	jumpi functionid0
+                 29	cp v7 rr(func return value)
+                 30	cp rr(func return value) v7
+                 31	ret
+                ENTRY: function 2:
+                 32	ld v17 datalabel2
+                 33	push v17
+                 34	ld v18 datalabel3
+                 35	push v18
+                 36	ppc
+                 37	jumpi functionid1
+                 38	cp v16 rr(func return value)
+                 39	cp rr(func return value) v16
+                 40	ret
+            "#]],
         );
     }
     #[test]
@@ -527,7 +673,7 @@ mod tests {
                         c = 20,
                         d = 30,
                         e = 42,
-                    a
+                    + a + b + c + d e
                 function main() returns 'int ~hi(1, 2)
                 "#,
             expect![[r#"
@@ -539,25 +685,60 @@ mod tests {
                 4: Int64(2)
 
                 ; PROGRAM_SECTION
-                	ENTRY: 1
+                	ENTRY: 2
                 function 0:
                  0	pop v0
                  1	pop v1
-                 2	cp v2 v1
-                 3	cp v3 v0
-                 4	ld v4 datalabel0
-                 5	ld v5 datalabel1
-                 6	ld v6 datalabel2
-                 7	push v2
-                 8	ret
-                ENTRY: function 1:
-                 9	ld v7 datalabel3
-                 10	push v7
-                 11	ld v8 datalabel4
-                 12	push v8
-                 13	ppc
-                 14	jumpi functionid0
-                 15	ret
+                 2	cp v3 v1
+                 3	cp v4 v0
+                 4	add v2 v3 v4
+                 5	cp rr(func return value) v2
+                 6	ret
+                function 1:
+                 7	pop v5
+                 8	pop v6
+                 9	cp v8 v6
+                 10	cp v9 v5
+                 11	ld v10 datalabel0
+                 12	ld v11 datalabel1
+                 13	ld v12 datalabel2
+                 14	cp v13 v8
+                 15	push v13
+                 16	cp v15 v9
+                 17	push v15
+                 18	cp v17 v10
+                 19	push v17
+                 20	cp v19 v11
+                 21	push v19
+                 22	cp v20 v12
+                 23	push v20
+                 24	ppc
+                 25	jumpi functionid0
+                 26	cp v18 rr(func return value)
+                 27	push v18
+                 28	ppc
+                 29	jumpi functionid0
+                 30	cp v16 rr(func return value)
+                 31	push v16
+                 32	ppc
+                 33	jumpi functionid0
+                 34	cp v14 rr(func return value)
+                 35	push v14
+                 36	ppc
+                 37	jumpi functionid0
+                 38	cp v7 rr(func return value)
+                 39	cp rr(func return value) v7
+                 40	ret
+                ENTRY: function 2:
+                 41	ld v22 datalabel3
+                 42	push v22
+                 43	ld v23 datalabel4
+                 44	push v23
+                 45	ppc
+                 46	jumpi functionid1
+                 47	cp v21 rr(func return value)
+                 48	cp rr(func return value) v21
+                 49	ret
             "#]],
         );
     }

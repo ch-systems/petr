@@ -394,7 +394,7 @@ impl Binder {
         path: &Path,
     ) -> ScopeId {
         let mut current_scope_id = self.current_scope_id();
-        for segment in path.identifiers.iter() {
+        for segment in path.iter() {
             let next_scope = self.create_scope(ScopeKind::Module(*segment));
             let module = Module {
                 root_scope: next_scope,

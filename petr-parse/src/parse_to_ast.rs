@@ -30,6 +30,17 @@ impl Parse for FunctionCall {
     }
 }
 
+impl Parse for Path {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        p.with_help("while parsing path", |p| -> Option<Self> {
+            let identifiers = p.sequence_one_or_more(Token::Dot)?;
+            Some(Path {
+                identifiers: identifiers.into_boxed_slice(),
+            })
+        })
+    }
+}
+
 impl Parse for TypeDeclaration {
     fn parse(p: &mut Parser) -> Option<Self> {
         p.with_help("while parsing type declaration", |p| -> Option<Self> {
@@ -250,24 +261,26 @@ where
 
 impl Parse for Expression {
     fn parse(p: &mut Parser) -> Option<Self> {
-        match p.peek().item() {
-            item if item.is_operator() => {
-                let op: SpannedItem<Operator> = p.parse()?;
-                // parse prefix notation operator expression
-                let lhs: SpannedItem<Expression> = p.parse()?;
-                let rhs: SpannedItem<Expression> = p.parse()?;
-                Some(Expression::Operator(Box::new(OperatorExpression { lhs, rhs, op })))
-            },
-            // TODO might not want to do variables this way
-            // may have to advance and peek to see if its a fn call etc
-            Token::Identifier => Some(Expression::Variable(p.parse()?)),
-            Token::OpenBracket => Some(Expression::List(p.parse()?)),
-            Token::Tilde => Some(Expression::FunctionCall(p.parse()?)),
-            Token::True | Token::False | Token::String | Token::Integer => Some(Expression::Literal(p.parse()?)),
-            Token::Intrinsic => Some(Expression::IntrinsicCall(p.parse()?)),
-            Token::Let => Some(Expression::Binding(p.parse()?)),
-            _ => None,
-        }
+        p.with_help("while parsing expression", |p| -> Option<Self> {
+            match p.peek().item() {
+                item if item.is_operator() => {
+                    let op: SpannedItem<Operator> = p.parse()?;
+                    // parse prefix notation operator expression
+                    let lhs: SpannedItem<Expression> = p.parse()?;
+                    let rhs: SpannedItem<Expression> = p.parse()?;
+                    Some(Expression::Operator(Box::new(OperatorExpression { lhs, rhs, op })))
+                },
+                // TODO might not want to do variables this way
+                // may have to advance and peek to see if its a fn call etc
+                Token::Identifier => Some(Expression::Variable(p.parse()?)),
+                Token::OpenBracket => Some(Expression::List(p.parse()?)),
+                Token::Tilde => Some(Expression::FunctionCall(p.parse()?)),
+                Token::True | Token::False | Token::String | Token::Integer => Some(Expression::Literal(p.parse()?)),
+                Token::Intrinsic => Some(Expression::IntrinsicCall(p.parse()?)),
+                Token::Let => Some(Expression::Binding(p.parse()?)),
+                _ => None,
+            }
+        })
     }
 }
 
@@ -304,6 +317,7 @@ impl Parse for IntrinsicCall {
             let name = p.slice().to_string();
             let intrinsic = match &name[1..] {
                 "puts" => Intrinsic::Puts,
+                "add" => Intrinsic::Add,
                 a => todo!("unrecognized intrinsic error: {a:?}"),
             };
             p.token(Token::Intrinsic)?;
@@ -370,8 +384,8 @@ fn file_name_to_module_name(name: &str) -> Result<Vec<Rc<str>>, ParseErrorKind> 
         .map(|comp| comp.as_os_str().to_string_lossy().replace('-', "_").replace(".pt", ""))
         .map(Rc::from)
         .collect::<Vec<_>>();
-    if name.iter().any(|part| !is_valid_identifier(part)) {
-        return Err(ParseErrorKind::InvalidIdentifier(name.join(",")));
+    if let Some(part) = name.iter().find(|part| !is_valid_identifier(part)) {
+        return Err(ParseErrorKind::InvalidIdentifier(part.to_string()));
     }
     Ok(name)
 }
@@ -387,7 +401,7 @@ fn is_valid_identifier(name: &str) -> bool {
 }
 #[test]
 fn test_file_name_to_module_name_simple() {
-    let file_name = "src/main.petr";
+    let file_name = "src/main.pt";
     let expected = vec!["main".to_string()];
     let result = file_name_to_module_name(file_name)
         .unwrap()
@@ -399,7 +413,7 @@ fn test_file_name_to_module_name_simple() {
 
 #[test]
 fn test_file_name_to_module_name_with_hyphen() {
-    let file_name = "src/my-module.petr";
+    let file_name = "src/my-module.pt";
     let expected = vec!["my_module".to_string()];
     let result = file_name_to_module_name(file_name)
         .unwrap()
@@ -411,7 +425,7 @@ fn test_file_name_to_module_name_with_hyphen() {
 
 #[test]
 fn test_file_name_to_module_name_nested_directory() {
-    let file_name = "src/subdir/mysubmodule.petr";
+    let file_name = "src/subdir/mysubmodule.pt";
     let expected = vec!["subdir".to_string(), "mysubmodule".to_string()];
     let result = file_name_to_module_name(file_name)
         .unwrap()
@@ -423,7 +437,7 @@ fn test_file_name_to_module_name_nested_directory() {
 
 #[test]
 fn test_file_name_to_module_name_invalid_identifier() {
-    let file_name = "src/123invalid.petr";
+    let file_name = "src/123invalid.pt";
     let result = file_name_to_module_name(file_name);
     assert!(result.is_err());
 }

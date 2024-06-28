@@ -64,10 +64,13 @@ impl<T: Diagnostic + std::error::Error> Diagnostic for SpannedItem<T> {
     }
 
     fn labels(&self) -> Option<Box<dyn Iterator<Item = miette::LabeledSpan> + '_>> {
+        // get any inner labels
+        let item = self.item();
+        let labels = item.labels().unwrap_or_else(|| Box::new(std::iter::empty()));
         let span = self.span().span();
         let label = self.item().to_string();
         let labeled_span = LabeledSpan::new_with_span(Some(label), span);
-        Some(Box::new(std::iter::once(labeled_span)))
+        Some(Box::new(labels.chain(std::iter::once(labeled_span))))
     }
 
     fn related<'a>(&'a self) -> Option<Box<dyn Iterator<Item = &'a dyn Diagnostic> + 'a>> {
@@ -160,6 +163,19 @@ impl Span {
         assert!(self.source == after_span.source, "cannot join spans from different files");
         let lo = self.span.offset() + self.span.len();
         let hi = after_span.span.offset() + after_span.span.len();
+        Self {
+            source: self.source,
+            span:   SourceSpan::new(lo.into(), hi - lo),
+        }
+    }
+
+    /// extends `self.hi` to the new offset.
+    pub fn extend(
+        &self,
+        hi: usize,
+    ) -> Self {
+        assert!(hi >= self.span().offset(), "cannot extend a span to a lower offset");
+        let lo = self.span.offset();
         Self {
             source: self.source,
             span:   SourceSpan::new(lo.into(), hi - lo),

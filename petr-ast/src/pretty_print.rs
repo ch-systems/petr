@@ -24,7 +24,7 @@ impl PrettyPrint for Module {
         interner: &SymbolInterner,
         indentation: usize,
     ) -> String {
-        let mut buf = format!("{}module {} =\n", "  ".repeat(indentation), interner.get_path(&self.name));
+        let mut buf = format!("{}module {} =\n", "  ".repeat(indentation), interner.get_path(&self.name).join("."));
         for node in &self.nodes {
             buf.push_str(&node.pretty_print(interner, 0));
         }
@@ -42,7 +42,7 @@ impl PrettyPrint for ImportStatement {
             "{}{} {}",
             "  ".repeat(indentation),
             if self.is_exported() { "export" } else { "import" },
-            self.path.identifiers.iter().map(|id| interner.get(id.id)).collect::<Vec<_>>().join("."),
+            self.path.iter().map(|id| interner.get(id.id)).collect::<Vec<_>>().join("."),
         );
         if let Some(alias) = self.alias {
             buf.push_str(&format!(" as {}", interner.get(alias.id)));
@@ -224,7 +224,7 @@ impl PrettyPrint for FunctionCall {
         format!(
             "{}call {}({})",
             "  ".repeat(indentation),
-            interner.get(self.func_name.id),
+            interner.get_path(&self.func_name).join("."),
             self.args
                 .iter()
                 .map(|arg| arg.pretty_print(interner, indentation))

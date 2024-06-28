@@ -323,7 +323,7 @@ impl Formattable for FunctionCall {
         let mut lines = vec![];
 
         buf.push('~');
-        buf.push_str(&ctx.interner.get(self.func_name.id));
+        buf.push_str(&ctx.interner.get_path(&self.func_name).join("."));
         if self.args_were_parenthesized {
             buf.push('(');
         } else if !ctx.config.put_fn_args_on_new_lines() && !self.args.is_empty() {

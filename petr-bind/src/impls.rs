@@ -107,9 +107,7 @@ impl Bind for ImportStatement {
         };
 
         // the alias, if any, or the last path element if there is no alias
-        let name = self
-            .alias
-            .unwrap_or_else(|| *self.path.identifiers.last().expect("should never be empty"));
+        let name = self.alias.unwrap_or_else(|| *self.path.iter().last().expect("should never be empty"));
 
         binder.insert_into_current_scope(name.id, item.clone());
 

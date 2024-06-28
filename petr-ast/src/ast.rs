@@ -141,19 +141,21 @@ impl std::fmt::Display for Intrinsic {
     ) -> std::fmt::Result {
         match self {
             Intrinsic::Puts => write!(f, "puts"),
+            Intrinsic::Add => write!(f, "add"),
         }
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Intrinsic {
     /// intrinsic for `libc` puts
     Puts,
+    Add,
 }
 
 #[derive(Clone)]
 pub struct FunctionCall {
-    pub func_name: Identifier,
+    pub func_name: Path,
     pub args: Box<[Expression]>,
     // used for the formatter, primarily
     pub args_were_parenthesized: bool,

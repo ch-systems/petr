@@ -301,6 +301,7 @@ impl TypeChecker {
 #[derive(Clone)]
 pub enum Intrinsic {
     Puts(Box<TypedExpr>),
+    Add(Box<TypedExpr>, Box<TypedExpr>),
 }
 
 impl std::fmt::Debug for Intrinsic {
@@ -309,7 +310,8 @@ impl std::fmt::Debug for Intrinsic {
         f: &mut std::fmt::Formatter<'_>,
     ) -> std::fmt::Result {
         match self {
-            Intrinsic::Puts(expr) => write!(f, "puts({:?})", expr),
+            Intrinsic::Puts(expr) => write!(f, "@puts({:?})", expr),
+            Intrinsic::Add(lhs, rhs) => write!(f, "@add({:?}, {:?})", lhs, rhs),
         }
     }
 }
@@ -512,6 +514,19 @@ impl TypeCheck for ResolvedIntrinsic {
                 TypedExpr::Intrinsic {
                     intrinsic: Intrinsic::Puts(Box::new(arg)),
                     ty:        tp!(unit),
+                }
+            },
+            Add => {
+                if self.args.len() != 2 {
+                    todo!("add arg len check");
+                }
+                let arg1 = self.args[0].type_check(ctx);
+                let arg2 = self.args[1].type_check(ctx);
+                ctx.unify(&arg1.ty(), &tp!(int));
+                ctx.unify(&arg2.ty(), &tp!(int));
+                TypedExpr::Intrinsic {
+                    intrinsic: Intrinsic::Add(Box::new(arg1), Box::new(arg2)),
+                    ty:        tp!(int),
                 }
             },
         }

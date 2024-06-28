@@ -6,7 +6,7 @@
 
 use std::collections::BTreeMap;
 
-use petr_ir::{DataLabel, DataSectionEntry, Intrinsic, IrOpcode, Reg};
+use petr_ir::{DataLabel, DataSectionEntry, Intrinsic, IrOpcode, Reg, ReservedRegister};
 use petr_utils::{idx_map_key, IndexMap};
 use thiserror::Error;
 
@@ -25,7 +25,10 @@ mod tests {
         expect: Expect,
     ) {
         let input = input.into();
-        let parser = petr_parse::Parser::new(vec![("test", input)]);
+        let parser = petr_parse::Parser::new(vec![
+            ("std/ops.pt", "function add(lhs in 'int, rhs in 'int) returns 'int @add lhs, rhs"),
+            ("test", &input),
+        ]);
         let (ast, errs, interner, source_map) = parser.into_result();
         if !errs.is_empty() {
             errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
@@ -39,10 +42,12 @@ mod tests {
         let lowerer = Lowerer::new(type_checker);
         let (data, ir) = lowerer.finalize();
         let vm = Vm::new(ir, data);
-        let res = vm.run();
+        let (res, _stack) = match vm.run() {
+            Ok(o) => o,
+            Err(err) => panic!("vm returned error: {err:?}"),
+        };
 
-        let res_as_u64 = res.unwrap().iter().map(|val| val.0).collect::<Vec<_>>();
-        let res = format!("{res_as_u64:?}");
+        let res = format!("{res:?}");
 
         expect.assert_eq(&res);
     }
@@ -61,7 +66,25 @@ function hi(x in 'int, y in 'int) returns 'int
     a
 function main() returns 'int ~hi(42, 3)
 "#,
-            expect!["[42]"],
+            expect!["Value(42)"],
+        )
+    }
+
+    #[test]
+    fn addition() {
+        check(
+            r#"
+            function hi(x in 'int, y in 'int) returns 'int
+    let a = x,
+        b = y,
+        c = 20,
+        d = 30,
+        e = 42,
+    + a + b + c + d e
+
+function main() returns 'int ~hi(1, 3)
+"#,
+            expect!("Value(96)"),
         )
     }
 }
@@ -103,13 +126,15 @@ pub enum VmError {
     RegisterNotFound(Reg),
     #[error("PC value of {0} is out of bounds for program of length {1}")]
     ProgramCounterOutOfBounds(ProgramOffset, u64),
+    #[error("Returned to an empty call stack when executing opcode {0}")]
+    PoppedEmptyCallStack(IrOpcode),
 }
 
 type Result<T> = std::result::Result<T, VmError>;
 
 enum VmControlFlow {
     Continue,
-    Terminate,
+    Terminate(Value),
 }
 
 impl Vm {
@@ -134,16 +159,16 @@ impl Vm {
         }
     }
 
-    pub fn run(mut self) -> Result<Vec<Value>> {
+    pub fn run(mut self) -> Result<(Value, Vec<Value>)> {
         use VmControlFlow::*;
-        loop {
+        let val = loop {
             match self.execute() {
                 Ok(Continue) => continue,
-                Ok(Terminate) => break,
+                Ok(Terminate(val)) => break val,
                 Err(e) => return Err(e),
             }
-        }
-        Ok(self.state.stack)
+        };
+        Ok((val, self.state.stack))
     }
 
     fn execute(&mut self) -> Result<VmControlFlow> {
@@ -222,13 +247,13 @@ impl Vm {
                 self.set_register(dest, val);
                 Ok(Continue)
             },
-            IrOpcode::TerminateExecution() => Ok(Terminate),
             IrOpcode::Jump(_) => todo!(),
             IrOpcode::Label(_) => todo!(),
             IrOpcode::Return() => {
+                let val = self.get_register(Reg::Reserved(ReservedRegister::ReturnValueRegister))?;
                 // pop the fn stack, return there
                 let Some(offset) = self.state.call_stack.pop() else {
-                    return Ok(Terminate);
+                    return Ok(Terminate(val));
                 };
                 self.state.program_counter = offset;
                 Ok(Continue)
@@ -239,6 +264,13 @@ impl Vm {
             },
             IrOpcode::StackPushImmediate(imm) => {
                 self.state.stack.push(Value(imm));
+                Ok(Continue)
+            },
+            IrOpcode::ReturnImmediate(imm) => {
+                let Some(offset) = self.state.call_stack.pop() else {
+                    return Ok(Terminate(Value(imm)));
+                };
+                self.state.program_counter = offset;
                 Ok(Continue)
             },
         }
