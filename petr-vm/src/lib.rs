@@ -291,11 +291,14 @@ impl Vm {
         self.state.registers.insert(dest, val);
     }
 
-    // TODO things larger than a register
     fn data_section_to_val(
         &mut self,
         data: &DataSectionEntry,
     ) -> Value {
+        // TODO
+        // need to use pointers for data larger than a reg/non-copy-types
+        // will involve stack memory
+        // assignee: sezna
         match data {
             DataSectionEntry::Int64(x) => Value(*x as u64),
             DataSectionEntry::String(val) => {

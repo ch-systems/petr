@@ -238,6 +238,7 @@ fn compile(
     for item in build_plan.items {
         let (lockfile, buf, _build_plan) = load_project_and_dependencies(&item.path_to_source)?;
         // TODO(alex) -- transitive dependencies, get these build plans too
+        // assignee: sezna
         let lockfile_toml = toml::to_string(&lockfile)?;
         let lockfile_path = path.join("petr.lock");
         fs::write(lockfile_path, lockfile_toml)?;
@@ -271,6 +272,7 @@ fn compile(
     timings.end("symbol resolution");
 
     // TODO impl diagnostic for resolution errors
+    // assignee: sezna
     if !resolution_errs.is_empty() {
         dbg!(&resolution_errs);
     }
@@ -283,6 +285,7 @@ fn compile(
     timings.end("type check");
 
     // TODO impl diagnostic for type errors
+    // assignee: sezna
     if !type_errs.is_empty() {
         dbg!(&type_errs);
     }
