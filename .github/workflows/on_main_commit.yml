@@ -22,4 +22,5 @@ jobs:
     steps:
     - name: todo-issue
       uses: DerJuulsn/todo-issue@v1.1.4
+      env:
         GITHUB_TOKEN: ${{ secrets.PROJECTS_SECRET }}
