@@ -238,6 +238,9 @@ fn compile(
     for item in build_plan.items {
         let (lockfile, buf, _build_plan) = load_project_and_dependencies(&item.path_to_source)?;
         // TODO(alex) -- transitive dependencies, get these build plans too
+        // assignee: sezna
+
+        // TODO fix issue creator
         let lockfile_toml = toml::to_string(&lockfile)?;
         let lockfile_path = path.join("petr.lock");
         fs::write(lockfile_path, lockfile_toml)?;

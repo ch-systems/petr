@@ -10,4 +10,5 @@ jobs:
     steps:
     - name: TODO to Issue
       uses: alstr/todo-to-issue-action@v4.13.1
-
+      with:
+        CLOSE_ISSUES: true
