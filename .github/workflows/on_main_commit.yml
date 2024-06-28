@@ -1,7 +1,6 @@
 name: TODO check
 on:
-  pull_request: { branches: "*" }
-  push: { branches: "main" }
+  push: { branches: "alex/maybe-fix-ci" }
 env:
   PROJECTS_SECRET: ${{ secrets.PROJECTS_SECRET }}
 
