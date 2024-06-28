@@ -1,14 +1,30 @@
 name: TODO check
 on:
-  push: { branches: "main" }
+  workflow_dispatch:
+    inputs:
+      importAll:
+        default: 'false'
+        required: false
+        type: boolean
+        description: Enable, if you want to import all TODOs. Runs on checked out branch! Only use if you're sure what you are doing.
+  push:
+    branches: 
+      - main
 env:
   PROJECTS_SECRET: ${{ secrets.PROJECTS_SECRET }}
+permissions:
+  issues: write
+  repository-projects: read
+  contents: read
 
 jobs:
   check_todos:
     runs-on: ubuntu-latest
     steps:
+    - name: todo-issue
+      uses: DerJuulsn/todo-issue@v1.1.4
+
     - name: TODO to Issue
       uses: alstr/todo-to-issue-action@v4.13.1
-      with:
-        CLOSE_ISSUES: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.PROJECTS_SECRET }}
