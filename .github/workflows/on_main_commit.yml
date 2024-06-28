@@ -14,5 +14,3 @@ jobs:
     steps:
     - name: TODO to Issue
       uses: alstr/todo-to-issue-action@v4.13.1
-      with:
-        TOKEN: ${{ secrets.PROJECTS_SECRET }}
