@@ -261,24 +261,26 @@ where
 
 impl Parse for Expression {
     fn parse(p: &mut Parser) -> Option<Self> {
-        match p.peek().item() {
-            item if item.is_operator() => {
-                let op: SpannedItem<Operator> = p.parse()?;
-                // parse prefix notation operator expression
-                let lhs: SpannedItem<Expression> = p.parse()?;
-                let rhs: SpannedItem<Expression> = p.parse()?;
-                Some(Expression::Operator(Box::new(OperatorExpression { lhs, rhs, op })))
-            },
-            // TODO might not want to do variables this way
-            // may have to advance and peek to see if its a fn call etc
-            Token::Identifier => Some(Expression::Variable(p.parse()?)),
-            Token::OpenBracket => Some(Expression::List(p.parse()?)),
-            Token::Tilde => Some(Expression::FunctionCall(p.parse()?)),
-            Token::True | Token::False | Token::String | Token::Integer => Some(Expression::Literal(p.parse()?)),
-            Token::Intrinsic => Some(Expression::IntrinsicCall(p.parse()?)),
-            Token::Let => Some(Expression::Binding(p.parse()?)),
-            _ => None,
-        }
+        p.with_help("while parsing expression", |p| -> Option<Self> {
+            match p.peek().item() {
+                item if item.is_operator() => {
+                    let op: SpannedItem<Operator> = p.parse()?;
+                    // parse prefix notation operator expression
+                    let lhs: SpannedItem<Expression> = p.parse()?;
+                    let rhs: SpannedItem<Expression> = p.parse()?;
+                    Some(Expression::Operator(Box::new(OperatorExpression { lhs, rhs, op })))
+                },
+                // TODO might not want to do variables this way
+                // may have to advance and peek to see if its a fn call etc
+                Token::Identifier => Some(Expression::Variable(p.parse()?)),
+                Token::OpenBracket => Some(Expression::List(p.parse()?)),
+                Token::Tilde => Some(Expression::FunctionCall(p.parse()?)),
+                Token::True | Token::False | Token::String | Token::Integer => Some(Expression::Literal(p.parse()?)),
+                Token::Intrinsic => Some(Expression::IntrinsicCall(p.parse()?)),
+                Token::Let => Some(Expression::Binding(p.parse()?)),
+                _ => None,
+            }
+        })
     }
 }
 
@@ -315,6 +317,7 @@ impl Parse for IntrinsicCall {
             let name = p.slice().to_string();
             let intrinsic = match &name[1..] {
                 "puts" => Intrinsic::Puts,
+                "add" => Intrinsic::Add,
                 a => todo!("unrecognized intrinsic error: {a:?}"),
             };
             p.token(Token::Intrinsic)?;

@@ -141,6 +141,7 @@ impl std::fmt::Display for Intrinsic {
     ) -> std::fmt::Result {
         match self {
             Intrinsic::Puts => write!(f, "puts"),
+            Intrinsic::Add => write!(f, "add"),
         }
     }
 }
@@ -149,6 +150,7 @@ impl std::fmt::Display for Intrinsic {
 pub enum Intrinsic {
     /// intrinsic for `libc` puts
     Puts,
+    Add,
 }
 
 #[derive(Clone)]

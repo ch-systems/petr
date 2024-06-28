@@ -46,9 +46,9 @@ ir_ops! {
     FunctionLabel "func" FunctionId label;
     LoadImmediate "imm" Reg dest, u64 imm;
     Copy "cp" Reg dest, Reg src;
-    TerminateExecution "end";
     Label "label" LabelId label;
     Return "ret";
+    ReturnImmediate "reti" u64 imm;
     PushPc "ppc";
     StackPushImmediate "pushi" u64 imm
 }
@@ -105,13 +105,22 @@ impl std::fmt::Display for Reg {
     ) -> std::fmt::Result {
         match self {
             Reg::Virtual(a) => write!(f, "v{a}"),
-            Reg::Reserved(_) => todo!(),
+            Reg::Reserved(reg) => write!(
+                f,
+                "rr({})",
+                match reg {
+                    ReservedRegister::ReturnValueRegister => "func return value",
+                }
+            ),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ReservedRegister {}
+pub enum ReservedRegister {
+    /// where functions put their return values
+    ReturnValueRegister,
+}
 
 impl std::fmt::Display for TypedReg {
     fn fmt(

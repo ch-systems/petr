@@ -1,3 +1,6 @@
+// TODO:
+// use a push_error API which sets more diagnostic fields, similar to how the parser does it
+
 use std::rc::Rc;
 
 use petr_ast::{Ast, Commented, Expression, FunctionDeclaration, FunctionParameter, OperatorExpression};
@@ -575,7 +578,9 @@ impl Resolve for petr_utils::Path {
         for (ix, item) in path_iter.enumerate() {
             let is_last = ix == self.identifiers.len() - 2; // -2 because we advanced the iter by one already
             let Some(next_symbol) = binder.find_symbol_in_scope(item.id, rover.root_scope) else {
-                todo!("push item not found err")
+                let name = resolver.interner.get(item.id);
+                resolver.errs.push(ResolutionError::NotFound(name.to_string()));
+                return None;
             };
 
             match next_symbol {

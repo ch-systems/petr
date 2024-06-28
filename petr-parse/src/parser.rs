@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use lexer::Lexer;
 pub use lexer::Token;
-use miette::Diagnostic;
+use miette::{Diagnostic, SourceSpan};
 use petr_ast::{Ast, Comment, ExprId, List, Module};
 use petr_utils::{IndexMap, SourceId, Span, SpannedItem, SymbolId, SymbolInterner};
 use thiserror::Error;
@@ -94,7 +94,10 @@ pub enum ParseErrorKind {
      Hyphens in file names are transformed into underscores."
     )]
     InvalidIdentifier(String),
+    #[error("Internal error in parser. Please file an issue on GitHub. A span was joined with a span from another file.")]
+    InternalSpanError(#[label] SourceSpan, #[label] SourceSpan),
 }
+
 impl ParseErrorKind {
     pub fn into_err(self) -> ParseError {
         self.into()
@@ -268,22 +271,24 @@ impl Parser {
         &mut self,
         separator: Token,
     ) -> Option<Vec<P>> {
-        let mut buf = vec![];
-        loop {
-            let item = P::parse(self);
-            match item {
-                Some(item) => buf.push(item),
-                None => {
+        self.with_help(format!("while parsing {separator} separated sequence"), |p| {
+            let mut buf = vec![];
+            loop {
+                let item = P::parse(p);
+                match item {
+                    Some(item) => buf.push(item),
+                    None => {
+                        break;
+                    },
+                }
+                if *p.peek().item() == separator {
+                    p.advance();
+                } else {
                     break;
-                },
+                }
             }
-            if *self.peek().item() == separator {
-                self.advance();
-            } else {
-                break;
-            }
-        }
-        Some(buf)
+            Some(buf)
+        })
     }
 
     /// parses a sequence separated by `separator`
@@ -368,14 +373,16 @@ impl Parser {
         &mut self,
         tok: Token,
     ) -> Option<SpannedItem<Token>> {
-        let peeked_token = self.peek();
-        if *peeked_token.item() == tok {
-            Some(self.advance())
-        } else {
-            let span = self.lexer.span();
-            self.push_error(span.with_item(ParseErrorKind::ExpectedToken(tok, *peeked_token.item())));
-            None
-        }
+        self.with_help(format!("while parsing token {tok}"), |p| {
+            let peeked_token = p.peek();
+            if *peeked_token.item() == tok {
+                Some(p.advance())
+            } else {
+                let span = p.lexer.span();
+                p.push_error(span.with_item(ParseErrorKind::ExpectedToken(tok, *peeked_token.item())));
+                None
+            }
+        })
     }
 
     pub fn parse<P: Parse>(&mut self) -> Option<P> {
@@ -501,7 +508,26 @@ where
         let before_span = p.lexer.span();
         let result = T::parse(p)?;
 
-        let after_span = p.lexer.span();
+        let mut after_span = p.lexer.span();
+        if after_span.source() != before_span.source() && after_span.span().offset() == 0 {
+            // this is acceptable only if after_span.pos == 0, 0 OR if after_span.pos <= the first
+            // whitespace of the next file, which is less likely to be hit and this function
+            // doesn't account for (yet).
+            //
+            // Sometimes, the span actually goes to the last character of the previous file
+            // this solves the case where the parse consumes all white space until the next token,
+            // which will be in the next file
+            //
+            // TODO: it would be better if we were smarter about spans, and ideally
+            // a span going into the next file wouldn't be generated in this scenario.
+            // assignee: sezna
+            after_span = before_span.extend(p.source_map.get(before_span.source()).1.len());
+        } else if after_span.source() != before_span.source() {
+            let span = before_span.with_item(ParseErrorKind::InternalSpanError(after_span.span(), before_span.span()));
+            p.push_error(span);
+            return None;
+        }
+
         // i think this should be `hi` to `hi`, not 100% though
         Some(before_span.hi_to_hi(after_span).with_item(result))
     }

@@ -94,7 +94,8 @@ fn main() -> Result<(), error::PeteError> {
             match target.to_lowercase().as_str() {
                 "vm" => {
                     let vm = Vm::new(instructions, data);
-                    vm.run().expect("Failed to run vm");
+                    let result = vm.run().expect("Failed to run vm");
+                    println!("VM terminated with stack:\n{:#?}", result);
                 },
                 "native" => todo!(),
                 _ => {
