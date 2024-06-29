@@ -142,6 +142,10 @@ impl std::fmt::Display for Intrinsic {
         match self {
             Intrinsic::Puts => write!(f, "puts"),
             Intrinsic::Add => write!(f, "add"),
+            Intrinsic::Subtract => write!(f, "subtract"),
+            Intrinsic::Multiply => write!(f, "multiply"),
+            Intrinsic::Divide => write!(f, "divide"),
+            Intrinsic::Malloc => write!(f, "malloc"),
         }
     }
 }
@@ -151,6 +155,10 @@ pub enum Intrinsic {
     /// intrinsic for `libc` puts
     Puts,
     Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Malloc,
 }
 
 #[derive(Clone)]

@@ -318,6 +318,10 @@ impl Parse for IntrinsicCall {
             let intrinsic = match &name[1..] {
                 "puts" => Intrinsic::Puts,
                 "add" => Intrinsic::Add,
+                "subtract" => Intrinsic::Subtract,
+                "multiply" => Intrinsic::Multiply,
+                "divide" => Intrinsic::Divide,
+                "malloc" => Intrinsic::Malloc,
                 a => todo!("unrecognized intrinsic error: {a:?}"),
             };
             p.token(Token::Intrinsic)?;

@@ -302,6 +302,9 @@ impl TypeChecker {
 pub enum Intrinsic {
     Puts(Box<TypedExpr>),
     Add(Box<TypedExpr>, Box<TypedExpr>),
+    Multiply(Box<TypedExpr>, Box<TypedExpr>),
+    Divide(Box<TypedExpr>, Box<TypedExpr>),
+    Subtract(Box<TypedExpr>, Box<TypedExpr>),
 }
 
 impl std::fmt::Debug for Intrinsic {
@@ -312,6 +315,9 @@ impl std::fmt::Debug for Intrinsic {
         match self {
             Intrinsic::Puts(expr) => write!(f, "@puts({:?})", expr),
             Intrinsic::Add(lhs, rhs) => write!(f, "@add({:?}, {:?})", lhs, rhs),
+            Intrinsic::Multiply(lhs, rhs) => write!(f, "@multiply({:?}, {:?})", lhs, rhs),
+            Intrinsic::Divide(lhs, rhs) => write!(f, "@divide({:?}, {:?})", lhs, rhs),
+            Intrinsic::Subtract(lhs, rhs) => write!(f, "@subtract({:?}, {:?})", lhs, rhs),
         }
     }
 }
@@ -540,6 +546,46 @@ impl TypeCheck for ResolvedIntrinsic {
                     ty:        tp!(int),
                 }
             },
+            Subtract => {
+                if self.args.len() != 2 {
+                    todo!("subtract arg len check");
+                }
+                let arg1 = self.args[0].type_check(ctx);
+                let arg2 = self.args[1].type_check(ctx);
+                ctx.unify(&arg1.ty(), &tp!(int));
+                ctx.unify(&arg2.ty(), &tp!(int));
+                TypedExpr::Intrinsic {
+                    intrinsic: Intrinsic::Subtract(Box::new(arg1), Box::new(arg2)),
+                    ty:        tp!(int),
+                }
+            },
+            Multiply => {
+                if self.args.len() != 2 {
+                    todo!("mult arg len check");
+                }
+                let arg1 = self.args[0].type_check(ctx);
+                let arg2 = self.args[1].type_check(ctx);
+                ctx.unify(&arg1.ty(), &tp!(int));
+                ctx.unify(&arg2.ty(), &tp!(int));
+                TypedExpr::Intrinsic {
+                    intrinsic: Intrinsic::Multiply(Box::new(arg1), Box::new(arg2)),
+                    ty:        tp!(int),
+                }
+            },
+            Divide => {
+                if self.args.len() != 2 {
+                    todo!("Divide arg len check");
+                }
+                let arg1 = self.args[0].type_check(ctx);
+                let arg2 = self.args[1].type_check(ctx);
+                ctx.unify(&arg1.ty(), &tp!(int));
+                ctx.unify(&arg2.ty(), &tp!(int));
+                TypedExpr::Intrinsic {
+                    intrinsic: Intrinsic::Divide(Box::new(arg1), Box::new(arg2)),
+                    ty:        tp!(int),
+                }
+            },
+            Malloc => todo!(),
         }
     }
 }
@@ -614,7 +660,6 @@ impl TypeCheck for petr_resolve::FunctionCall {
 
 #[cfg(test)]
 mod tests {
-
     use expect_test::{expect, Expect};
     use petr_resolve::resolve_symbols;
     use petr_utils::{render_error, SymbolInterner};
