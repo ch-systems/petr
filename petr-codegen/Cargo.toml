@@ -9,7 +9,7 @@ edition = "2021"
 petr-ir = { path = "../petr-ir" }
 
 cranelift = "0.108.1"
-cranelift-native = "0.108.1"
+cranelift-native = "0.109.0"
 # cranelift-reader = "0.108.1"
 cranelift-object = { version = "0.108.1" }
 cranelift-module = "0.108.1"
