@@ -732,7 +732,6 @@ mod tests {
         );
     }
 
-    // TODO this is maybe good for generic syntax
     #[test]
     fn identity_resolution_generic() {
         check(

@@ -127,7 +127,6 @@ impl Lowerer {
                 }
             }
 
-            // TODO we could support other return dests
             let return_reg = ctx.fresh_reg();
             let return_dest = ReturnDestination::Reg(return_reg);
             let mut expr_body = ctx.lower_expr(&func.body, return_dest)?;
@@ -359,11 +358,10 @@ impl Lowerer {
     }
 }
 
-// type VariableScope = BTreeMap<SymbolId, Reg>;
-
 enum ReturnDestination {
     Reg(Reg),
 }
+
 fn fits_in_reg(_: &TypeVariable) -> bool {
     // TODO
     true

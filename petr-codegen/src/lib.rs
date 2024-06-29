@@ -77,7 +77,6 @@ impl IrContext {
         Ok(data_id)
     }
 
-    // TODO: lowered function type?
     pub fn add_function(
         &mut self,
         func_name: &str,

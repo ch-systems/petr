@@ -474,11 +474,26 @@ impl Formattable for TypeVariant {
         }
         let mut fields_buf = Vec::with_capacity(self.fields.len());
         for field in &*self.fields {
-            // TODO use impl Format for 'Ty here
-            fields_buf.push(field.pretty_print(&ctx.interner, ctx.indentation()));
+            fields_buf.push(field.format(ctx).into_single_line().content.to_string());
         }
         buf.push_str(&fields_buf.join(" "));
         FormattedLines::new(vec![ctx.new_line(buf)])
+    }
+}
+
+impl Formattable for Ty {
+    fn format(
+        &self,
+        ctx: &mut FormatterContext,
+    ) -> FormattedLines {
+        let name = match self {
+            Ty::Bool => "bool".to_string(),
+            Ty::Int => "int".to_string(),
+            Ty::String => "string".to_string(),
+            Ty::Unit => "unit".to_string(),
+            Ty::Named(name) => ctx.interner.get(name.id).to_string(),
+        };
+        FormattedLines::new(vec![ctx.new_line(format!("'{name}"))])
     }
 }
 
