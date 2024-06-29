@@ -130,6 +130,7 @@ function main() returns 'int ~hi(100)
             expect!("Value(120)"),
         )
     }
+
     #[test]
     fn overflowing_sub() {
         check(
@@ -137,6 +138,21 @@ function main() returns 'int ~hi(100)
 function main() returns 'int - 0 1
 "#,
             expect!("Value(18446744073709551615)"),
+        )
+    }
+
+    #[test]
+    fn basic_malloc() {
+        check(
+            r#"
+function main() returns 'int
+    let a = @malloc 1
+    let b = @malloc 1
+    let c = @malloc 5
+    let d = @malloc 1
+    d
+"#,
+            expect!("Value(7)"),
         )
     }
 }
@@ -341,6 +357,13 @@ impl Vm {
                     return Ok(Terminate(Value(imm)));
                 };
                 self.state.program_counter = offset;
+                Ok(Continue)
+            },
+            IrOpcode::Malloc(ptr_dest, size) => {
+                let size = self.get_register(size)?;
+                let ptr = self.state.memory.len();
+                self.state.memory.resize(ptr + size.0 as usize, 0);
+                self.set_register(ptr_dest, Value(ptr as u64));
                 Ok(Continue)
             },
         }

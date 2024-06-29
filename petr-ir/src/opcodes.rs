@@ -53,7 +53,8 @@ ir_ops! {
     Return "ret";
     ReturnImmediate "reti" u64 imm;
     PushPc "ppc";
-    StackPushImmediate "pushi" u64 imm
+    StackPushImmediate "pushi" u64 imm;
+    Malloc "malloc" Reg ptr_dest, Reg size
 }
 
 idx_map_key!(LabelId);
