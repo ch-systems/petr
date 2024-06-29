@@ -697,7 +697,7 @@ mod tests {
                 s.push_str(&format!("function call to {} with args: ", func));
                 for (name, arg) in args {
                     let name = interner.get(name.id);
-                    s.push_str(&format!("{name}: {:?}, ", arg.ty()));
+                    s.push_str(&format!("{name}: {}, ", arg.ty()));
                 }
                 s.push_str(&format!("returns {ty}"));
                 s
@@ -714,6 +714,8 @@ mod tests {
             "#,
             expect![[r#"
                 function foo → int → int
+                variable: x (int)
+
             "#]],
         );
     }
@@ -727,6 +729,8 @@ mod tests {
             "#,
             expect![[r#"
                 function foo → t0 → t0
+                variable: x (t0)
+
             "#]],
         );
     }
@@ -756,7 +760,11 @@ mod tests {
             "#,
             expect![[r#"
                 function foo → int
+                literal: 5
+
                 function bar → bool
+                literal: 5
+
 
                 Errors:
                 Failed to unify types: Failure(bool, int)
@@ -773,7 +781,11 @@ mod tests {
             "#,
             expect![[r#"
                 function foo → int
+                literal: 5
+
                 function bar → bool
+                literal: true
+
             "#]],
         );
     }
@@ -789,7 +801,11 @@ mod tests {
           @puts(~string_literal)"#,
             expect![[r#"
                 function string_literal → string
+                literal: "This is a string literal."
+
                 function my_func → unit
+                intrinsic: @puts(function call to functionid0 with args: )
+
             "#]],
         );
     }
@@ -802,6 +818,8 @@ mod tests {
           @puts("test")"#,
             expect![[r#"
                 function my_func → unit
+                intrinsic: @puts(literal: "test")
+
             "#]],
         );
     }
@@ -829,6 +847,8 @@ mod tests {
           @puts("test")"#,
             expect![[r#"
                 function my_func → bool
+                intrinsic: @puts(literal: "test")
+
 
                 Errors:
                 Failed to unify types: Failure(bool, unit)
@@ -847,7 +867,11 @@ mod tests {
           @puts(~bool_literal)"#,
             expect![[r#"
                 function bool_literal → bool
+                literal: true
+
                 function my_func → unit
+                intrinsic: @puts(function call to functionid0 with args: )
+
 
                 Errors:
                 Failed to unify types: Failure(string, bool)
@@ -871,8 +895,14 @@ mod tests {
         "#,
             expect![[r#"
                 function bool_literal → (t0 → t1) → bool
+                literal: true
+
                 function my_func → bool
+                function call to functionid0 with args: a: int, b: int, returns bool
+
                 function my_second_func → bool
+                function call to functionid0 with args: a: bool, b: bool, returns bool
+
             "#]],
         );
     }
@@ -884,6 +914,8 @@ mod tests {
             "#,
             expect![[r#"
                 function my_list → t0
+                list: [literal: 1, literal: true, ]
+
 
                 Errors:
                 Failed to unify types: Failure(int, bool)
@@ -901,7 +933,11 @@ mod tests {
             "#,
             expect![[r#"
                 function add → (int → int) → int
+                variable: a (int)
+
                 function add_five → int → int
+                error recovery
+
 
                 Errors:
                 Function add takes 2 arguments, but got 1 arguments.
@@ -932,7 +968,7 @@ function main() returns 'int ~hi(1, 2)"#,
                 "variable: a (int)" (int)
 
                 function main → int
-                function call to functionid0 with args: x: Constructed("int", []), y: Constructed("int", []), 
+                function call to functionid0 with args: x: int, y: int, returns int
 
             "#]],
         )

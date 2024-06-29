@@ -182,7 +182,7 @@ fn let_bindings() {
             module test =
             Func makes_function_call(
               c ∈ 'int
-            ) -> 'int
+            ) -> 'int 
               let a = 1,
                   b = 20
               call fn_call(var(a), var(b), var(c))
@@ -216,7 +216,7 @@ fn let_bindings_trailing_comma() {
             module test =
             Func makes_function_call(
               c ∈ 'int
-            ) -> 'int
+            ) -> 'int 
               let a = 1,
                   b = 20
               call fn_call(var(a), var(b), var(c))
