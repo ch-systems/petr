@@ -127,7 +127,6 @@ impl Lowerer {
                 }
             }
 
-            // TODO we could support other return dests
             let return_reg = ctx.fresh_reg();
             let return_dest = ReturnDestination::Reg(return_reg);
             let mut expr_body = ctx.lower_expr(&func.body, return_dest)?;
@@ -282,17 +281,29 @@ impl Lowerer {
                         buf.push(IrOpcode::LoadImmediate(reg, 0));
                     },
                 }
+                Ok(buf)
             },
-            petr_typecheck::Intrinsic::Add(lhs, rhs) => {
-                let lhs_reg = self.fresh_reg();
-                let rhs_reg = self.fresh_reg();
-                buf.append(&mut self.lower_expr(lhs, ReturnDestination::Reg(lhs_reg))?);
-                buf.append(&mut self.lower_expr(rhs, ReturnDestination::Reg(rhs_reg))?);
-                let ReturnDestination::Reg(return_reg) = return_destination;
-                buf.push(IrOpcode::Add(return_reg, lhs_reg, rhs_reg));
-            },
+            petr_typecheck::Intrinsic::Add(lhs, rhs) => self.lower_arithmetic_op(lhs, rhs, return_destination, IrOpcode::Add),
+            petr_typecheck::Intrinsic::Multiply(lhs, rhs) => self.lower_arithmetic_op(lhs, rhs, return_destination, IrOpcode::Multiply),
+            petr_typecheck::Intrinsic::Divide(lhs, rhs) => self.lower_arithmetic_op(lhs, rhs, return_destination, IrOpcode::Divide),
+            petr_typecheck::Intrinsic::Subtract(lhs, rhs) => self.lower_arithmetic_op(lhs, rhs, return_destination, IrOpcode::Subtract),
         }
+    }
 
+    fn lower_arithmetic_op(
+        &mut self,
+        lhs: &TypedExpr,
+        rhs: &TypedExpr,
+        return_destination: ReturnDestination,
+        op: fn(Reg, Reg, Reg) -> IrOpcode,
+    ) -> Result<Vec<IrOpcode>, LoweringError> {
+        let mut buf = vec![];
+        let lhs_reg = self.fresh_reg();
+        let rhs_reg = self.fresh_reg();
+        buf.append(&mut self.lower_expr(lhs, ReturnDestination::Reg(lhs_reg))?);
+        buf.append(&mut self.lower_expr(rhs, ReturnDestination::Reg(rhs_reg))?);
+        let ReturnDestination::Reg(return_reg) = return_destination;
+        buf.push(op(return_reg, lhs_reg, rhs_reg));
         Ok(buf)
     }
 
@@ -359,11 +370,10 @@ impl Lowerer {
     }
 }
 
-// type VariableScope = BTreeMap<SymbolId, Reg>;
-
 enum ReturnDestination {
     Reg(Reg),
 }
+
 fn fits_in_reg(_: &TypeVariable) -> bool {
     // TODO
     true

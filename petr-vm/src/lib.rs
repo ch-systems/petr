@@ -26,7 +26,15 @@ mod tests {
     ) {
         let input = input.into();
         let parser = petr_parse::Parser::new(vec![
-            ("std/ops.pt", "function add(lhs in 'int, rhs in 'int) returns 'int @add lhs, rhs"),
+            (
+                "std/ops.pt",
+                "
+             function add(lhs in 'int, rhs in 'int) returns 'int @add lhs, rhs
+             function sub(lhs in 'int, rhs in 'int) returns 'int @subtract lhs, rhs
+             function mul(lhs in 'int, rhs in 'int) returns 'int @multiply lhs, rhs
+             function div(lhs in 'int, rhs in 'int) returns 'int @divide lhs, rhs
+             ",
+            ),
             ("test", &input),
         ]);
         let (ast, errs, interner, source_map) = parser.into_result();
@@ -85,6 +93,50 @@ function main() returns 'int ~hi(42, 3)
 function main() returns 'int ~hi(1, 3)
 "#,
             expect!("Value(96)"),
+        )
+    }
+
+    #[test]
+    fn addition_path_res() {
+        check(
+            r#"
+            function hi(x in 'int, y in 'int) returns 'int
+    let a = x,
+        b = y,
+        c = 20,
+        d = 30,
+        e = 42,
+    ~std.ops.add(a,  + b + c + d e)
+
+function main() returns 'int ~hi(1, 3)
+"#,
+            expect!("Value(96)"),
+        )
+    }
+
+    #[test]
+    fn subtraction() {
+        check(
+            r#"
+            function hi(x in 'int) returns 'int
+    let a = + x 1,
+        b = - x 1,
+        c = - 20 x,
+        d = + 20 x
+        d
+
+function main() returns 'int ~hi(100)
+"#,
+            expect!("Value(120)"),
+        )
+    }
+    #[test]
+    fn overflowing_sub() {
+        check(
+            r#"
+function main() returns 'int - 0 1
+"#,
+            expect!("Value(18446744073709551615)"),
         )
     }
 }
@@ -196,7 +248,25 @@ impl Vm {
             IrOpcode::Add(dest, lhs, rhs) => {
                 let lhs = self.get_register(lhs)?;
                 let rhs = self.get_register(rhs)?;
-                self.set_register(dest, Value(lhs.0 + rhs.0));
+                self.set_register(dest, Value(lhs.0.wrapping_add(rhs.0)));
+                Ok(Continue)
+            },
+            IrOpcode::Multiply(dest, lhs, rhs) => {
+                let lhs = self.get_register(lhs)?;
+                let rhs = self.get_register(rhs)?;
+                self.set_register(dest, Value(lhs.0.wrapping_mul(rhs.0)));
+                Ok(Continue)
+            },
+            IrOpcode::Subtract(dest, lhs, rhs) => {
+                let lhs = self.get_register(lhs)?;
+                let rhs = self.get_register(rhs)?;
+                self.set_register(dest, Value(lhs.0.wrapping_sub(rhs.0)));
+                Ok(Continue)
+            },
+            IrOpcode::Divide(dest, lhs, rhs) => {
+                let lhs = self.get_register(lhs)?;
+                let rhs = self.get_register(rhs)?;
+                self.set_register(dest, Value(lhs.0 / rhs.0));
                 Ok(Continue)
             },
             IrOpcode::LoadData(dest, data_label) => {

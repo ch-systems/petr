@@ -39,6 +39,9 @@ ir_ops! {
     JumpImmediate "jumpi" FunctionId imm;
     Jump "jump" Reg dest;
     Add "add" Reg dest, Reg lhs, Reg rhs;
+    Multiply "mult" Reg dest, Reg lhs, Reg rhs;
+    Subtract "sub" Reg dest, Reg lhs, Reg rhs;
+    Divide "div" Reg dest, Reg lhs, Reg rhs;
     LoadData "ld" Reg dest, DataLabel data;
     StackPop "pop" TypedReg dest;
     StackPush "push" TypedReg src;
