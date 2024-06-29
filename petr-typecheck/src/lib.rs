@@ -346,6 +346,9 @@ pub enum TypedExpr {
         bindings:   Vec<(Identifier, TypedExpr)>,
         expression: Box<TypedExpr>,
     },
+    TypeConstructor {
+        ty: TypeVariable,
+    },
 }
 
 impl std::fmt::Debug for TypedExpr {
@@ -381,6 +384,7 @@ impl std::fmt::Debug for TypedExpr {
                 }
                 write!(f, "expression: {:?}", expression)
             },
+            TypeConstructor { ty } => write!(f, "type constructor: {:?}", ty),
         }
     }
 }
@@ -397,6 +401,7 @@ impl TypedExpr {
             Intrinsic { ty, .. } => ty.clone(),
             ErrorRecovery => tp!(error),
             ExprWithBindings { expression, .. } => expression.ty(),
+            TypeConstructor { ty } => ty.clone(),
         }
     }
 }
@@ -472,8 +477,14 @@ impl TypeCheck for Expr {
             },
             ExprKind::Intrinsic(intrinsic) => intrinsic.type_check(ctx),
             ExprKind::TypeConstructor => {
-                // type constructor expressions take inputs that should line up with a type decl and return a type
-                todo!()
+                // This ExprKind only shows up in the body of type constructor functions, and
+                // is basically a noop. The surrounding function decl will handle type checking for
+                // the type constructor.
+                TypedExpr::TypeConstructor {
+                    // Right now we'll just give this a fresh variable and it'll get unified to the
+                    // return type of the function. This should work....
+                    ty: ctx.fresh_ty_var(),
+                }
             },
             ExprKind::ExpressionWithBindings { bindings, expression } => {
                 // for each binding, type check the rhs
@@ -702,6 +713,7 @@ mod tests {
                 s.push_str(&format!("returns {ty}"));
                 s
             },
+            TypedExpr::TypeConstructor { ty } => format!("type constructor: {}", ty),
             otherwise => format!("{:?}", otherwise),
         }
     }
@@ -744,9 +756,16 @@ mod tests {
             "#,
             expect![[r#"
                 type MyType → t0
+
                 function A → t0
+                type constructor: t1
+
                 function B → t0
+                type constructor: t2
+
                 function foo → t0 → t0
+                variable: x (t0)
+
             "#]],
         );
     }
@@ -829,12 +848,14 @@ mod tests {
         check(
             r#"
         function my_func() returns 'unit
-          @puts(bool)"#,
+          @puts(true)"#,
             expect![[r#"
                 function my_func → unit
+                intrinsic: @puts(literal: true)
+
 
                 Errors:
-                Failed to unify types: Failure(string, error)
+                Failed to unify types: Failure(string, bool)
             "#]],
         );
     }

@@ -436,10 +436,11 @@ impl Resolve for Expression {
                     _ => unreachable!(),
                 }
             },
-            // TODO
             Expression::TypeConstructor => {
-                // type constructor expressions are placeholders for the function body
-                // of a type constructor function
+                // Type constructor expressions themselves don't actually do anything.
+                // The function parameters and return types
+                // of the function are what get type checked -- there is no fn body, and this
+                // TypeConstructor expression is what represents that.
                 Expr::new(ExprKind::TypeConstructor)
             },
             Expression::IntrinsicCall(intrinsic) => {
