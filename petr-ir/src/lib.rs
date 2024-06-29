@@ -267,8 +267,9 @@ impl Lowerer {
         return_destination: ReturnDestination,
     ) -> Result<Vec<IrOpcode>, LoweringError> {
         let mut buf = vec![];
+        use petr_typecheck::Intrinsic::*;
         match intrinsic {
-            petr_typecheck::Intrinsic::Puts(arg) => {
+            Puts(arg) => {
                 // puts takes one arg and it is a string
                 let arg_reg = self.fresh_reg();
                 buf.append(&mut self.lower_expr(arg, ReturnDestination::Reg(arg_reg))?);
@@ -283,10 +284,25 @@ impl Lowerer {
                 }
                 Ok(buf)
             },
-            petr_typecheck::Intrinsic::Add(lhs, rhs) => self.lower_arithmetic_op(lhs, rhs, return_destination, IrOpcode::Add),
-            petr_typecheck::Intrinsic::Multiply(lhs, rhs) => self.lower_arithmetic_op(lhs, rhs, return_destination, IrOpcode::Multiply),
-            petr_typecheck::Intrinsic::Divide(lhs, rhs) => self.lower_arithmetic_op(lhs, rhs, return_destination, IrOpcode::Divide),
-            petr_typecheck::Intrinsic::Subtract(lhs, rhs) => self.lower_arithmetic_op(lhs, rhs, return_destination, IrOpcode::Subtract),
+            Add(lhs, rhs) => self.lower_arithmetic_op(lhs, rhs, return_destination, IrOpcode::Add),
+            Multiply(lhs, rhs) => self.lower_arithmetic_op(lhs, rhs, return_destination, IrOpcode::Multiply),
+            Divide(lhs, rhs) => self.lower_arithmetic_op(lhs, rhs, return_destination, IrOpcode::Divide),
+            Subtract(lhs, rhs) => self.lower_arithmetic_op(lhs, rhs, return_destination, IrOpcode::Subtract),
+            Malloc(size) => {
+                let size_reg = self.fresh_reg();
+                let ptr_dest = self.fresh_reg();
+                buf.append(&mut self.lower_expr(size, ReturnDestination::Reg(size_reg))?);
+                buf.push(IrOpcode::Malloc(ptr_dest, size_reg));
+                match return_destination {
+                    ReturnDestination::Reg(reg) => {
+                        // `ptr_dest` will contain the ptr returned
+                        // the user should check that the ptr is not null
+                        // which would mean a failed allocation
+                        buf.push(IrOpcode::Copy(reg, ptr_dest));
+                    },
+                }
+                Ok(buf)
+            },
         }
     }
 

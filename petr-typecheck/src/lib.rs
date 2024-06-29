@@ -305,6 +305,7 @@ pub enum Intrinsic {
     Multiply(Box<TypedExpr>, Box<TypedExpr>),
     Divide(Box<TypedExpr>, Box<TypedExpr>),
     Subtract(Box<TypedExpr>, Box<TypedExpr>),
+    Malloc(Box<TypedExpr>),
 }
 
 impl std::fmt::Debug for Intrinsic {
@@ -318,6 +319,7 @@ impl std::fmt::Debug for Intrinsic {
             Intrinsic::Multiply(lhs, rhs) => write!(f, "@multiply({:?}, {:?})", lhs, rhs),
             Intrinsic::Divide(lhs, rhs) => write!(f, "@divide({:?}, {:?})", lhs, rhs),
             Intrinsic::Subtract(lhs, rhs) => write!(f, "@subtract({:?}, {:?})", lhs, rhs),
+            Intrinsic::Malloc(size) => write!(f, "@malloc({:?})", size),
         }
     }
 }
@@ -585,7 +587,22 @@ impl TypeCheck for ResolvedIntrinsic {
                     ty:        tp!(int),
                 }
             },
-            Malloc => todo!(),
+            Malloc => {
+                // malloc takes one integer (the number of bytes to allocate)
+                // and returns a pointer to the allocated memory
+                // will return `0` if the allocation fails
+                // in the future, this might change to _words_ of allocation,
+                // depending on the compilation target
+                if self.args.len() != 1 {
+                    todo!("malloc arg len check");
+                }
+                let arg = self.args[0].type_check(ctx);
+                ctx.unify(&arg.ty(), &tp!(int));
+                TypedExpr::Intrinsic {
+                    intrinsic: Intrinsic::Malloc(Box::new(arg)),
+                    ty:        tp!(int),
+                }
+            },
         }
     }
 }
