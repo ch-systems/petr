@@ -31,19 +31,14 @@ impl Bind for Expression {
                 bindings,
                 expression,
                 expr_id,
-            }) => {
-                binder.with_scope(ScopeKind::ExpressionWithBindings, |binder, scope_id| {
-                    for binding in bindings.iter() {
-                        let binding_id = binder.insert_binding(binding.clone());
-                        binder.insert_into_current_scope(binding.name.id, Item::Binding(binding_id));
-                    }
-                    // TODO: functions get inserted as Items with scopes, so we should probably
-                    // insert bound expressions as an Item with their own scope, not sure how yet.
-                    expression.bind(binder);
-                    binder.insert_expression(*expr_id, scope_id);
-                    //
-                })
-            },
+            }) => binder.with_scope(ScopeKind::ExpressionWithBindings, |binder, scope_id| {
+                for binding in bindings.iter() {
+                    let binding_id = binder.insert_binding(binding.clone());
+                    binder.insert_into_current_scope(binding.name.id, Item::Binding(binding_id));
+                }
+                expression.bind(binder);
+                binder.insert_expression(*expr_id, scope_id);
+            }),
             _ => (),
         }
     }

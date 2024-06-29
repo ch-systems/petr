@@ -104,7 +104,6 @@ impl Lowerer {
         let func_label = self.new_function_label();
         let mut buf = vec![];
         self.with_variable_context(|ctx| -> Result<_, _> {
-            // TODO: func should have type checked types...not just the AST type
             // Pop parameters off the stack in reverse order -- the last parameter for the function
             // will be the first thing popped off the stack
             // When we lower a function call, we push them onto the stack from first to last. Since
@@ -223,6 +222,7 @@ impl Lowerer {
                 buf.append(&mut expr);
                 Ok(buf)
             }),
+            TypeConstructor { .. } => todo!(),
         }
     }
 

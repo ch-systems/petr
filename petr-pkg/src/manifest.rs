@@ -101,26 +101,3 @@ pub fn find_manifest(path: Option<PathBuf>) -> Result<Manifest, Box<dyn std::err
     let manifest = toml::from_str(&manifest_content)?;
     Ok(manifest)
 }
-
-#[test]
-fn what_is_my_manifest_format() {
-    let manifest = Manifest {
-        name:         String::from("test package"),
-        author:       Some("Alex Hansen <alex@alex-hansen.com>".into()),
-        license:      Some("MIT".into()),
-        formatter:    Default::default(),
-        dependencies: BTreeMap::from_iter(vec![(
-            "std".to_string(),
-            Dependency::Git(crate::GitDependency {
-                git:    "https://github.com/sezna/petr-std".into(),
-                branch: None,
-                tag:    None,
-                rev:    None,
-            }),
-        )]),
-    };
-
-    let manifest_str = toml::to_string(&manifest).unwrap();
-    println!("manifest is: {}", manifest_str);
-    panic!()
-}

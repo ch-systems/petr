@@ -346,6 +346,9 @@ pub enum TypedExpr {
         bindings:   Vec<(Identifier, TypedExpr)>,
         expression: Box<TypedExpr>,
     },
+    TypeConstructor {
+        ty: TypeVariable,
+    },
 }
 
 impl std::fmt::Debug for TypedExpr {
@@ -381,6 +384,7 @@ impl std::fmt::Debug for TypedExpr {
                 }
                 write!(f, "expression: {:?}", expression)
             },
+            TypeConstructor { ty } => write!(f, "type constructor: {:?}", ty),
         }
     }
 }
@@ -397,6 +401,7 @@ impl TypedExpr {
             Intrinsic { ty, .. } => ty.clone(),
             ErrorRecovery => tp!(error),
             ExprWithBindings { expression, .. } => expression.ty(),
+            TypeConstructor { ty } => ty.clone(),
         }
     }
 }
@@ -472,8 +477,14 @@ impl TypeCheck for Expr {
             },
             ExprKind::Intrinsic(intrinsic) => intrinsic.type_check(ctx),
             ExprKind::TypeConstructor => {
-                // type constructor expressions take inputs that should line up with a type decl and return a type
-                todo!()
+                // This ExprKind only shows up in the body of type constructor functions, and
+                // is basically a noop. The surrounding function decl will handle type checking for
+                // the type constructor.
+                TypedExpr::TypeConstructor {
+                    // Right now we'll just give this a fresh variable and it'll get unified to the
+                    // return type of the function. This should work....
+                    ty: ctx.fresh_ty_var(),
+                }
             },
             ExprKind::ExpressionWithBindings { bindings, expression } => {
                 // for each binding, type check the rhs
@@ -697,11 +708,12 @@ mod tests {
                 s.push_str(&format!("function call to {} with args: ", func));
                 for (name, arg) in args {
                     let name = interner.get(name.id);
-                    s.push_str(&format!("{name}: {:?}, ", arg.ty()));
+                    s.push_str(&format!("{name}: {}, ", arg.ty()));
                 }
                 s.push_str(&format!("returns {ty}"));
                 s
             },
+            TypedExpr::TypeConstructor { ty } => format!("type constructor: {}", ty),
             otherwise => format!("{:?}", otherwise),
         }
     }
@@ -714,6 +726,8 @@ mod tests {
             "#,
             expect![[r#"
                 function foo → int → int
+                variable: x (int)
+
             "#]],
         );
     }
@@ -727,6 +741,8 @@ mod tests {
             "#,
             expect![[r#"
                 function foo → t0 → t0
+                variable: x (t0)
+
             "#]],
         );
     }
@@ -740,9 +756,16 @@ mod tests {
             "#,
             expect![[r#"
                 type MyType → t0
+
                 function A → t0
+                type constructor: t1
+
                 function B → t0
+                type constructor: t2
+
                 function foo → t0 → t0
+                variable: x (t0)
+
             "#]],
         );
     }
@@ -756,7 +779,11 @@ mod tests {
             "#,
             expect![[r#"
                 function foo → int
+                literal: 5
+
                 function bar → bool
+                literal: 5
+
 
                 Errors:
                 Failed to unify types: Failure(bool, int)
@@ -773,7 +800,11 @@ mod tests {
             "#,
             expect![[r#"
                 function foo → int
+                literal: 5
+
                 function bar → bool
+                literal: true
+
             "#]],
         );
     }
@@ -789,7 +820,11 @@ mod tests {
           @puts(~string_literal)"#,
             expect![[r#"
                 function string_literal → string
+                literal: "This is a string literal."
+
                 function my_func → unit
+                intrinsic: @puts(function call to functionid0 with args: )
+
             "#]],
         );
     }
@@ -802,6 +837,8 @@ mod tests {
           @puts("test")"#,
             expect![[r#"
                 function my_func → unit
+                intrinsic: @puts(literal: "test")
+
             "#]],
         );
     }
@@ -811,12 +848,14 @@ mod tests {
         check(
             r#"
         function my_func() returns 'unit
-          @puts(bool)"#,
+          @puts(true)"#,
             expect![[r#"
                 function my_func → unit
+                intrinsic: @puts(literal: true)
+
 
                 Errors:
-                Failed to unify types: Failure(string, error)
+                Failed to unify types: Failure(string, bool)
             "#]],
         );
     }
@@ -829,6 +868,8 @@ mod tests {
           @puts("test")"#,
             expect![[r#"
                 function my_func → bool
+                intrinsic: @puts(literal: "test")
+
 
                 Errors:
                 Failed to unify types: Failure(bool, unit)
@@ -847,7 +888,11 @@ mod tests {
           @puts(~bool_literal)"#,
             expect![[r#"
                 function bool_literal → bool
+                literal: true
+
                 function my_func → unit
+                intrinsic: @puts(function call to functionid0 with args: )
+
 
                 Errors:
                 Failed to unify types: Failure(string, bool)
@@ -871,8 +916,14 @@ mod tests {
         "#,
             expect![[r#"
                 function bool_literal → (t0 → t1) → bool
+                literal: true
+
                 function my_func → bool
+                function call to functionid0 with args: a: int, b: int, returns bool
+
                 function my_second_func → bool
+                function call to functionid0 with args: a: bool, b: bool, returns bool
+
             "#]],
         );
     }
@@ -884,6 +935,8 @@ mod tests {
             "#,
             expect![[r#"
                 function my_list → t0
+                list: [literal: 1, literal: true, ]
+
 
                 Errors:
                 Failed to unify types: Failure(int, bool)
@@ -901,7 +954,11 @@ mod tests {
             "#,
             expect![[r#"
                 function add → (int → int) → int
+                variable: a (int)
+
                 function add_five → int → int
+                error recovery
+
 
                 Errors:
                 Function add takes 2 arguments, but got 1 arguments.
@@ -932,7 +989,7 @@ function main() returns 'int ~hi(1, 2)"#,
                 "variable: a (int)" (int)
 
                 function main → int
-                function call to functionid0 with args: x: Constructed("int", []), y: Constructed("int", []), 
+                function call to functionid0 with args: x: int, y: int, returns int
 
             "#]],
         )

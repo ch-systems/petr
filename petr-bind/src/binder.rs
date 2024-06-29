@@ -321,7 +321,9 @@ impl Binder {
                     petr_ast::AstNode::ImportStatement(stmt) => stmt.bind(binder),
                 });
                 let exports = BTreeMap::from_iter(exports);
-                // TODO do I need to track this module id?
+                // we don't need to track this module ID -- it just needs to exist,
+                // and all modules are iterated over in later stages of the compiler.
+                // So we can safely ignore the return value here.
                 let _module_id = binder.modules.insert(Module {
                     root_scope: scope_id,
                     exports,

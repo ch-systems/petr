@@ -436,10 +436,11 @@ impl Resolve for Expression {
                     _ => unreachable!(),
                 }
             },
-            // TODO
             Expression::TypeConstructor => {
-                // type constructor expressions are placeholders for the function body
-                // of a type constructor function
+                // Type constructor expressions themselves don't actually do anything.
+                // The function parameters and return types
+                // of the function are what get type checked -- there is no fn body, and this
+                // TypeConstructor expression is what represents that.
                 Expr::new(ExprKind::TypeConstructor)
             },
             Expression::IntrinsicCall(intrinsic) => {
@@ -570,7 +571,8 @@ impl Resolve for petr_utils::Path {
             Item::Module(id) if self.identifiers.len() > 1 => id,
             Item::Function(f, _) if self.identifiers.len() == 1 => return Some(either::Either::Left(*f)),
             Item::Type(t) if self.identifiers.len() == 1 => return Some(either::Either::Right(*t)),
-            _ => todo!("push error -- import path is not a module"),
+            Item::Import { path, alias: _ } if self.identifiers.len() == 1 => return path.resolve(resolver, binder, scope_id),
+            a => todo!("push error -- import path is not a module {a:?}"),
         };
 
         let mut rover = binder.get_module(*first_item);
@@ -684,7 +686,7 @@ mod tests {
                         x.intrinsic,
                         x.args.iter().map(|x| x.to_string(resolver)).collect::<Vec<_>>().join(", ")
                     ),
-                    ExprKind::TypeConstructor => todo!(),
+                    ExprKind::TypeConstructor => "Type constructor".into(),
                     ExprKind::ExpressionWithBindings { .. } => todo!(),
                 }
             }
@@ -782,14 +784,14 @@ mod tests {
             function foo(a in 'MyType) returns 'MyType [1, 2, 3]
             "#,
             expect![[r#"
-                    _____FUNCTIONS_____
-                    #0 a() -> named type MyType   "<error>"
-                    #1 b() -> named type MyType   "<error>"
-                    #2 foo(  a: named type MyType, ) -> named type MyType   "[Literal(Integer(1)), Literal(Integer(2)), Literal(Integer(3))]"
-                    _____TYPES_____
-                    #0 MyType
+                _____FUNCTIONS_____
+                #0 a() -> named type MyType   "Type constructor"
+                #1 b() -> named type MyType   "Type constructor"
+                #2 foo(  a: named type MyType, ) -> named type MyType   "[Literal(Integer(1)), Literal(Integer(2)), Literal(Integer(3))]"
+                _____TYPES_____
+                #0 MyType
 
-                "#]],
+            "#]],
         );
     }
 
@@ -805,14 +807,14 @@ mod tests {
             type MyType = a | b
             "#,
             expect![[r#"
-                    _____FUNCTIONS_____
-                    #0 foo(  a: named type MyType, ) -> named type MyType   "[Literal(Integer(1)), Literal(Integer(2)), Literal(Integer(3))]"
-                    #1 a() -> named type MyType   "<error>"
-                    #2 b() -> named type MyType   "<error>"
-                    _____TYPES_____
-                    #0 MyType
+                _____FUNCTIONS_____
+                #0 foo(  a: named type MyType, ) -> named type MyType   "[Literal(Integer(1)), Literal(Integer(2)), Literal(Integer(3))]"
+                #1 a() -> named type MyType   "Type constructor"
+                #2 b() -> named type MyType   "Type constructor"
+                _____TYPES_____
+                #0 MyType
 
-                "#]],
+            "#]],
         )
     }
 
@@ -829,15 +831,15 @@ mod tests {
             type MyType = a | b
             "#,
             expect![[r#"
-                    _____FUNCTIONS_____
-                    #0 foo() -> named type MyType   "FunctionCall(functionid1)"
-                    #1 bar(  a: named type MyType, ) -> named type MyType   "[Literal(Integer(1)), Literal(Integer(2)), Literal(Integer(3))]"
-                    #2 a() -> named type MyType   "<error>"
-                    #3 b() -> named type MyType   "<error>"
-                    _____TYPES_____
-                    #0 MyType
+                _____FUNCTIONS_____
+                #0 foo() -> named type MyType   "FunctionCall(functionid1)"
+                #1 bar(  a: named type MyType, ) -> named type MyType   "[Literal(Integer(1)), Literal(Integer(2)), Literal(Integer(3))]"
+                #2 a() -> named type MyType   "Type constructor"
+                #3 b() -> named type MyType   "Type constructor"
+                _____TYPES_____
+                #0 MyType
 
-                "#]],
+            "#]],
         )
     }
 
@@ -854,15 +856,15 @@ mod tests {
             type MyType = a | b
             "#,
             expect![[r#"
-                    _____FUNCTIONS_____
-                    #0 foo() -> named type MyType   "FunctionCall(functionid1)"
-                    #1 bar(  a: named type MyType, ) -> named type MyType   "[Literal(Integer(1)), Literal(Integer(2)), Literal(Integer(3))]"
-                    #2 a() -> named type MyType   "<error>"
-                    #3 b() -> named type MyType   "<error>"
-                    _____TYPES_____
-                    #0 MyType
+                _____FUNCTIONS_____
+                #0 foo() -> named type MyType   "FunctionCall(functionid1)"
+                #1 bar(  a: named type MyType, ) -> named type MyType   "[Literal(Integer(1)), Literal(Integer(2)), Literal(Integer(3))]"
+                #2 a() -> named type MyType   "Type constructor"
+                #3 b() -> named type MyType   "Type constructor"
+                _____TYPES_____
+                #0 MyType
 
-                "#]],
+            "#]],
         )
     }
     #[test]
@@ -879,7 +881,12 @@ mod tests {
 
                "#,
             ],
-            expect![[r#""#]],
+            expect![[r#"
+                _____FUNCTIONS_____
+                #0 exported_func(  a: int, ) -> int   "a: int"
+                #1 foo() -> int   "FunctionCall(functionid0)"
+                _____TYPES_____
+            "#]],
         )
     }
 
@@ -897,7 +904,12 @@ mod tests {
 
                "#,
             ],
-            expect![[r#""#]],
+            expect![[r#"
+                _____FUNCTIONS_____
+                #0 exported_func(  a: int, ) -> int   "a: int"
+                #1 foo() -> int   "FunctionCall(functionid0)"
+                _____TYPES_____
+            "#]],
         )
     }
 }

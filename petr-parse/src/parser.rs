@@ -132,9 +132,6 @@ pub struct Parser {
     // the tuple is the file name and content
     source_map: IndexMap<SourceId, (&'static str, &'static str)>,
     help: Vec<String>,
-    /// whether or not to continue advancing if one source file ends
-    /// TODO can maybe remove this now that modules aren't spanned items
-    file_barrier: bool,
 }
 
 impl Parser {
@@ -211,7 +208,6 @@ impl Parser {
             peek: None,
             source_map,
             help: Default::default(),
-            file_barrier: false,
             expr_id_assigner: 0,
         }
     }
@@ -335,11 +331,6 @@ impl Parser {
     }
 
     pub fn advance(&mut self) -> SpannedItem<Token> {
-        if self.file_barrier {
-            if let Token::NewFile(_) = self.peek().item() {
-                return self.lexer.span().with_item(Token::Eof);
-            }
-        }
         if let Some(tok) = self.peek.take() {
             return tok;
         }
@@ -475,18 +466,6 @@ impl Parser {
 
     pub fn source_map(&self) -> &IndexMap<SourceId, (&'static str, &'static str)> {
         &self.source_map
-    }
-
-    /// stops advancing if a new file is found
-    /// required so we don't accidentally create spans that cross files
-    fn with_file_barrier<T>(
-        &mut self,
-        f: impl Fn(&mut Parser) -> T,
-    ) -> T {
-        self.file_barrier = true;
-        let res = f(self);
-        self.file_barrier = false;
-        res
     }
 }
 
