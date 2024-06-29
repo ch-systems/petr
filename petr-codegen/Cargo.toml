@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 petr-ir = { path = "../petr-ir" }
 
-cranelift = "0.108.1"
+cranelift = "0.109.0"
 cranelift-native = "0.108.1"
 # cranelift-reader = "0.108.1"
 cranelift-object = { version = "0.108.1" }
