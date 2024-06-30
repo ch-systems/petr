@@ -4,6 +4,7 @@
 
 pub use common_types::*;
 pub use index_map::IndexMap;
+pub use pretty_print::PrettyPrint;
 pub use sources::{error_printing::render as render_error, SourceId, Span, SpannedItem};
 
 mod common_types;
@@ -43,4 +44,3 @@ mod pretty_print {
         }
     }
 }
-pub use pretty_print::PrettyPrint;

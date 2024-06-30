@@ -151,7 +151,7 @@ impl Span {
 
         Self {
             source: self.source,
-            span:   SourceSpan::new(first_span.offset().into(), length),
+            span:   SourceSpan::new(first_span.offset().into(), length.into()),
         }
     }
 
@@ -165,7 +165,7 @@ impl Span {
         let hi = after_span.span.offset() + after_span.span.len();
         Self {
             source: self.source,
-            span:   SourceSpan::new(lo.into(), hi - lo),
+            span:   SourceSpan::new(lo.into(), (hi - lo).into()),
         }
     }
 
@@ -178,7 +178,7 @@ impl Span {
         let lo = self.span.offset();
         Self {
             source: self.source,
-            span:   SourceSpan::new(lo.into(), hi - lo),
+            span:   SourceSpan::new(lo.into(), (hi - lo).into()),
         }
     }
 
@@ -253,7 +253,7 @@ pub mod error_printing {
     where
         T: Diagnostic + std::error::Error + std::fmt::Debug,
     {
-        source: miette::NamedSource<&'static str>,
+        source: miette::NamedSource,
         item:   T,
     }
     impl<T: Diagnostic> SourcedItem<T> {

@@ -1,0 +1,28 @@
+[package]
+name = "petr-api"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = { version = "4.5.4", features = ["derive"] }
+petr-parse = { "path" = "../petr-parse" }
+petr-utils = { "path" = "../petr-utils", optional = true }
+petr-vm = { "path" = "../petr-vm" }
+petr-ir = { "path" = "../petr-ir" }
+petr-fmt = { path = "../petr-fmt" }
+petr-typecheck = { "path" = "../petr-typecheck" }
+petr-resolve = { "path" = "../petr-resolve", optional = true }
+petr-pkg = { "path" = "../petr-pkg", optional = true }
+petr-profiling = { path = "../petr-profiling" }
+miette = { version = "5.10", optional = true }
+thiserror = "1.0"
+toml = "0.8"
+termcolor = { version = "1.4", optional = true }
+
+[features]
+debug = ["petr-utils/debug", "petr-resolve/debug"]
+no_std = ["dep:petr-utils", "dep:petr-resolve", "dep:miette"]
+fancy = ["miette/fancy"]
+default = ["dep:petr-utils", "dep:petr-resolve", "dep:miette", "termcolor", "petr-pkg"]
