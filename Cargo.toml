@@ -13,5 +13,5 @@ members = [
     "petr-ir",
     "petr-vm",
     "petr-pkg",
-    "petr-profiling", "wasm-compiler", "petr-api",
+    "petr-profiling", "wasm-compiler", "petr-api", "petr-playground"
 ]
