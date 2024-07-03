@@ -1013,7 +1013,6 @@ name = "pete"
 version = "0.1.0"
 dependencies = [
  "clap 4.5.8",
- "miette",
  "petr-api",
  "petr-pkg",
  "petr-profiling",

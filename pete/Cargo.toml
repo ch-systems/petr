@@ -11,7 +11,6 @@ petr-api = { "path" = "../petr-api", features = ["fancy", "default"]  }
 petr-profiling = { "path" = "../petr-profiling" }
 petr-resolve = { "path" = "../petr-resolve" }
 petr-typecheck = { "path" = "../petr-typecheck" }
-miette = { version = "5.10" }
 thiserror = "1.0"
 toml = "0.8"
 termcolor = { version = "1.4" }
