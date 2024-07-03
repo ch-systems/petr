@@ -1,12 +1,6 @@
 //! Top-level API for the petr programming language.
 //! Exposes relevant APIs from all compiler stages and tooling.
 
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    rc::Rc,
-};
-
 pub use petr_fmt::{format_sources, FormatterConfig};
 pub use petr_ir::Lowerer;
 pub use petr_parse::Parser;

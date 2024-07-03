@@ -15,11 +15,11 @@ petr-fmt = { path = "../petr-fmt" }
 petr-typecheck = { "path" = "../petr-typecheck" }
 petr-resolve = { "path" = "../petr-resolve", optional = true }
 petr-pkg = { "path" = "../petr-pkg", optional = true }
+termcolor = { version = "1.4", optional = true }
 petr-profiling = { path = "../petr-profiling" }
 miette = { version = "5.10", optional = true }
 thiserror = "1.0"
 toml = "0.8"
-termcolor = { version = "1.4", optional = true }
 
 [features]
 debug = ["petr-utils/debug", "petr-resolve/debug"]

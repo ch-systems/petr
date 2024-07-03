@@ -7,10 +7,13 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
-petr-api = { "path" = "../petr-api", features = ["fancy"]  }
+petr-api = { "path" = "../petr-api", features = ["fancy", "default"]  }
 petr-profiling = { "path" = "../petr-profiling" }
-miette = { version = "5.10", optional = true }
+petr-resolve = { "path" = "../petr-resolve" }
+petr-typecheck = { "path" = "../petr-typecheck" }
+miette = { version = "5.10" }
 thiserror = "1.0"
 toml = "0.8"
-termcolor = { version = "1.4", optional = true }
+termcolor = { version = "1.4" }
+petr-pkg = { "path" = "../petr-pkg" }
 
