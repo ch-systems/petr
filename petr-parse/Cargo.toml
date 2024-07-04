@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 logos = "0.14.0"
-miette = { version = "5.10", features = ["fancy"] }
+miette = { version = "7.2", features = ["fancy"] }
 petr-utils = { path = "../petr-utils" }
 thiserror = "1.0.61"
 petr-ast = { path = "../petr-ast" }

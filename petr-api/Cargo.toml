@@ -16,7 +16,7 @@ petr-resolve = { "path" = "../petr-resolve", optional = true }
 petr-pkg = { "path" = "../petr-pkg", optional = true }
 termcolor = { version = "1.4", optional = true }
 petr-profiling = { path = "../petr-profiling" }
-miette = { version = "5.10", optional = true }
+miette = { version = "7.2", optional = true }
 thiserror = "1.0"
 toml = "0.8"
 
