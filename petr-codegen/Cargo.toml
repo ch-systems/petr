@@ -12,7 +12,7 @@ cranelift = "0.108.1"
 cranelift-native = "0.108.1"
 # cranelift-reader = "0.108.1"
 cranelift-object = { version = "0.108.1" }
-cranelift-module = "0.108.1"
+cranelift-module = "0.109.0"
 
 miette = { version = "5.10", features = ["fancy"] }
 thiserror = "1.0.61"
