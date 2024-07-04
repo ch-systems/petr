@@ -1027,7 +1027,6 @@ dependencies = [
 name = "petr-api"
 version = "0.1.0"
 dependencies = [
- "clap 4.5.8",
  "miette",
  "petr-fmt",
  "petr-ir",
