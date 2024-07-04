@@ -11,3 +11,4 @@ crate-type = ["cdylib"]
 [dependencies]
 wasm-bindgen = "0.2.92"
 petr-api = { path = "../petr-api", default-features = false, features = ["no_std"] }
+stdlib = { path = "../stdlib" }

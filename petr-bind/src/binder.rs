@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use petr_ast::{Ast, Binding, ExprId, Expression, FunctionDeclaration, Ty, TypeDeclaration};
+use petr_ast::{dependency::Dependency, Ast, Binding, ExprId, Expression, FunctionDeclaration, Ty, TypeDeclaration};
 use petr_utils::{idx_map_key, Identifier, IndexMap, Path, SymbolId};
 // TODO:
 // - i don't know if type cons needs a scope. Might be good to remove that.
@@ -336,18 +336,17 @@ impl Binder {
 
     pub fn from_ast_and_deps(
         ast: &Ast,
-        // TODO better type here
-        dependencies: Vec<(
-            /* Key */ String,
-            /*Name from manifest*/ Identifier,
-            /*Things this depends on*/ Vec<String>,
-            Ast,
-        )>,
+        dependencies: Vec<Dependency>,
     ) -> Self {
         let mut binder = Self::new();
 
-        for dependency in dependencies {
-            let (_key, name, _depends_on, dep_ast) = dependency;
+        for Dependency {
+            key,
+            name,
+            dependencies: depends_on,
+            ast: dep_ast,
+        } in dependencies
+        {
             let dep_scope = binder.create_scope_from_path(&Path::new(vec![name]));
             binder.with_specified_scope(dep_scope, |binder, _scope_id| {
                 for module in dep_ast.modules {

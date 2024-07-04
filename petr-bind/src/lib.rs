@@ -3,5 +3,6 @@
 //! scopes define. The resolver is then able to do scope-aware name resolution in the next step.
 
 pub use binder::{Bind, Binder, BindingId, FunctionId, Item, ModuleId, Scope, ScopeId, ScopeKind, TypeId};
+pub use petr_ast::dependency::Dependency;
 mod binder;
 mod impls;

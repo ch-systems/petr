@@ -144,13 +144,7 @@ impl Resolver {
     pub fn new(
         ast: Ast,
         interner: SymbolInterner,
-        // TODO better type here
-        dependencies: Vec<(
-            /* Key */ String,
-            /*Name from manifest*/ Identifier,
-            /*Things this depends on*/ Vec<String>,
-            Ast,
-        )>,
+        dependencies: Vec<Dependency>,
     ) -> Self {
         let binder = Binder::from_ast_and_deps(&ast, dependencies);
         let mut resolver = Self {
