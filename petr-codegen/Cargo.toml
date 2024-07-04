@@ -14,5 +14,5 @@ cranelift-native = "0.108.1"
 cranelift-object = { version = "0.108.1" }
 cranelift-module = "0.108.1"
 
-miette = { version = "7.2.0", features = ["fancy"] }
+miette = { version = "5.10", features = ["fancy"] }
 thiserror = "1.0.61"

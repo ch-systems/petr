@@ -1,0 +1,13 @@
+[package]
+name = "petr-playground"
+version = "0.1.0"
+authors = ["Alex Hansen <alex@alex-hansen.com>"]
+edition = "2018"
+rust-version = "1.57"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wasm-bindgen = "0.2.92"
+petr-api = { path = "../petr-api", default-features = false, features = ["no_std"] }

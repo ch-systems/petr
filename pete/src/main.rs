@@ -5,14 +5,11 @@ use std::{
 };
 
 use clap::Parser as ClapParser;
-use petr_ir::Lowerer;
-use petr_parse::Parser;
+use petr_api::*;
 use petr_pkg::BuildPlan;
-use petr_utils::{Identifier, IndexMap, SourceId, SpannedItem};
-use petr_vm::Vm;
 use termcolor::{ColorChoice, ColorSpec, StandardStream, WriteColor};
 
-mod error {
+pub mod error {
     use thiserror::Error;
     #[derive(Error, Debug)]
     pub enum PeteError {
@@ -117,7 +114,7 @@ fn main() -> Result<(), error::PeteError> {
             timings.end("load files");
 
             timings.start("format");
-            petr_fmt::format_sources(files, manifest.formatter.into())?;
+            format_sources(files, manifest.formatter.into())?;
             timings.end("format");
 
             if time {
@@ -139,73 +136,7 @@ fn main() -> Result<(), error::PeteError> {
     Ok(())
 }
 
-#[allow(clippy::type_complexity)]
-fn load_project_and_dependencies(path: &Path) -> Result<(petr_pkg::Lockfile, Vec<(PathBuf, String)>, BuildPlan), crate::error::PeteError> {
-    let manifest = petr_pkg::manifest::find_manifest(Some(path.to_path_buf())).expect("Failed to find manifest");
-    let dependencies = manifest.dependencies;
-    let mut stdout = StandardStream::stdout(ColorChoice::Always);
-
-    if !dependencies.is_empty() {
-        stdout.set_color(ColorSpec::new().set_bold(true))?;
-        /*
-        todo!(
-            "instead of saying fetching, pay attention to if it already exists
-        and print if it does or doesn't. also, check if checksum agrees with lockfile
-        and use rev etc on github dep to determine thet key"
-        );
-        */
-        println!(
-            "Fetching {} {} for package {}",
-            dependencies.len(),
-            if dependencies.len() == 1 { "dependency" } else { "dependencies" },
-            manifest.name
-        );
-
-        stdout.set_color(ColorSpec::new().set_bold(false))?;
-    }
-    let (lockfile, build_plan) = petr_pkg::load_dependencies(dependencies)?;
-
-    let files = load_files(path);
-    Ok((lockfile, files, build_plan))
-}
-
-fn load_files(path: &Path) -> Vec<(PathBuf, String)> {
-    let mut buf = Vec::new();
-
-    fn read_petr_files(
-        dir: &PathBuf,
-        buf: &mut Vec<(PathBuf, String)>,
-    ) {
-        let entries = fs::read_dir(dir).expect("Failed to read directory");
-        for entry in entries {
-            let entry = entry.expect("Failed to read directory entry");
-            let path = entry.path();
-            if path.is_dir() {
-                read_petr_files(&path, buf);
-            } else if path.extension().and_then(|s| s.to_str()) == Some("pt") {
-                let source = fs::read_to_string(&path).expect("Failed to read file");
-                buf.push((path, source));
-            }
-        }
-    }
-
-    read_petr_files(&path.join("src"), &mut buf);
-    buf
-}
-
-fn render_errors<T>(
-    errs: Vec<SpannedItem<T>>,
-    sources: &IndexMap<SourceId, (&'static str, &'static str)>,
-) where
-    T: miette::Diagnostic + Send + Sync + 'static,
-{
-    for err in errs {
-        let rendered = petr_utils::render_error(sources, err);
-        eprintln!("{:?}", rendered);
-    }
-}
-
-fn compile(
+pub fn compile(
     path: PathBuf,
     timings: &mut petr_profiling::Timings,
 ) -> Result<Lowerer, crate::error::PeteError> {
@@ -294,4 +225,58 @@ fn compile(
     timings.end("lowering");
 
     Ok(lowerer)
+}
+
+#[allow(clippy::type_complexity)]
+pub fn load_project_and_dependencies(path: &Path) -> Result<(petr_pkg::Lockfile, Vec<(PathBuf, String)>, BuildPlan), crate::error::PeteError> {
+    let manifest = petr_pkg::manifest::find_manifest(Some(path.to_path_buf())).expect("Failed to find manifest");
+    let dependencies = manifest.dependencies;
+    let mut stdout = StandardStream::stdout(ColorChoice::Always);
+
+    if !dependencies.is_empty() {
+        stdout.set_color(ColorSpec::new().set_bold(true))?;
+        /*
+        todo!(
+            "instead of saying fetching, pay attention to if it already exists
+        and print if it does or doesn't. also, check if checksum agrees with lockfile
+        and use rev etc on github dep to determine thet key"
+        );
+        */
+        println!(
+            "Fetching {} {} for package {}",
+            dependencies.len(),
+            if dependencies.len() == 1 { "dependency" } else { "dependencies" },
+            manifest.name
+        );
+
+        stdout.set_color(ColorSpec::new().set_bold(false))?;
+    }
+    let (lockfile, build_plan) = petr_pkg::load_dependencies(dependencies)?;
+
+    let files = load_files(path);
+    Ok((lockfile, files, build_plan))
+}
+
+pub fn load_files(path: &Path) -> Vec<(PathBuf, String)> {
+    let mut buf = Vec::new();
+
+    fn read_petr_files(
+        dir: &PathBuf,
+        buf: &mut Vec<(PathBuf, String)>,
+    ) {
+        let entries = fs::read_dir(dir).expect("Failed to read directory");
+        for entry in entries {
+            let entry = entry.expect("Failed to read directory entry");
+            let path = entry.path();
+            if path.is_dir() {
+                read_petr_files(&path, buf);
+            } else if path.extension().and_then(|s| s.to_str()) == Some("pt") {
+                let source = fs::read_to_string(&path).expect("Failed to read file");
+                buf.push((path, source));
+            }
+        }
+    }
+
+    read_petr_files(&path.join("src"), &mut buf);
+    buf
 }
