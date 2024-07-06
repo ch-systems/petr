@@ -1,4 +1,4 @@
-import {  run_snippet } from './pkg';
+import { run_snippet, format } from './pkg';
 
 
 import * as monaco from 'monaco-editor';
@@ -120,6 +120,12 @@ export function setOutputContent(content) {
 }
 window.setOutputContent = setOutputContent;
 
+export function setCodeEditorContent(content) {
+  monaco.editor.getModels()[0].setValue(content);
+}
+
+window.setCodeEditorContent= setCodeEditorContent;
+
 // set on-clicks for the buttons
 document.getElementById('run').onclick = function() {
   // get the text content from the monaco instance
@@ -132,6 +138,19 @@ document.getElementById('run').onclick = function() {
     // because an Err result from wasm becomes an exception
     // might be good to not use Result for that reason
     result.replace("\n", "<br>");
+    document.getElementById('output').innerHTML = e;
+    return;
+  };
+}
+document.getElementById('format').onclick = function() {
+  // get the text content from the monaco instance
+  let code = monaco.editor.getModels()[0].getValue();
+  // run the code
+  // TODO: actually render the errors on the span in the diagnostics of monaco
+   try { format(code); } catch (e) { 
+    // set the output to the diagnostics
+    // because an Err result from wasm becomes an exception
+    // might be good to not use Result for that reason
     document.getElementById('output').innerHTML = e;
     return;
   };

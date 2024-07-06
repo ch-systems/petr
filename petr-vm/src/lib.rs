@@ -42,12 +42,18 @@ mod tests {
         let lowerer = Lowerer::new(type_checker);
         let (data, ir) = lowerer.finalize();
         let vm = Vm::new(ir, data);
-        let (res, _stack) = match vm.run() {
+        let (res, _stack, logs) = match vm.run() {
             Ok(o) => o,
             Err(err) => panic!("vm returned error: {err:?}"),
         };
 
-        let res = format!("{res:?}");
+        let mut res = format!("{res:?}");
+
+        if !logs.is_empty() {
+            res.push_str("\n___LOGS___\n");
+
+            res.push_str(&logs.join("\n"));
+        }
 
         expect.assert_eq(&res);
     }
@@ -164,6 +170,8 @@ function main() returns 'int
 pub struct Vm {
     state:        VmState,
     instructions: IndexMap<ProgramOffset, IrOpcode>,
+    /// any messages that were logged during execution
+    stdout:       Vec<String>,
 }
 
 idx_map_key!(Register);
@@ -188,6 +196,12 @@ impl Default for ProgramOffset {
 #[derive(Clone, Copy, Debug)]
 pub struct Value(u64);
 
+impl Value {
+    pub fn inner(&self) -> u64 {
+        self.0
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum VmError {
     #[error("Function label not found when executing opcode {0}")]
@@ -209,6 +223,8 @@ enum VmControlFlow {
     Terminate(Value),
 }
 
+pub type VmLogs = Vec<String>;
+
 impl Vm {
     pub fn new(
         instructions: Vec<IrOpcode>,
@@ -228,10 +244,11 @@ impl Vm {
                 call_stack: Default::default(),
             },
             instructions: idx_map,
+            stdout:       vec![],
         }
     }
 
-    pub fn run(mut self) -> Result<(Value, Vec<Value>)> {
+    pub fn run(mut self) -> Result<(Value, Vec<Value>, VmLogs)> {
         use VmControlFlow::*;
         let val = loop {
             match self.execute() {
@@ -240,7 +257,7 @@ impl Vm {
                 Err(e) => return Err(e),
             }
         };
-        Ok((val, self.state.stack))
+        Ok((val, self.state.stack, self.stdout))
     }
 
     fn execute(&mut self) -> Result<VmControlFlow> {
@@ -322,7 +339,7 @@ impl Vm {
                         let str = str.iter().flat_map(|num| num.to_ne_bytes()).collect::<Vec<u8>>();
                         // convert vec of usizes to string
                         let string: String = str.iter().map(|&c| c as char).collect();
-                        println!("{}", string);
+                        self.stdout.push(string.clone());
                     },
                 };
                 Ok(Continue)

@@ -8,12 +8,12 @@ use std::{
     rc::Rc,
 };
 
-pub use petr_fmt::{format_sources, FormatterConfig};
+pub use petr_fmt::{format_sources, Formattable, FormatterConfig, FormatterContext};
 pub use petr_ir::Lowerer;
 pub use petr_parse::Parser;
 #[cfg(not(feature = "no_std"))]
 pub use petr_pkg::{manifest::find_manifest, BuildPlan};
-pub use petr_resolve::resolve_symbols;
+pub use petr_resolve::{resolve_symbols, Dependency};
 pub use petr_typecheck::type_check;
 pub use petr_utils::{render_error, Identifier, IndexMap, SourceId, SpannedItem};
 pub use petr_vm::Vm;
