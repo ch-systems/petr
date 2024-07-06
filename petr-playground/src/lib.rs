@@ -55,10 +55,10 @@ fn compile_snippet(code: String) -> Result<Lowerer, Vec<String>> {
     // bring it in to this repo
     let dependencies = vec![];
 
-    let (ast, parse_errs, interner, source_map) = parser.into_result();
+    let (ast, mut parse_errs, interner, source_map) = parser.into_result();
     // add the standard library to the sources
     let parser = Parser::new_with_existing_interner_and_source_map(stdlib::stdlib(), interner, source_map);
-    let (ast, mut new_parse_errs, interner, source_map) = parser.into_result();
+    let (dep_ast, mut new_parse_errs, interner, source_map) = parser.into_result();
     parse_errs.append(&mut new_parse_errs);
 
     // TODO after diagnostics are implemented for these errors, append them to the errors and

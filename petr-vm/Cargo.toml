@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 petr-ir = { path = "../petr-ir" }
-petr-utils = { path = "../petr-utils" }
+petr-utils = { path = "../petr-utils", optional = true }
 thiserror = "1.0.61"
 
 [dev-dependencies]
@@ -13,3 +13,8 @@ petr-parse = { path = "../petr-parse" }
 expect-test = "1.5.0"
 petr-resolve = { path = "../petr-resolve" }
 petr-typecheck = { path = "../petr-typecheck" }
+stdlib = { path = "../stdlib" }
+
+[features]
+debug = ["petr-utils/debug"]
+default = ["dep:petr-utils"]

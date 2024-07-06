@@ -25,18 +25,10 @@ mod tests {
         expect: Expect,
     ) {
         let input = input.into();
-        let parser = petr_parse::Parser::new(vec![
-            (
-                "std/ops.pt",
-                "
-             function add(lhs in 'int, rhs in 'int) returns 'int @add lhs, rhs
-             function sub(lhs in 'int, rhs in 'int) returns 'int @subtract lhs, rhs
-             function mul(lhs in 'int, rhs in 'int) returns 'int @multiply lhs, rhs
-             function div(lhs in 'int, rhs in 'int) returns 'int @divide lhs, rhs
-             ",
-            ),
-            ("test", &input),
-        ]);
+        let mut sources = stdlib::stdlib();
+        dbg!(&sources);
+        sources.push(("test", &input));
+        let parser = petr_parse::Parser::new(sources);
         let (ast, errs, interner, source_map) = parser.into_result();
         if !errs.is_empty() {
             errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
@@ -75,6 +67,18 @@ function hi(x in 'int, y in 'int) returns 'int
 function main() returns 'int ~hi(42, 3)
 "#,
             expect!["Value(42)"],
+        )
+    }
+    #[test]
+    fn import_call() {
+        check(
+            r#"
+import std.io.print
+
+function main() returns 'unit 
+  ~print("hello, world!")
+  "#,
+            expect!["Value(0)"],
         )
     }
 

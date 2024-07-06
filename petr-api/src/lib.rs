@@ -1,6 +1,13 @@
 //! Top-level API for the petr programming language.
 //! Exposes relevant APIs from all compiler stages and tooling.
 
+#[cfg(not(feature = "no_std"))]
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    rc::Rc,
+};
+
 pub use petr_fmt::{format_sources, FormatterConfig};
 pub use petr_ir::Lowerer;
 pub use petr_parse::Parser;
@@ -149,7 +156,12 @@ pub fn compile(
         let name = Identifier {
             id: interner.insert(Rc::from(item.manifest.name)),
         };
-        dependencies.push((item.key, name, item.depends_on, ast));
+        dependencies.push(petr_resolve::Dependency {
+            key: item.key,
+            name,
+            dependencies: item.depends_on,
+            ast,
+        });
     }
 
     timings.end("parse dependencies");

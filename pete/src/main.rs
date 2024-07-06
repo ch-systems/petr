@@ -7,6 +7,7 @@ use std::{
 use clap::Parser as ClapParser;
 use petr_api::*;
 use petr_pkg::BuildPlan;
+use petr_resolve::Dependency;
 use termcolor::{ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 pub mod error {
@@ -189,7 +190,13 @@ pub fn compile(
         let name = Identifier {
             id: interner.insert(Rc::from(item.manifest.name)),
         };
-        dependencies.push((item.key, name, item.depends_on, ast));
+
+        dependencies.push(Dependency {
+            key: item.key,
+            name,
+            dependencies: item.depends_on,
+            ast,
+        });
     }
 
     timings.end("parse dependencies");

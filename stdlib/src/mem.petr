@@ -1,6 +1,0 @@
-
-Type Ptr = Ptr 'int
-
-Function malloc(size in 'int) returns Ptr
-  let allocated = @malloc size
-  Ptr allocated

@@ -102,7 +102,11 @@ impl<T> Scope<T> {
         k: SymbolId,
         v: T,
     ) {
-        self.items.insert(k, v);
+        match self.items.insert(k, v) {
+            // TODO: error handling and/or shadowing rules for this
+            Some(item) => todo!("throw error for overriding symbol name {k}"),
+            None => (),
+        };
     }
 
     pub fn parent(&self) -> Option<ScopeId> {
@@ -396,6 +400,13 @@ impl Binder {
     ) -> ScopeId {
         let mut current_scope_id = self.current_scope_id();
         for segment in path.iter() {
+            // if this scope already exists,
+            // just use that pre-existing ID
+            if let Some(Item::Module(module_id)) = self.find_symbol_in_scope(segment.id, current_scope_id) {
+                current_scope_id = self.modules.get(*module_id).root_scope;
+                continue;
+            }
+
             let next_scope = self.create_scope(ScopeKind::Module(*segment));
             let module = Module {
                 root_scope: next_scope,

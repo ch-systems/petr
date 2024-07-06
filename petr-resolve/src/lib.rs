@@ -3,6 +3,7 @@
 
 use petr_ast::Ast;
 pub use petr_ast::{Intrinsic as IntrinsicName, Literal, Ty};
+pub use petr_bind::Dependency;
 use petr_utils::{Identifier, SymbolInterner};
 pub use resolved::QueryableResolvedItems;
 use resolver::Resolver;

@@ -4,7 +4,7 @@
 use std::rc::Rc;
 
 use petr_ast::{Ast, Commented, Expression, FunctionDeclaration, FunctionParameter, OperatorExpression};
-use petr_bind::{Binder, FunctionId, Item, ScopeId, TypeId};
+use petr_bind::{Binder, Dependency, FunctionId, Item, ScopeId, TypeId};
 use petr_utils::{Identifier, Path, SpannedItem, SymbolInterner};
 use thiserror::Error;
 
@@ -59,8 +59,13 @@ impl Resolve for petr_ast::Ty {
             petr_ast::Ty::Unit => Type::Unit,
             petr_ast::Ty::Named(name) => match binder.find_symbol_in_scope(name.id, scope_id) {
                 Some(Item::Type(id)) => Type::Named(*id),
-                Some(_) => {
-                    todo!("push error -- symbol is not type");
+                Some(something) => {
+                    let name = _resolver.interner.get(name.id);
+                    // this makes sense, the type constructor is getting resolved instead of the ty
+                    // find_symbol_in_scope could take in what it is looking for as a parameter,
+                    // _or_ we could have a special case when a function body is just a type
+                    // constructorjkkj
+                    todo!("push error -- symbol {name} is not type, it is a {something:?}");
                     // return None;
                 },
                 None => Type::Generic(*name),
@@ -184,7 +189,15 @@ impl Resolver {
             },
             Binding(a) => {
                 let binding = binder.get_binding(*a);
-                let resolved_expr = binding.val.resolve(self, binder, scope_id).expect("TODO err");
+                let resolved_expr = match binding.val.resolve(self, binder, scope_id) {
+                    Some(o) => o,
+                    None => {
+                        // TODO i think this is incorrect
+                        let name = self.interner.get(binding.name.id);
+                        self.errs.push(ResolutionError::NotFound(name.to_string()));
+                        return;
+                    },
+                };
                 self.resolved.bindings.insert(
                     *a,
                     crate::resolver::Binding {

@@ -4,7 +4,6 @@ import {  run_snippet } from './pkg';
 import * as monaco from 'monaco-editor';
 // or import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 // if shipping only a subset of the features & languages is desired
-//
 
 // config for petr as a custom language
 // // Register a new language
