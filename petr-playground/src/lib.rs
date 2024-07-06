@@ -51,13 +51,12 @@ fn compile_snippet(code: String) -> Result<Lowerer, Vec<String>> {
     let buf = vec![("snippet".to_string(), code)];
     let mut errs = vec![];
     let parser = Parser::new(buf);
-    // TODO include standard library in WASM compilation target and
-    // bring it in to this repo
     let dependencies = vec![];
 
     let (ast, mut parse_errs, interner, source_map) = parser.into_result();
     // add the standard library to the sources
     let parser = Parser::new_with_existing_interner_and_source_map(stdlib::stdlib(), interner, source_map);
+    todo!("dep ast should be included here");
     let (dep_ast, mut new_parse_errs, interner, source_map) = parser.into_result();
     parse_errs.append(&mut new_parse_errs);
 

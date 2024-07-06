@@ -102,11 +102,10 @@ impl<T> Scope<T> {
         k: SymbolId,
         v: T,
     ) {
-        match self.items.insert(k, v) {
-            // TODO: error handling and/or shadowing rules for this
-            Some(item) => todo!("throw error for overriding symbol name {k}"),
-            None => (),
-        };
+        // TODO: error handling and/or shadowing rules for this
+        if self.items.insert(k, v).is_some() {
+            todo!("throw error for overriding symbol name {k}")
+        }
     }
 
     pub fn parent(&self) -> Option<ScopeId> {
@@ -345,9 +344,9 @@ impl Binder {
         let mut binder = Self::new();
 
         for Dependency {
-            key,
+            key: _,
             name,
-            dependencies: depends_on,
+            dependencies: _,
             ast: dep_ast,
         } in dependencies
         {
