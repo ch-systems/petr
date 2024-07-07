@@ -14,7 +14,6 @@ mod resolver;
 pub fn resolve_symbols(
     ast: petr_ast::Ast,
     interner: SymbolInterner,
-    // TODO refactor tuple into struct with named fields
     dependencies: Vec<Dependency>,
 ) -> (Vec<ResolutionError>, QueryableResolvedItems) {
     let resolver = Resolver::new(ast, interner, dependencies);
