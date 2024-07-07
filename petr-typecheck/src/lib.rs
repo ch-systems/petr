@@ -355,7 +355,8 @@ pub enum TypedExpr {
         expression: Box<TypedExpr>,
     },
     TypeConstructor {
-        ty: TypeVariable,
+        ty:   TypeVariable,
+        args: Box<[TypedExpr]>,
     },
 }
 
@@ -392,7 +393,7 @@ impl std::fmt::Debug for TypedExpr {
                 }
                 write!(f, "expression: {:?}", expression)
             },
-            TypeConstructor { ty } => write!(f, "type constructor: {:?}", ty),
+            TypeConstructor { ty, .. } => write!(f, "type constructor: {:?}", ty),
         }
     }
 }
@@ -409,7 +410,7 @@ impl TypedExpr {
             Intrinsic { ty, .. } => ty.clone(),
             ErrorRecovery => tp!(error),
             ExprWithBindings { expression, .. } => expression.ty(),
-            TypeConstructor { ty } => ty.clone(),
+            TypeConstructor { ty, .. } => ty.clone(),
         }
     }
 }
@@ -484,14 +485,16 @@ impl TypeCheck for Expr {
                 TypedExpr::Variable { ty, name: *name }
             },
             ExprKind::Intrinsic(intrinsic) => intrinsic.type_check(ctx),
-            ExprKind::TypeConstructor => {
+            ExprKind::TypeConstructor(args) => {
                 // This ExprKind only shows up in the body of type constructor functions, and
                 // is basically a noop. The surrounding function decl will handle type checking for
                 // the type constructor.
+                let args = args.iter().map(|arg| arg.type_check(ctx)).collect::<Vec<_>>();
                 TypedExpr::TypeConstructor {
                     // Right now we'll just give this a fresh variable and it'll get unified to the
                     // return type of the function. This should work....
-                    ty: ctx.fresh_ty_var(),
+                    ty:   ctx.fresh_ty_var(),
+                    args: args.into_boxed_slice(),
                 }
             },
             ExprKind::ExpressionWithBindings { bindings, expression } => {
@@ -775,7 +778,7 @@ mod tests {
                 s.push_str(&format!("returns {ty}"));
                 s
             },
-            TypedExpr::TypeConstructor { ty } => format!("type constructor: {}", ty),
+            TypedExpr::TypeConstructor { ty, .. } => format!("type constructor: {}", ty),
             otherwise => format!("{:?}", otherwise),
         }
     }

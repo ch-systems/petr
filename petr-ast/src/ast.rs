@@ -83,7 +83,13 @@ pub enum Visibility {
 #[derive(Clone)]
 pub struct TypeVariant {
     pub name:   Identifier,
-    pub fields: Box<[Ty]>,
+    pub fields: Box<[TypeField]>,
+}
+
+#[derive(Clone)]
+pub struct TypeField {
+    pub name: Identifier,
+    pub ty:   Ty,
 }
 
 #[derive(Clone)]
@@ -109,7 +115,7 @@ pub enum Expression {
     Variable(Identifier),
     IntrinsicCall(IntrinsicCall),
     Binding(ExpressionWithBindings),
-    TypeConstructor,
+    TypeConstructor(Box<[Expression]>),
 }
 
 #[derive(Clone)]

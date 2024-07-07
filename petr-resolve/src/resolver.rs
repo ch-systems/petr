@@ -113,7 +113,7 @@ pub enum ExprKind {
     Variable { name: Identifier, ty: Type },
     Intrinsic(Intrinsic),
     Unit,
-    TypeConstructor,
+    TypeConstructor(Box<[Expr]>),
     ErrorRecovery,
     ExpressionWithBindings { bindings: Vec<Binding>, expression: Box<Expr> },
 }
@@ -443,12 +443,19 @@ impl Resolve for Expression {
                     _ => unreachable!(),
                 }
             },
-            Expression::TypeConstructor => {
+            Expression::TypeConstructor(args) => {
                 // Type constructor expressions themselves don't actually do anything.
                 // The function parameters and return types
                 // of the function are what get type checked -- there is no fn body, and this
                 // TypeConstructor expression is what represents that.
-                Expr::new(ExprKind::TypeConstructor)
+                let resolved_args = args
+                    .iter()
+                    .map(|x| match x.resolve(resolver, binder, scope_id) {
+                        Some(x) => x,
+                        None => todo!("error recov"),
+                    })
+                    .collect::<Vec<_>>();
+                Expr::new(ExprKind::TypeConstructor(resolved_args.into_boxed_slice()))
             },
             Expression::IntrinsicCall(intrinsic) => {
                 let resolved = intrinsic.resolve(resolver, binder, scope_id)?;
@@ -627,7 +634,7 @@ impl Resolve for petr_ast::TypeDeclaration {
         // resolve the field type
         for variant in self.variants.iter() {
             for field in variant.item().fields.iter() {
-                if let Some(field_type) = field.resolve(resolver, binder, scope_id) {
+                if let Some(field_type) = field.ty.resolve(resolver, binder, scope_id) {
                     field_types.push(field_type);
                 } else {
                     // Handle the error case where the field type could not be resolved
@@ -693,7 +700,7 @@ mod tests {
                         x.intrinsic,
                         x.args.iter().map(|x| x.to_string(resolver)).collect::<Vec<_>>().join(", ")
                     ),
-                    ExprKind::TypeConstructor => "Type constructor".into(),
+                    ExprKind::TypeConstructor(..) => "Type constructor".into(),
                     ExprKind::ExpressionWithBindings { .. } => todo!(),
                 }
             }

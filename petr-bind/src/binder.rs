@@ -250,28 +250,26 @@ impl Binder {
                     variant
                         .fields
                         .iter()
-                        .map(|field| {
-                            petr_ast::FunctionParameter {
-                                // TODO: don't just use the parent variant name
-                                name: variant.name,
-                                ty:   *field,
-                            }
+                        .map(|field| petr_ast::FunctionParameter {
+                            name: field.name,
+                            ty:   field.ty,
                         })
                         .collect::<Vec<_>>(),
                     scope,
                 )
             });
+            // type constructors just access the arguments of the construction function directly
+            let type_constructor_exprs = variant.fields.iter().map(|field| Expression::Variable(field.name)).collect::<Vec<_>>();
 
             let function = FunctionDeclaration {
                 name:        variant.name,
                 parameters:  fields_as_parameters.into_boxed_slice(),
                 return_type: Ty::Named(ty_decl.name),
-                body:        span.with_item(Expression::TypeConstructor),
+                body:        span.with_item(Expression::TypeConstructor(type_constructor_exprs.into_boxed_slice())),
                 visibility:  ty_decl.visibility,
             };
 
-            let function_id = self.functions.insert(function);
-            self.insert_into_current_scope(variant.name.id, Item::Function(function_id, func_scope));
+            self.insert_function(&function);
         });
         if ty_decl.is_exported() {
             Some((ty_decl.name, type_item))

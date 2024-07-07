@@ -77,9 +77,13 @@ impl Parse for TypeVariant {
             let name = p.parse()?;
             loop {
                 let peek = *p.peek().item();
-                if peek == Token::TyMarker {
-                    let field: Ty = p.parse()?;
-                    buf.push(field);
+                if peek == Token::Identifier {
+                    let field_name = p.parse()?;
+                    let field = p.parse()?;
+                    buf.push(TypeField {
+                        name: field_name,
+                        ty:   field,
+                    });
                 } else {
                     break;
                 }

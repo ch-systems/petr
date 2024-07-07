@@ -221,8 +221,27 @@ impl Lowerer {
                 buf.append(&mut expr);
                 Ok(buf)
             }),
-            // TODO code generation for type constructors
-            TypeConstructor { .. } => Ok(vec![]),
+            TypeConstructor { ty, args } => {
+                let mut buf = vec![];
+                // the memory model for types is currently not finalized,
+                // but for now, it is just sequential memory that is word-aligned
+                let size_of_aggregate_type = size_of_ty(ty);
+                let ReturnDestination::Reg(return_destination) = return_destination;
+                buf.push(IrOpcode::MallocImmediate(return_destination, size_of_aggregate_type));
+                // for each arg, lower it and store it in memory
+                let mut current_size_offset = 0;
+                let mut current_size_offset_reg = self.fresh_reg();
+                for (ix, arg) in args.iter().enumerate() {
+                    let reg = self.fresh_reg();
+                    buf.append(&mut self.lower_expr(arg, ReturnDestination::Reg(reg))?);
+                    buf.push(IrOpcode::LoadImmediate(current_size_offset_reg, current_size_offset));
+                    buf.push(IrOpcode::Add(current_size_offset_reg, current_size_offset_reg, return_destination));
+                    buf.push(IrOpcode::WriteRegisterToMemory(reg, current_size_offset_reg));
+
+                    current_size_offset += size_of_ty(&arg.ty());
+                }
+                Ok(buf)
+            },
         }
     }
 
@@ -404,6 +423,10 @@ fn literal_to_ir_ty(param_ty: petr_typecheck::Literal) -> IrTy {
         Boolean(_) => todo!(),
         String(_) => todo!(),
     }
+}
+
+fn size_of_ty(ty: &TypeVariable) -> u64 {
+    todo!("actually construct size -- also stop using registers everywhere")
 }
 
 #[cfg(test)]

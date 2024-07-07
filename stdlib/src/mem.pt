@@ -1,4 +1,4 @@
-Type Ptr = Unsized 'int | Sized 'int 'int 
+Type Ptr = Unsized address 'int | Sized address 'int size 'int 
 
 Function malloc(size in 'int) returns 'Ptr
   let allocated = @malloc size

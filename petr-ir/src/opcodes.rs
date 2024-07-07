@@ -6,10 +6,14 @@ idx_map_key!(FunctionLabel);
 idx_map_key!(DataLabel);
 
 macro_rules! ir_ops {
-    ($($op_name:ident $op_code:literal $($args:ident $arg_name:ident),*);+) => {
+    ($($(#[$attr:meta])*
+        $op_name:ident $op_code:literal $($args:ident $arg_name:ident),*
+     );+) => {
+
         #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
         pub enum IrOpcode {
             $(
+                $(#[$attr])*
                 $op_name($($args),*),
             )+
         }
@@ -54,7 +58,10 @@ ir_ops! {
     ReturnImmediate "reti" u64 imm;
     PushPc "ppc";
     StackPushImmediate "pushi" u64 imm;
-    Malloc "malloc" Reg ptr_dest, Reg size
+    Malloc "malloc" Reg ptr_dest, Reg size;
+    MallocImmediate "malloci" Reg ptr_dest, u64 imm;
+    /// Register `src` will itself have its value written to the memory pointed to by `dest_ptr`
+    WriteRegisterToMemory "sri" Reg src, Reg dest_ptr
 }
 
 idx_map_key!(LabelId);

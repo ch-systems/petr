@@ -104,7 +104,11 @@ impl PrettyPrint for TypeVariant {
             self.name.pretty_print(interner, 0),
             self.fields
                 .iter()
-                .map(|field| field.pretty_print(interner, 0))
+                .map(|field| {
+                    let name = field.name.pretty_print(interner, 0);
+                    let ty = field.ty.pretty_print(interner, 0);
+                    format!("{}: {}", name, ty)
+                })
                 .collect::<Vec<_>>()
                 .join(" ")
         )
@@ -155,7 +159,7 @@ impl PrettyPrint for Expression {
             Expression::Literal(Literal::String(s)) => format!("\"{s}\""),
             Expression::List(list) => list.pretty_print(interner, indentation),
             Expression::Operator(op) => op.pretty_print(interner, indentation),
-            Expression::TypeConstructor => "type constructor".to_string(),
+            Expression::TypeConstructor(..) => "type constructor".to_string(),
             Expression::FunctionCall(call) => call.pretty_print(interner, indentation),
             Expression::Variable(v) => format!("var({})", interner.get(v.id)),
             Expression::IntrinsicCall(call) => call.pretty_print(interner, indentation),
