@@ -111,7 +111,8 @@ impl Lowerer {
 
             for (param_name, param_ty) in func.params.iter().rev() {
                 // in order, assign parameters to registers
-                if fits_in_reg(param_ty) {
+                let ir_ty = ctx.to_ir_type(param_ty);
+                if ir_ty.fits_in_reg() {
                     // load from stack into register
                     let param_reg = ctx.fresh_reg();
                     let ty_reg = TypedReg {
@@ -225,7 +226,8 @@ impl Lowerer {
                 let mut buf = vec![];
                 // the memory model for types is currently not finalized,
                 // but for now, it is just sequential memory that is word-aligned
-                let size_of_aggregate_type = size_of_ty(ty);
+                let ir_ty = self.to_ir_type(ty);
+                let size_of_aggregate_type = ir_ty.size();
                 let ReturnDestination::Reg(return_destination) = return_destination;
                 buf.push(IrOpcode::MallocImmediate(return_destination, size_of_aggregate_type));
                 // for each arg, lower it and store it in memory
@@ -238,7 +240,7 @@ impl Lowerer {
                     buf.push(IrOpcode::Add(current_size_offset_reg, current_size_offset_reg, return_destination));
                     buf.push(IrOpcode::WriteRegisterToMemory(reg, current_size_offset_reg));
 
-                    current_size_offset += size_of_ty(&arg.ty());
+                    current_size_offset += self.to_ir_type(&arg.ty()).size().num_bytes() as u64;
                 }
                 Ok(buf)
             },
@@ -269,8 +271,7 @@ impl Lowerer {
             Unit => IrTy::Unit,
             Integer => IrTy::Int64,
             Boolean => IrTy::Boolean,
-            String => IrTy::String,
-            Variable(_) => todo!("untyped variable"),
+            String { number_of_characters } => IrTy::String(number_of_characters.into()),
         }
     }
 
@@ -293,10 +294,7 @@ impl Lowerer {
                 // puts takes one arg and it is a string
                 let arg_reg = self.fresh_reg();
                 buf.append(&mut self.lower_expr(arg, ReturnDestination::Reg(arg_reg))?);
-                buf.push(IrOpcode::Intrinsic(Intrinsic::Puts(TypedReg {
-                    ty:  IrTy::Ptr(Box::new(IrTy::String)),
-                    reg: arg_reg,
-                })));
+                buf.push(IrOpcode::Intrinsic(Intrinsic::Puts(arg_reg)));
                 match return_destination {
                     ReturnDestination::Reg(reg) => {
                         buf.push(IrOpcode::LoadImmediate(reg, 0));
@@ -410,11 +408,6 @@ enum ReturnDestination {
     Reg(Reg),
 }
 
-fn fits_in_reg(_: &TypeVariable) -> bool {
-    // TODO
-    true
-}
-
 #[allow(dead_code)]
 fn literal_to_ir_ty(param_ty: petr_typecheck::Literal) -> IrTy {
     use petr_typecheck::Literal::*;
@@ -423,10 +416,6 @@ fn literal_to_ir_ty(param_ty: petr_typecheck::Literal) -> IrTy {
         Boolean(_) => todo!(),
         String(_) => todo!(),
     }
-}
-
-fn size_of_ty(ty: &TypeVariable) -> u64 {
-    todo!("actually construct size -- also stop using registers everywhere")
 }
 
 #[cfg(test)]

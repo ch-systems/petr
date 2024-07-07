@@ -59,19 +59,20 @@ pub struct TypeChecker {
 
 pub type TypeVariable = Type<&'static str>;
 
-/// TODO get rid of this type and use polytype directly
 pub enum PetrType {
     Unit,
     Integer,
     Boolean,
-    String,
-    Variable(usize),
+    /// a static length string known at compile time
+    String {
+        number_of_characters: usize,
+    },
 }
 
 impl TypeChecker {
     /// realizes a polytype into a petr type
-    /// TODO very inefficient to do this one at a time, should realize
-    /// all types at once during lowering
+    /// TODO very inefficient to do this one at a time, should realize all types at once during lowering
+    /// Should also store mapping of new type ids or something
     pub fn realize_type(
         &self,
         ty: &TypeVariable,
@@ -80,14 +81,12 @@ impl TypeChecker {
         let int_ty = tp!(int);
         let bool_ty = tp!(bool);
         let unit_ty = tp!(unit);
-        let string_ty = tp!(string);
         match ty {
             ty if ty == int_ty => PetrType::Integer,
             ty if ty == bool_ty => PetrType::Boolean,
             ty if ty == unit_ty => PetrType::Unit,
-            ty if ty == string_ty => PetrType::String,
-            Type::Variable(otherwise) => PetrType::Variable(otherwise),
-            other => todo!("{other:?}"),
+
+            other => 
         }
     }
 

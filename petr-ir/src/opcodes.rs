@@ -7,7 +7,7 @@ idx_map_key!(DataLabel);
 
 macro_rules! ir_ops {
     ($($(#[$attr:meta])*
-        $op_name:ident $op_code:literal $($args:ident $arg_name:ident),*
+        $op_name:ident $op_code:literal $($args:ty: $arg_name:ident),*
      );+) => {
 
         #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -40,28 +40,28 @@ macro_rules! ir_ops {
 }
 
 ir_ops! {
-    JumpImmediate "jumpi" FunctionId imm;
-    Jump "jump" Reg dest;
-    Add "add" Reg dest, Reg lhs, Reg rhs;
-    Multiply "mult" Reg dest, Reg lhs, Reg rhs;
-    Subtract "sub" Reg dest, Reg lhs, Reg rhs;
-    Divide "div" Reg dest, Reg lhs, Reg rhs;
-    LoadData "ld" Reg dest, DataLabel data;
-    StackPop "pop" TypedReg dest;
-    StackPush "push" TypedReg src;
-    Intrinsic "intrinsic" Intrinsic intr;
-    FunctionLabel "func" FunctionId label;
-    LoadImmediate "imm" Reg dest, u64 imm;
-    Copy "cp" Reg dest, Reg src;
-    Label "label" LabelId label;
+    JumpImmediate "jumpi" FunctionId: imm;
+    Jump "jump" Reg:  dest;
+    Add "add" Reg: dest, Reg: lhs, Reg: rhs;
+    Multiply "mult" Reg: dest, Reg: lhs, Reg: rhs;
+    Subtract "sub" Reg: dest, Reg: lhs, Reg: rhs;
+    Divide "div" Reg: dest, Reg: lhs, Reg: rhs;
+    LoadData "ld" Reg: dest, DataLabel: data;
+    StackPop "pop" TypedReg: dest;
+    StackPush "push" TypedReg: src;
+    Intrinsic "intrinsic" Intrinsic: intr;
+    FunctionLabel "func" FunctionId: label;
+    LoadImmediate "imm" Reg: dest, u64: imm;
+    Copy "cp" Reg: dest, Reg: src;
+    Label "label" LabelId: label;
     Return "ret";
-    ReturnImmediate "reti" u64 imm;
+    ReturnImmediate "reti" u64: imm;
     PushPc "ppc";
-    StackPushImmediate "pushi" u64 imm;
-    Malloc "malloc" Reg ptr_dest, Reg size;
-    MallocImmediate "malloci" Reg ptr_dest, u64 imm;
+    StackPushImmediate "pushi" u64: imm;
+    Malloc "malloc" Reg: ptr_dest, Reg: size;
+    MallocImmediate "malloci" Reg: ptr_dest, Size<Bytes>: imm;
     /// Register `src` will itself have its value written to the memory pointed to by `dest_ptr`
-    WriteRegisterToMemory "sri" Reg src, Reg dest_ptr
+    WriteRegisterToMemory "sri" Reg: src, Reg: dest_ptr
 }
 
 idx_map_key!(LabelId);
@@ -69,7 +69,7 @@ idx_map_key!(LabelId);
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Intrinsic {
     // given a pointer, print the thing it points to
-    Puts(TypedReg),
+    Puts(Reg),
 }
 
 impl std::fmt::Display for Intrinsic {
@@ -98,8 +98,73 @@ pub enum IrTy {
     Ptr(Box<IrTy>),
     Int64,
     Unit,
-    String,
+    String(Size<Bytes>),
     Boolean,
+}
+
+impl IrTy {
+    pub fn size(&self) -> Size<Bytes> {
+        match self {
+            IrTy::Int64 => 8,
+            IrTy::Ptr(_) => 8,
+            IrTy::Unit => 0,
+            IrTy::String(size) => return *size,
+            IrTy::Boolean => 1,
+        }
+        .into()
+    }
+
+    pub(crate) fn fits_in_reg(&self) -> bool {
+        self.size().num_bytes() <= 8
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Size<T>(T)
+where
+    T: SizeUnit;
+
+impl<T: SizeUnit> std::fmt::Debug for Size<T> {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        write!(f, "{:?} bytes", self.0.num_bytes())
+    }
+}
+
+impl std::fmt::Display for Size<Bytes> {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        write!(f, "{} bytes", self.0.num_bytes())
+    }
+}
+
+impl<T: SizeUnit> Size<T> {
+    pub fn num_bytes(&self) -> usize {
+        self.0.num_bytes()
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Bytes(usize);
+
+trait SizeUnit: Clone + Copy + PartialEq + Eq + PartialOrd + Ord {
+    fn num_bytes(&self) -> usize;
+}
+
+impl SizeUnit for Bytes {
+    fn num_bytes(&self) -> usize {
+        self.0
+    }
+}
+
+impl From<usize> for Size<Bytes> {
+    fn from(x: usize) -> Self {
+        Size(Bytes(x))
+    }
 }
 
 /// a virtual register
