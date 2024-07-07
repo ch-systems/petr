@@ -360,12 +360,7 @@ impl Parse for Module {
                 let nodes: Vec<_> = p.many::<SpannedItem<AstNode>>();
                 Some(Module { name, nodes })
             },
-            a => {
-                p.push_error(module_name.span().with_item(ParseErrorKind::InternalError(format!(
-                    "Expected module name, found {a:?}. All tokens should be prefaced by a module."
-                ))));
-                None
-            },
+            _ => None,
         }
     }
 }

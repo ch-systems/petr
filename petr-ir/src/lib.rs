@@ -221,7 +221,8 @@ impl Lowerer {
                 buf.append(&mut expr);
                 Ok(buf)
             }),
-            TypeConstructor { .. } => todo!(),
+            // TODO code generation for type constructors
+            TypeConstructor { .. } => Ok(vec![]),
         }
     }
 
