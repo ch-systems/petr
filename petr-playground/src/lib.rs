@@ -2,15 +2,20 @@
 //! Nothing fancy at all, could definitely be improved over time to support better error reporting,
 //! etc
 
+use std::rc::Rc;
+
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_name = setOutputContent)]
     fn set_output_content(s: &str);
+
+    #[wasm_bindgen(js_name = setCodeEditorContent)]
+    fn set_code_editor_content(s: &str);
 }
 
-use petr_api::{render_error, resolve_symbols, type_check, FormatterConfig, Lowerer, Parser, Vm};
+use petr_api::{render_error, resolve_symbols, type_check, Dependency, Formattable, FormatterContext, Identifier, Lowerer, Parser, Vm};
 
 #[wasm_bindgen]
 pub fn run_snippet(code: &str) {
@@ -26,7 +31,7 @@ pub fn run_snippet(code: &str) {
     let (data, instructions) = lowerer.finalize();
 
     let vm = Vm::new(instructions, data);
-    let result = match vm.run() {
+    let (result, _stack, logs) = match vm.run() {
         Ok(o) => o,
         Err(e) => {
             set_output_content(&format!("Runtime error: {:#?}", e));
@@ -34,7 +39,7 @@ pub fn run_snippet(code: &str) {
         },
     };
 
-    set_output_content(&format!("Result: {:#?}", result));
+    set_output_content(&format!("Logs:<br>\t{}<br>Result: <br>\t{:#?}", logs.join("\n\t"), result.inner()));
 }
 
 fn errors_to_html(e: &[String]) -> String {
@@ -51,11 +56,21 @@ fn compile_snippet(code: String) -> Result<Lowerer, Vec<String>> {
     let buf = vec![("snippet".to_string(), code)];
     let mut errs = vec![];
     let parser = Parser::new(buf);
-    // TODO include standard library in WASM compilation target and
-    // bring it in to this repo
-    let dependencies = vec![];
 
-    let (ast, parse_errs, interner, source_map) = parser.into_result();
+    let (ast, mut parse_errs, interner, source_map) = parser.into_result();
+    // add the standard library to the sources
+    let parser = Parser::new_with_existing_interner_and_source_map(stdlib::stdlib(), interner, source_map);
+    let (dep_ast, mut new_parse_errs, mut interner, source_map) = parser.into_result();
+    parse_errs.append(&mut new_parse_errs);
+    let dependencies = vec![Dependency {
+        key:          "stdlib".to_string(),
+        name:         Identifier {
+            id: interner.insert(Rc::from("std")),
+        },
+        dependencies: vec![],
+        ast:          dep_ast,
+    }];
+
     // TODO after diagnostics are implemented for these errors, append them to the errors and
     // return them
     let (_resolution_errs, resolved) = resolve_symbols(ast, interner, dependencies);
@@ -71,9 +86,18 @@ fn compile_snippet(code: String) -> Result<Lowerer, Vec<String>> {
     }
 }
 
-pub fn format(
-    _code: String,
-    _config: FormatterConfig,
-) -> Result<String, String> {
-    todo!()
+#[wasm_bindgen]
+pub fn format(code: String) {
+    let parser = Parser::new(vec![("snippet".to_string(), code)]);
+    let (ast, errs, interner, source_map) = parser.into_result();
+    if !errs.is_empty() {
+        let errs = errs
+            .into_iter()
+            .map(|e| format!("{:?}", render_error(&source_map, e)))
+            .collect::<Vec<_>>();
+        set_output_content(&errs.join("<br>"));
+    }
+    let mut ctx = FormatterContext::from_interner(interner).with_config(Default::default());
+    let formatted_content = ast.line_length_aware_format(&mut ctx).render();
+    set_code_editor_content(&formatted_content);
 }

@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use petr_ast::{Ast, Binding, ExprId, Expression, FunctionDeclaration, Ty, TypeDeclaration};
+use petr_ast::{dependency::Dependency, Ast, Binding, ExprId, Expression, FunctionDeclaration, Ty, TypeDeclaration};
 use petr_utils::{idx_map_key, Identifier, IndexMap, Path, SymbolId};
 // TODO:
 // - i don't know if type cons needs a scope. Might be good to remove that.
@@ -102,7 +102,10 @@ impl<T> Scope<T> {
         k: SymbolId,
         v: T,
     ) {
-        self.items.insert(k, v);
+        // TODO: error handling and/or shadowing rules for this
+        if self.items.insert(k, v).is_some() {
+            todo!("throw error for overriding symbol name {k}")
+        }
     }
 
     pub fn parent(&self) -> Option<ScopeId> {
@@ -336,18 +339,17 @@ impl Binder {
 
     pub fn from_ast_and_deps(
         ast: &Ast,
-        // TODO better type here
-        dependencies: Vec<(
-            /* Key */ String,
-            /*Name from manifest*/ Identifier,
-            /*Things this depends on*/ Vec<String>,
-            Ast,
-        )>,
+        dependencies: Vec<Dependency>,
     ) -> Self {
         let mut binder = Self::new();
 
-        for dependency in dependencies {
-            let (_key, name, _depends_on, dep_ast) = dependency;
+        for Dependency {
+            key: _,
+            name,
+            dependencies: _,
+            ast: dep_ast,
+        } in dependencies
+        {
             let dep_scope = binder.create_scope_from_path(&Path::new(vec![name]));
             binder.with_specified_scope(dep_scope, |binder, _scope_id| {
                 for module in dep_ast.modules {
@@ -397,6 +399,13 @@ impl Binder {
     ) -> ScopeId {
         let mut current_scope_id = self.current_scope_id();
         for segment in path.iter() {
+            // if this scope already exists,
+            // just use that pre-existing ID
+            if let Some(Item::Module(module_id)) = self.find_symbol_in_scope(segment.id, current_scope_id) {
+                current_scope_id = self.modules.get(*module_id).root_scope;
+                continue;
+            }
+
             let next_scope = self.create_scope(ScopeKind::Module(*segment));
             let module = Module {
                 root_scope: next_scope,

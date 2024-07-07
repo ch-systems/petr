@@ -15,7 +15,7 @@ use std::{
 
 pub use config::{FormatterConfig, FormatterConfigBuilder};
 use constants::{CLOSE_COMMENT_STR, INDENTATION_CHARACTER, OPEN_COMMENT_STR};
-use ctx::FormatterContext;
+pub use ctx::FormatterContext;
 use petr_ast::*;
 use petr_parse::Parser;
 use petr_utils::{render_error, PrettyPrint, SpannedItem};

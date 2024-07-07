@@ -16,4 +16,4 @@ members = [
     "petr-profiling", 
     "petr-api",
     "petr-playground"
-]
+, "stdlib"]

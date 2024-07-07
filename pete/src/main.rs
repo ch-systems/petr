@@ -7,6 +7,7 @@ use std::{
 use clap::Parser as ClapParser;
 use petr_api::*;
 use petr_pkg::BuildPlan;
+use petr_resolve::Dependency;
 use termcolor::{ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 pub mod error {
@@ -189,7 +190,13 @@ pub fn compile(
         let name = Identifier {
             id: interner.insert(Rc::from(item.manifest.name)),
         };
-        dependencies.push((item.key, name, item.depends_on, ast));
+
+        dependencies.push(Dependency {
+            key: item.key,
+            name,
+            dependencies: item.depends_on,
+            ast,
+        });
     }
 
     timings.end("parse dependencies");
@@ -257,25 +264,25 @@ pub fn load_project_and_dependencies(path: &Path) -> Result<(petr_pkg::Lockfile,
     Ok((lockfile, files, build_plan))
 }
 
-pub fn load_files(path: &Path) -> Vec<(PathBuf, String)> {
-    let mut buf = Vec::new();
-
-    fn read_petr_files(
-        dir: &PathBuf,
-        buf: &mut Vec<(PathBuf, String)>,
-    ) {
-        let entries = fs::read_dir(dir).expect("Failed to read directory");
-        for entry in entries {
-            let entry = entry.expect("Failed to read directory entry");
-            let path = entry.path();
-            if path.is_dir() {
-                read_petr_files(&path, buf);
-            } else if path.extension().and_then(|s| s.to_str()) == Some("pt") {
-                let source = fs::read_to_string(&path).expect("Failed to read file");
-                buf.push((path, source));
-            }
+fn read_petr_files(
+    dir: &PathBuf,
+    buf: &mut Vec<(PathBuf, String)>,
+) {
+    let entries = fs::read_dir(dir).expect("Failed to read directory");
+    for entry in entries {
+        let entry = entry.expect("Failed to read directory entry");
+        let path = entry.path();
+        if path.is_dir() {
+            read_petr_files(&path, buf);
+        } else if path.extension().and_then(|s| s.to_str()) == Some("pt") {
+            let source = fs::read_to_string(&path).expect("Failed to read file");
+            buf.push((path, source));
         }
     }
+}
+
+pub fn load_files(path: &Path) -> Vec<(PathBuf, String)> {
+    let mut buf = Vec::new();
 
     read_petr_files(&path.join("src"), &mut buf);
     buf
