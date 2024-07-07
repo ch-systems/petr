@@ -14,7 +14,7 @@ monaco.languages.setMonarchTokensProvider("petr", {
   keywords: [ 'function', 'returns', 'in' ],
 	tokenizer: {
 		root: [
-      [/\~[a-zA-Z][a-zA-Z0-9]*/, "function-call"],
+      [/\~([a-zA-Z][a-zA-Z0-9]+)(\.[a-zA-Z]([a-zA-Z0-9])+)*/, "function-call"],
 			[/\@[a-zA-Z]+/, "intrinsic"],
 			[/[0-9]+/, "integer-literal"],
       [/\".*\"/, "string-literal"],
@@ -51,6 +51,7 @@ monaco.editor.defineTheme("petr-theme", {
 		{ token: "function-call", foreground: "808080", fontStyle: "bold" },
 		{ token: "string-literal", foreground: literalColor },
 		{ token: "integer-literal", foreground: literalColor },
+		{ token: "keyword", foreground: literalColor },
 	],
 	colors: {
 		"editor.foreground": "#ffffff",
@@ -110,7 +111,7 @@ monaco.languages.registerCompletionItemProvider("mySpecialLanguage", {
 
 
 monaco.editor.create(document.getElementById('monaco-editor'), {
-	value: "function main() returns 'unit \n  @puts(\"Hello, World!\")",
+	value: "function main() returns 'unit \n  ~std.io.print \"Hello, World!\"",
 	language: 'petr',
   theme: "petr-theme",
 });
