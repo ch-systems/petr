@@ -279,6 +279,7 @@ impl Lowerer {
             Arrow(_) => todo!(),
             ErrorRecovery => todo!(),
             List(_) => todo!(),
+            Infer(_) => todo!("err: inference should be resolved by now"),
         }
     }
 

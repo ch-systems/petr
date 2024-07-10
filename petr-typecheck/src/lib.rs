@@ -129,8 +129,19 @@ impl TypeContext {
         self.constraints.push(TypeConstraint::satisfies(ty1, ty2));
     }
 
-    fn new_variable(&self) -> TypeVariable {
-        todo!()
+    fn new_variable(&mut self) -> TypeVariable {
+        // infer is special -- it knows its own id, mostly for printing
+        let infer_id = self.types.len();
+        self.types.insert(PetrType::Infer(infer_id))
+    }
+
+    /// Update a type variable with a new PetrType
+    fn update_type(
+        &mut self,
+        t1: TypeVariable,
+        known: PetrType,
+    ) {
+        *self.types.get_mut(t1) = known;
     }
 }
 
@@ -157,6 +168,8 @@ pub enum PetrType {
     Arrow(Vec<TypeVariable>),
     ErrorRecovery,
     List(TypeVariable),
+    /// the usize is just an identifier for use in rendering the type
+    Infer(usize),
 }
 
 impl TypeChecker {
@@ -271,14 +284,29 @@ impl TypeChecker {
         t1: TypeVariable,
         t2: TypeVariable,
     ) -> Result<(), TypeConstraintError> {
-        let ty1 = self.ctx.types.get(t1);
-        let ty2 = self.ctx.types.get(t2);
+        let ty1 = self.ctx.types.get(t1).clone();
+        let ty2 = self.ctx.types.get(t2).clone();
         use PetrType::*;
         match (ty1, ty2) {
             (a, b) if a == b => Ok(()),
             (ErrorRecovery, _) | (_, ErrorRecovery) => Ok(()),
-            (Ref(a), _) => self.apply_unify_constraint(*a, t2),
-            (_, Ref(b)) => self.apply_unify_constraint(t1, *b),
+            (Ref(a), _) => self.apply_unify_constraint(a, t2),
+            (_, Ref(b)) => self.apply_unify_constraint(t1, b),
+            (Infer(id), Infer(id2)) if id != id2 => {
+                // if two different inferred types are unified, replace the second with a reference
+                // to the first
+                self.ctx.update_type(t2, Ref(t1));
+                Ok(())
+            },
+            // instantiate the infer type with the known type
+            (Infer(_), known) => {
+                self.ctx.update_type(t1, known);
+                Ok(())
+            },
+            (known, Infer(_)) => {
+                self.ctx.update_type(t2, known);
+                Ok(())
+            },
             (a, b) => todo!("Need to write unification rule for {:?} and {:?}", a, b),
         }
     }
@@ -977,6 +1005,7 @@ mod tests {
             },
             PetrType::ErrorRecovery => "error recovery".to_string(),
             PetrType::List(ty) => format!("[{}]", pretty_print_ty(ty, type_checker)),
+            PetrType::Infer(id) => format!("t{id}"),
         }
     }
 
@@ -1018,7 +1047,7 @@ mod tests {
                 s.push_str(&format!("returns {ty}"));
                 s
             },
-            TypedExpr::TypeConstructor { ty, .. } => format!("type constructor: {}", ty),
+            TypedExpr::TypeConstructor { ty, .. } => format!("type constructor: {}", pretty_print_ty(ty, type_checker)),
             otherwise => format!("{:?}", otherwise),
         }
     }
@@ -1044,8 +1073,8 @@ mod tests {
             function foo(x in 'A) returns 'A x
             "#,
             expect![[r#"
-                function foo → t0 → t0
-                variable: x (t0)
+                function foo: (t4 → t4)
+                variable x: t4
 
             "#]],
         );
@@ -1059,16 +1088,48 @@ mod tests {
             function foo(x in 'MyType) returns 'MyType x
             "#,
             expect![[r#"
-                type MyType → t0
+                type MyType: t4
 
-                function A → t0
-                type constructor: t1
+                function A: t4
+                type constructor: t4
 
-                function B → t0
-                type constructor: t2
+                function B: t4
+                type constructor: t4
 
-                function foo → t0 → t0
-                variable: x (t0)
+                function foo: (t4 → t4)
+                variable x: t4
+
+            "#]],
+        );
+    }
+
+    #[test]
+    fn identity_resolution_two_custom_types() {
+        check(
+            r#"
+            type MyType = A | B
+            type MyComposedType = firstVariant someField 'MyType | secondVariant someField 'int someField2 'MyType someField3 'GenericType
+            function foo(x in 'MyType) returns 'MyComposedType ~firstVariant(x)
+            "#,
+            expect![[r#"
+                type MyType: t4
+
+                type MyComposedType: t5
+
+                function A: t4
+                type constructor: t4
+
+                function B: t4
+                type constructor: t4
+
+                function firstVariant: (t4 → t5)
+                type constructor: t5
+
+                function secondVariant: (int → t4 → t17 → t5)
+                type constructor: t5
+
+                function foo: (t4 → t5)
+                function call to functionid2 with args: someField: t4, returns t5
 
             "#]],
         );
@@ -1123,10 +1184,10 @@ mod tests {
         function my_func() returns 'unit
           @puts(~string_literal)"#,
             expect![[r#"
-                function string_literal → string
+                function string_literal: string
                 literal: "This is a string literal."
 
-                function my_func → unit
+                function my_func: unit
                 intrinsic: @puts(function call to functionid0 with args: )
 
             "#]],
@@ -1140,7 +1201,7 @@ mod tests {
         function my_func() returns 'unit
           @puts("test")"#,
             expect![[r#"
-                function my_func → unit
+                function my_func: unit
                 intrinsic: @puts(literal: "test")
 
             "#]],
@@ -1257,16 +1318,15 @@ mod tests {
                 function add_five(a in 'int) returns 'int ~add(5)
             "#,
             expect![[r#"
-                function add → (int → int) → int
-                variable: a (int)
+                function add: (int → int → int)
+                variable a: int
 
-                function add_five → int → int
+                function add_five: (int → int)
                 error recovery
 
 
                 Errors:
                 Function add takes 2 arguments, but got 1 arguments.
-                Failed to unify types: Failure(int, error)
             "#]],
         );
     }
