@@ -98,7 +98,7 @@ pub enum IrTy {
     Ptr(Box<IrTy>),
     Int64,
     Unit,
-    String(Size<Bytes>),
+    String,
     Boolean,
 }
 
@@ -108,7 +108,8 @@ impl IrTy {
             IrTy::Int64 => 8,
             IrTy::Ptr(_) => 8,
             IrTy::Unit => 0,
-            IrTy::String(size) => return *size,
+            // size of the pointer to the string
+            IrTy::String => 8,
             IrTy::Boolean => 1,
         }
         .into()

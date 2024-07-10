@@ -1,6 +1,8 @@
 use miette::Diagnostic;
 use thiserror::Error;
 
+use crate::PetrType;
+
 #[derive(Error, Debug, PartialEq, Clone)]
 pub struct TypeCheckError {
     kind: TypeCheckErrorKind,
@@ -15,10 +17,17 @@ impl std::fmt::Display for TypeCheckError {
         write!(f, "{}", self.kind)
     }
 }
+
+#[derive(Error, Debug, Diagnostic, PartialEq, Clone)]
+pub enum UnificationError {
+    #[error("Failed to unify types: {0:?}, {1:?}")]
+    Failure(PetrType, PetrType),
+}
+
 #[derive(Error, Debug, Diagnostic, PartialEq, Clone)]
 pub enum TypeCheckErrorKind {
-    #[error("Failed to unify types: {0}")]
-    UnificationFailure(#[from] polytype::UnificationError),
+    #[error(transparent)]
+    UnificationFailure(#[from] UnificationError),
     // TODO: decl span as well as callsite span
     #[error("Function {function} takes {expected:?} arguments, but got {got:?} arguments.")]
     ArgumentCountMismatch { function: String, expected: usize, got: usize },

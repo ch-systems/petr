@@ -575,8 +575,11 @@ mod tests {
                   False: Function FunctionId(1)
                   maybe: Function FunctionId(2)
                 2: Type Cons (parent scopeid1):
-                3: Type Cons (parent scopeid1):
+                3: Function (parent scopeid1):
                 4: Type Cons (parent scopeid1):
+                5: Function (parent scopeid1):
+                6: Type Cons (parent scopeid1):
+                7: Function (parent scopeid1):
             "#]],
         );
     }

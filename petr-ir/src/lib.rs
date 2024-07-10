@@ -111,12 +111,12 @@ impl Lowerer {
 
             for (param_name, param_ty) in func.params.iter().rev() {
                 // in order, assign parameters to registers
-                let ir_ty = ctx.to_ir_type(param_ty);
+                let ir_ty = ctx.to_ir_type(*param_ty);
                 if ir_ty.fits_in_reg() {
                     // load from stack into register
                     let param_reg = ctx.fresh_reg();
                     let ty_reg = TypedReg {
-                        ty:  ctx.to_ir_type(param_ty),
+                        ty:  ctx.to_ir_type(*param_ty),
                         reg: param_reg,
                     };
                     buf.push(IrOpcode::StackPop(ty_reg));
@@ -176,8 +176,9 @@ impl Lowerer {
                 for (_arg_name, arg_expr) in args {
                     let reg = self.fresh_reg();
                     let mut expr = self.lower_expr(arg_expr, ReturnDestination::Reg(reg))?;
+                    let arg_ty = self.type_checker.expr_ty(arg_expr);
                     expr.push(IrOpcode::StackPush(TypedReg {
-                        ty: self.to_ir_type(&arg_expr.ty()),
+                        ty: self.to_ir_type(arg_ty),
                         reg,
                     }));
 
@@ -226,21 +227,23 @@ impl Lowerer {
                 let mut buf = vec![];
                 // the memory model for types is currently not finalized,
                 // but for now, it is just sequential memory that is word-aligned
-                let ir_ty = self.to_ir_type(ty);
+                let ir_ty = self.to_ir_type(*ty);
                 let size_of_aggregate_type = ir_ty.size();
                 let ReturnDestination::Reg(return_destination) = return_destination;
                 buf.push(IrOpcode::MallocImmediate(return_destination, size_of_aggregate_type));
                 // for each arg, lower it and store it in memory
                 let mut current_size_offset = 0;
-                let mut current_size_offset_reg = self.fresh_reg();
-                for (ix, arg) in args.iter().enumerate() {
+                let current_size_offset_reg = self.fresh_reg();
+                for arg in args.iter() {
                     let reg = self.fresh_reg();
                     buf.append(&mut self.lower_expr(arg, ReturnDestination::Reg(reg))?);
                     buf.push(IrOpcode::LoadImmediate(current_size_offset_reg, current_size_offset));
                     buf.push(IrOpcode::Add(current_size_offset_reg, current_size_offset_reg, return_destination));
                     buf.push(IrOpcode::WriteRegisterToMemory(reg, current_size_offset_reg));
 
-                    current_size_offset += self.to_ir_type(&arg.ty()).size().num_bytes() as u64;
+                    let arg_ty = self.type_checker.expr_ty(arg);
+
+                    current_size_offset += self.to_ir_type(arg_ty).size().num_bytes() as u64;
                 }
                 Ok(buf)
             },
@@ -260,18 +263,22 @@ impl Lowerer {
         })
     }
 
-    // convert a polytype type to an `IrTy`
     fn to_ir_type(
         &self,
-        param_ty: &TypeVariable,
+        param_ty: TypeVariable,
     ) -> IrTy {
-        let realized_ty = self.type_checker.realize_type(param_ty);
         use petr_typecheck::PetrType::*;
-        match realized_ty {
+        let ty = self.type_checker.look_up_variable(param_ty);
+        match ty {
             Unit => IrTy::Unit,
             Integer => IrTy::Int64,
             Boolean => IrTy::Boolean,
-            String { number_of_characters } => IrTy::String(number_of_characters.into()),
+            String => IrTy::String,
+            Ref(_) => todo!(),
+            UserDefined(_) => todo!(),
+            Arrow(_) => todo!(),
+            ErrorRecovery => todo!(),
+            List(_) => todo!(),
         }
     }
 

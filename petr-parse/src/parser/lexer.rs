@@ -81,6 +81,7 @@ pub enum Token {
     NewFile(SourceId),
     Eof,
 }
+
 impl Token {
     pub(crate) fn is_operator(&self) -> bool {
         use Token::*;
