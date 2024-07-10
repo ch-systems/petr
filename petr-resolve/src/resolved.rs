@@ -76,10 +76,10 @@ impl QueryableResolvedItems {
         self.resolved_types.get(&id).expect("type IDs should always correspond to resolved types")
     }
 
+    // TODO  The cloning of the below iterators (`functions` and `types`) is not ideal.
     pub fn functions(&self) -> impl Iterator<Item = (FunctionId, Function)> {
         self.resolved_functions
             .iter()
-            // TODO below clone is not ideal
             .map(|(id, decl)| (*id, decl.clone()))
             .collect::<Vec<_>>()
             .into_iter()

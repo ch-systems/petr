@@ -201,12 +201,9 @@ impl TypeChecker {
     }
 
     fn fully_type_check(&mut self) {
-        // TODO collects on these iters is not ideal
         for (id, _) in self.resolved.types() {
             let ty = self.fresh_ty_var();
             self.type_map.insert(id.into(), ty);
-            // todo!("type decl map?"); need to store the function types of type constructors
-            // and the parent type id here
         }
         for (id, func) in self.resolved.functions() {
             let typed_function = func.type_check(self);
@@ -215,6 +212,8 @@ impl TypeChecker {
             self.type_map.insert(id.into(), ty);
             self.typed_functions.insert(id, typed_function);
         }
+
+        // we have now collected our constraints and can solve for them
     }
 
     pub fn new(resolved: QueryableResolvedItems) -> Self {
