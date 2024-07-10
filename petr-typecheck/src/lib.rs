@@ -2,7 +2,7 @@ mod error;
 
 use std::{collections::BTreeMap, rc::Rc};
 
-use error::{TypeCheckError, TypeCheckErrorKind};
+use error::{TypeCheckError, TypeCheckErrorKind, TypeConstraintError};
 pub use petr_bind::FunctionId;
 use petr_bind::TypeId;
 use petr_resolve::{Expr, ExprKind, QueryableResolvedItems};
@@ -49,6 +49,7 @@ impl From<&FunctionId> for TypeOrFunctionId {
 
 idx_map_key!(TypeVariable);
 
+#[derive(Clone, Copy)]
 pub struct TypeConstraint {
     kind: TypeConstraintKind,
     // TODO(pipe spans through for spanned type errors)
@@ -63,10 +64,22 @@ impl TypeConstraint {
             kind: TypeConstraintKind::Unify(t1, t2),
         }
     }
+
+    fn satisfies(
+        t1: TypeVariable,
+        t2: TypeVariable,
+    ) -> Self {
+        Self {
+            kind: TypeConstraintKind::Satisfies(t1, t2),
+        }
+    }
 }
 
+#[derive(Clone, Copy)]
 pub enum TypeConstraintKind {
     Unify(TypeVariable, TypeVariable),
+    // constraint that lhs is a "subtype" or satisfies the typeclass constraints of "rhs"
+    Satisfies(TypeVariable, TypeVariable),
 }
 
 pub struct TypeContext {
@@ -106,6 +119,14 @@ impl TypeContext {
         ty2: TypeVariable,
     ) {
         self.constraints.push(TypeConstraint::unify(ty1, ty2));
+    }
+
+    fn satisfies(
+        &mut self,
+        ty1: TypeVariable,
+        ty2: TypeVariable,
+    ) {
+        self.constraints.push(TypeConstraint::satisfies(ty1, ty2));
     }
 
     fn new_variable(&self) -> TypeVariable {
@@ -213,7 +234,72 @@ impl TypeChecker {
             self.typed_functions.insert(id, typed_function);
         }
 
+        self.apply_constraints();
+
         // we have now collected our constraints and can solve for them
+    }
+
+    /// iterate through each constraint and transform the underlying types to satisfy them
+    /// - unification tries to collapse two types into one
+    /// - satisfaction tries to make one type satisfy the constraints of another, although type
+    ///   constraints don't exist in the language yet
+    fn apply_constraints(&mut self) {
+        let mut errs = Vec::new();
+        let constraints = self.ctx.constraints.clone();
+        for constraint in constraints {
+            match &constraint.kind {
+                TypeConstraintKind::Unify(t1, t2) => {
+                    if let Err(err) = self.apply_unify_constraint(*t1, *t2) {
+                        errs.push(err);
+                    }
+                },
+                TypeConstraintKind::Satisfies(t1, t2) => {
+                    if let Err(err) = self.apply_satisfies_constraint(*t1, *t2) {
+                        errs.push(err);
+                    }
+                },
+            }
+        }
+
+        errs.into_iter().for_each(|err| self.push_error(err));
+    }
+
+    /// Attempt to unify two types, returning an error if they cannot be unified
+    /// The more specific of the two types will instantiate the more general of the two types.
+    fn apply_unify_constraint(
+        &mut self,
+        t1: TypeVariable,
+        t2: TypeVariable,
+    ) -> Result<(), TypeConstraintError> {
+        let ty1 = self.ctx.types.get(t1);
+        let ty2 = self.ctx.types.get(t2);
+        use PetrType::*;
+        match (ty1, ty2) {
+            (a, b) if a == b => Ok(()),
+            (ErrorRecovery, _) | (_, ErrorRecovery) => Ok(()),
+            (Ref(a), _) => self.apply_unify_constraint(*a, t2),
+            (_, Ref(b)) => self.apply_unify_constraint(t1, *b),
+            (a, b) => todo!("Need to write unification rule for {:?} and {:?}", a, b),
+        }
+    }
+
+    // This function will need to be rewritten when type constraints and bounded polymorphism are
+    // implemented.
+    fn apply_satisfies_constraint(
+        &mut self,
+        t1: TypeVariable,
+        t2: TypeVariable,
+    ) -> Result<(), TypeConstraintError> {
+        let ty1 = self.ctx.types.get(t1);
+        let ty2 = self.ctx.types.get(t2);
+        use PetrType::*;
+        match (ty1, ty2) {
+            (a, b) if a == b => Ok(()),
+            (ErrorRecovery, _) | (_, ErrorRecovery) => Ok(()),
+            (Ref(a), _) => self.apply_satisfies_constraint(*a, t2),
+            (_, Ref(b)) => self.apply_satisfies_constraint(t1, *b),
+            (a, b) => todo!("Need to write satisfies rule for {:?} and {:?}", a, b),
+        }
     }
 
     pub fn new(resolved: QueryableResolvedItems) -> Self {
@@ -319,6 +405,14 @@ impl TypeChecker {
         ty2: TypeVariable,
     ) {
         self.ctx.unify(ty1, ty2);
+    }
+
+    pub fn satisfies(
+        &mut self,
+        ty1: TypeVariable,
+        ty2: TypeVariable,
+    ) {
+        self.ctx.satisfies(ty1, ty2);
     }
 
     fn get_untyped_function(
@@ -544,7 +638,7 @@ impl TypeCheck for Expr {
                     let arg_expr = arg.type_check(ctx);
                     let param_ty = ctx.to_type_var(param);
                     let arg_ty = ctx.expr_ty(&arg_expr);
-                    ctx.unify(arg_ty, param_ty);
+                    ctx.satisfies(arg_ty, param_ty);
                     args.push((*param_name, arg_expr));
                 }
                 TypedExpr::FunctionCall {
@@ -822,8 +916,8 @@ mod tests {
                 },
             };
             s.push_str(&text);
-            s.push_str(" → ");
-            s.push_str(&ty.to_string());
+            s.push_str(": ");
+            s.push_str(&pretty_print_ty(ty, &type_checker));
 
             s.push('\n');
             match id {
@@ -848,6 +942,44 @@ mod tests {
         s
     }
 
+    fn pretty_print_ty(
+        ty: &TypeVariable,
+        type_checker: &TypeChecker,
+    ) -> String {
+        let mut ty = type_checker.look_up_variable(*ty);
+        while let PetrType::Ref(t) = ty {
+            ty = type_checker.look_up_variable(*t);
+        }
+        match ty {
+            PetrType::Unit => "unit".to_string(),
+            PetrType::Integer => "int".to_string(),
+            PetrType::Boolean => "bool".to_string(),
+            PetrType::String => "string".to_string(),
+            PetrType::Ref(ty) => pretty_print_ty(ty, type_checker),
+            PetrType::UserDefined(id) => {
+                let ty = type_checker.resolved.get_type(*id);
+                let name = type_checker.resolved.interner.get(ty.name.id);
+                name.to_string()
+            },
+            PetrType::Arrow(tys) => {
+                let mut s = String::new();
+                s.push_str("(");
+                for (ix, ty) in tys.into_iter().enumerate() {
+                    let is_last = ix == tys.len() - 1;
+
+                    s.push_str(&pretty_print_ty(ty, type_checker));
+                    if !is_last {
+                        s.push_str(" → ");
+                    }
+                }
+                s.push_str(")");
+                s
+            },
+            PetrType::ErrorRecovery => "error recovery".to_string(),
+            PetrType::List(ty) => format!("[{}]", pretty_print_ty(ty, type_checker)),
+        }
+    }
+
     fn pretty_print_typed_expr(
         typed_expr: &TypedExpr,
         type_checker: &TypeChecker,
@@ -859,15 +991,18 @@ mod tests {
                 for (name, expr) in bindings {
                     let ident = interner.get(name.id);
                     let ty = type_checker.expr_ty(expr);
+                    let ty = pretty_print_ty(&ty, type_checker);
                     s.push_str(&format!("{ident}: {:?} ({}),\n", expr, ty));
                 }
                 let expr_ty = type_checker.expr_ty(expression);
+                let expr_ty = pretty_print_ty(&expr_ty, type_checker);
                 s.push_str(&format!("{:?} ({})", pretty_print_typed_expr(expression, type_checker), expr_ty));
                 s
             },
             TypedExpr::Variable { name, ty } => {
                 let name = interner.get(name.id);
-                format!("variable: {name} ({ty})")
+                let ty = pretty_print_ty(ty, type_checker);
+                format!("variable {name}: {ty}")
             },
 
             TypedExpr::FunctionCall { func, args, ty } => {
@@ -876,8 +1011,10 @@ mod tests {
                 for (name, arg) in args {
                     let name = interner.get(name.id);
                     let arg_ty = type_checker.expr_ty(arg);
+                    let arg_ty = pretty_print_ty(&arg_ty, type_checker);
                     s.push_str(&format!("{name}: {}, ", arg_ty));
                 }
+                let ty = pretty_print_ty(ty, type_checker);
                 s.push_str(&format!("returns {ty}"));
                 s
             },
@@ -893,8 +1030,8 @@ mod tests {
             function foo(x in 'int) returns 'int x
             "#,
             expect![[r#"
-                function foo → int → int
-                variable: x (int)
+                function foo: (int → int)
+                variable x: int
 
             "#]],
         );
@@ -966,10 +1103,10 @@ mod tests {
             function bar() returns 'bool true
             "#,
             expect![[r#"
-                function foo → int
+                function foo: int
                 literal: 5
 
-                function bar → bool
+                function bar: bool
                 literal: true
 
             "#]],
@@ -1147,15 +1284,15 @@ mod tests {
     a
 function main() returns 'int ~hi(1, 2)"#,
             expect![[r#"
-                function hi → (int → int) → int
+                function hi: (int → int → int)
                 a: variable: symbolid2 (int),
                 b: variable: symbolid4 (int),
                 c: literal: 20 (int),
                 d: literal: 30 (int),
                 e: literal: 42 (int),
-                "variable: a (int)" (int)
+                "variable a: int" (int)
 
-                function main → int
+                function main: int
                 function call to functionid0 with args: x: int, y: int, returns int
 
             "#]],

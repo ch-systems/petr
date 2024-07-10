@@ -19,15 +19,17 @@ impl std::fmt::Display for TypeCheckError {
 }
 
 #[derive(Error, Debug, Diagnostic, PartialEq, Clone)]
-pub enum UnificationError {
+pub enum TypeConstraintError {
     #[error("Failed to unify types: {0:?}, {1:?}")]
     Failure(PetrType, PetrType),
+    #[error("Type {0:?} does not satisfy the constraints of type {1:?}")]
+    FailedToSatisfy(PetrType, PetrType),
 }
 
 #[derive(Error, Debug, Diagnostic, PartialEq, Clone)]
 pub enum TypeCheckErrorKind {
     #[error(transparent)]
-    UnificationFailure(#[from] UnificationError),
+    UnificationFailure(#[from] TypeConstraintError),
     // TODO: decl span as well as callsite span
     #[error("Function {function} takes {expected:?} arguments, but got {got:?} arguments.")]
     ArgumentCountMismatch { function: String, expected: usize, got: usize },
