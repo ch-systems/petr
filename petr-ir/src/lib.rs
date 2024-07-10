@@ -274,7 +274,7 @@ impl Lowerer {
             Integer => IrTy::Int64,
             Boolean => IrTy::Boolean,
             String => IrTy::String,
-            Ref(_) => todo!(),
+            Ref(ty) => self.to_ir_type(*ty),
             UserDefined(_) => todo!(),
             Arrow(_) => todo!(),
             ErrorRecovery => todo!(),

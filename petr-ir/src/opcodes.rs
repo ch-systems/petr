@@ -152,7 +152,7 @@ impl<T: SizeUnit> Size<T> {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Bytes(usize);
 
-trait SizeUnit: Clone + Copy + PartialEq + Eq + PartialOrd + Ord {
+pub trait SizeUnit: Clone + Copy + PartialEq + Eq + PartialOrd + Ord {
     fn num_bytes(&self) -> usize;
 }
 

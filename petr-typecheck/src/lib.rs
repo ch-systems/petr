@@ -307,7 +307,8 @@ impl TypeChecker {
                 self.ctx.update_type(t2, known);
                 Ok(())
             },
-            (a, b) => todo!("Need to write unification rule for {:?} and {:?}", a, b),
+            // lastly, if no unification rule exists for these two types, it is a mismatch
+            (a, b) => Err(TypeConstraintError::UnificationFailure(a, b)),
         }
     }
 
@@ -326,6 +327,7 @@ impl TypeChecker {
             (ErrorRecovery, _) | (_, ErrorRecovery) => Ok(()),
             (Ref(a), _) => self.apply_satisfies_constraint(*a, t2),
             (_, Ref(b)) => self.apply_satisfies_constraint(t1, *b),
+            (Infer(_), _) | (_, Infer(_)) => Ok(()),
             (a, b) => todo!("Need to write satisfies rule for {:?} and {:?}", a, b),
         }
     }
@@ -389,10 +391,6 @@ impl TypeChecker {
             },
             petr_resolve::Type::Named(ty_id) => PetrType::Ref(*self.type_map.get(&ty_id.into()).expect("type did not exist in type map")),
             petr_resolve::Type::Generic(generic_name) => {
-                // TODO I think this needs to be a qualifier
-                // polytype has support for qualifying polymorphic types
-                // but instead I'm going to do the lazy thing and instantiate the generic
-                // with a fresh type variable
                 return self.generic_type(generic_name);
             },
         };
@@ -881,9 +879,6 @@ impl TypeCheck for petr_resolve::FunctionCall {
         &self,
         ctx: &mut TypeChecker,
     ) -> Self::Output {
-        // use polytype::Type::substitute to sub in the types of the arg exprs
-        // and then unify with the function's type
-        // get the function type
         let func_type = *ctx.get_type(self.function);
         let args = self.args.iter().map(|arg| arg.type_check(ctx)).collect::<Vec<_>>();
 
@@ -1143,15 +1138,15 @@ mod tests {
             function bar() returns 'bool 5
             "#,
             expect![[r#"
-                function foo → int
+                function foo: int
                 literal: 5
 
-                function bar → bool
+                function bar: bool
                 literal: 5
 
 
                 Errors:
-                Failed to unify types: Failure(bool, int)
+                Failed to unify types: Boolean, Integer
             "#]],
         );
     }
@@ -1215,12 +1210,12 @@ mod tests {
         function my_func() returns 'unit
           @puts(true)"#,
             expect![[r#"
-                function my_func → unit
+                function my_func: unit
                 intrinsic: @puts(literal: true)
 
 
                 Errors:
-                Failed to unify types: Failure(string, bool)
+                Failed to unify types: String, Boolean
             "#]],
         );
     }
@@ -1232,12 +1227,12 @@ mod tests {
         function my_func() returns 'bool
           @puts("test")"#,
             expect![[r#"
-                function my_func → bool
+                function my_func: bool
                 intrinsic: @puts(literal: "test")
 
 
                 Errors:
-                Failed to unify types: Failure(bool, unit)
+                Failed to unify types: Boolean, Unit
             "#]],
         );
     }
@@ -1252,15 +1247,15 @@ mod tests {
         function my_func() returns 'unit
           @puts(~bool_literal)"#,
             expect![[r#"
-                function bool_literal → bool
+                function bool_literal: bool
                 literal: true
 
-                function my_func → unit
+                function my_func: unit
                 intrinsic: @puts(function call to functionid0 with args: )
 
 
                 Errors:
-                Failed to unify types: Failure(string, bool)
+                Failed to unify types: String, Boolean
             "#]],
         );
     }
@@ -1280,13 +1275,13 @@ mod tests {
             ~bool_literal(true, false)
         "#,
             expect![[r#"
-                function bool_literal → (t0 → t1) → bool
+                function bool_literal: (t4 → t5 → bool)
                 literal: true
 
-                function my_func → bool
+                function my_func: bool
                 function call to functionid0 with args: a: int, b: int, returns bool
 
-                function my_second_func → bool
+                function my_second_func: bool
                 function call to functionid0 with args: a: bool, b: bool, returns bool
 
             "#]],
@@ -1299,12 +1294,12 @@ mod tests {
                 function my_list() returns 'list [ 1, true ]
             "#,
             expect![[r#"
-                function my_list → t0
+                function my_list: [int]
                 list: [literal: 1, literal: true, ]
 
 
                 Errors:
-                Failed to unify types: Failure(int, bool)
+                Failed to unify types: Integer, Boolean
             "#]],
         );
     }

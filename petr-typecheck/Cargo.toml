@@ -9,7 +9,6 @@ edition = "2021"
 petr-utils = { path = "../petr-utils" }
 petr-resolve = { path = "../petr-resolve" }
 petr-bind = { path = "../petr-bind" }
-polytype = "7.0.1"
 miette = { version = "5.10", features = ["fancy"] }
 thiserror = "1.0.61"
 

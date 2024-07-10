@@ -21,7 +21,7 @@ impl std::fmt::Display for TypeCheckError {
 #[derive(Error, Debug, Diagnostic, PartialEq, Clone)]
 pub enum TypeConstraintError {
     #[error("Failed to unify types: {0:?}, {1:?}")]
-    Failure(PetrType, PetrType),
+    UnificationFailure(PetrType, PetrType),
     #[error("Type {0:?} does not satisfy the constraints of type {1:?}")]
     FailedToSatisfy(PetrType, PetrType),
 }

@@ -30,7 +30,6 @@ pub struct TypeDeclaration {
     pub name: Identifier,
 }
 
-// TODO: refactor this into polytype
 #[derive(Clone, Copy, Debug)]
 pub enum Type {
     Integer,
