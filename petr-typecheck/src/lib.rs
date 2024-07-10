@@ -49,8 +49,29 @@ impl From<&FunctionId> for TypeOrFunctionId {
 
 idx_map_key!(TypeVariable);
 
+pub struct TypeConstraint {
+    kind: TypeConstraintKind,
+    // TODO(pipe spans through for spanned type errors)
+    //     span
+}
+impl TypeConstraint {
+    fn unify(
+        t1: TypeVariable,
+        t2: TypeVariable,
+    ) -> Self {
+        Self {
+            kind: TypeConstraintKind::Unify(t1, t2),
+        }
+    }
+}
+
+pub enum TypeConstraintKind {
+    Unify(TypeVariable, TypeVariable),
+}
+
 pub struct TypeContext {
     types:          IndexMap<TypeVariable, PetrType>,
+    constraints:    Vec<TypeConstraint>,
     // known primitive type IDs
     unit_ty:        TypeVariable,
     string_ty:      TypeVariable,
@@ -68,22 +89,23 @@ impl Default for TypeContext {
         let error_recovery = types.insert(PetrType::ErrorRecovery);
         // insert primitive types
         TypeContext {
+            types,
+            constraints: Default::default(),
             unit_ty,
             string_ty,
             int_ty,
             error_recovery,
-            types,
         }
     }
 }
 
 impl TypeContext {
     fn unify(
-        &self,
+        &mut self,
         ty1: TypeVariable,
         ty2: TypeVariable,
-    ) -> Result<(), error::UnificationError> {
-        todo!()
+    ) {
+        self.constraints.push(TypeConstraint::unify(ty1, ty2));
     }
 
     fn new_variable(&self) -> TypeVariable {
@@ -297,10 +319,7 @@ impl TypeChecker {
         ty1: TypeVariable,
         ty2: TypeVariable,
     ) {
-        match self.ctx.unify(ty1, ty2) {
-            Ok(_) => (),
-            Err(e) => self.push_error(e),
-        }
+        self.ctx.unify(ty1, ty2);
     }
 
     fn get_untyped_function(
