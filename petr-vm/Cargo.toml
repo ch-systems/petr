@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 petr-ir = { path = "../petr-ir" }
 petr-utils = { path = "../petr-utils", optional = true }
-thiserror = "1.0.61"
+thiserror = "1.0.62"
 
 [dev-dependencies]
 petr-parse = { path = "../petr-parse" }
