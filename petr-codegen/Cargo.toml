@@ -15,4 +15,4 @@ cranelift-object = { version = "0.108.1" }
 cranelift-module = "0.108.1"
 
 miette = { version = "5.10", features = ["fancy"] }
-thiserror = "1.0.61"
+thiserror = "1.0.63"
