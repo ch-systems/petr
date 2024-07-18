@@ -287,12 +287,14 @@ impl Lowerer {
         }
     }
 
+    /*
     fn lower_all_functions(&mut self) -> Result<(), LoweringError> {
         for (id, func) in self.type_checker.functions() {
             self.lower_function(id, func)?;
         }
         Ok(())
     }
+    */
 
     fn lower_intrinsic(
         &mut self,

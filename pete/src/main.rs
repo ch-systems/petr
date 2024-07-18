@@ -217,11 +217,7 @@ pub fn compile(
 
     timings.end("type check");
 
-    // TODO impl diagnostic for type errors
-    if !type_errs.is_empty() {
-        dbg!(&type_errs);
-    }
-    // errs.append(&mut type_errs);
+    render_errors(type_errs, &source_map);
 
     timings.start("lowering");
     let lowerer: Lowerer = Lowerer::new(type_checker);

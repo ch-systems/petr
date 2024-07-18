@@ -256,6 +256,7 @@ impl TypeChecker {
             let ty = self.fresh_ty_var();
             self.type_map.insert(id.into(), ty);
         }
+
         for (id, func) in self.resolved.functions() {
             let typed_function = func.type_check(self);
 
@@ -264,9 +265,41 @@ impl TypeChecker {
             self.typed_functions.insert(id, typed_function);
         }
 
+        // we have now collected our constraints and can solve for them
         self.apply_constraints();
 
-        // we have now collected our constraints and can solve for them
+        // check if any inferred types were unable to be fully resolved
+
+        let mut errs = vec![];
+        for constraint in &self.ctx.constraints {
+            match &constraint.kind {
+                TypeConstraintKind::Unify(t1, t2) => {
+                    if let PetrType::Infer(_) = self.ctx.types.get(*t1) {
+                        errs.push(constraint.span.with_item(TypeConstraintError::UnknownInference));
+                    }
+
+                    if let PetrType::Infer(_) = self.ctx.types.get(*t2) {
+                        errs.push(constraint.span.with_item(TypeConstraintError::UnknownInference));
+                    }
+                },
+                TypeConstraintKind::Satisfies(t1, t2) => {
+                    if let PetrType::Infer(_) = self.ctx.types.get(*t1) {
+                        errs.push(constraint.span.with_item(TypeConstraintError::UnknownInference));
+                    }
+
+                    if let PetrType::Infer(_) = self.ctx.types.get(*t2) {
+                        errs.push(constraint.span.with_item(TypeConstraintError::UnknownInference));
+                    }
+                },
+            }
+        }
+
+        errs.sort();
+        errs.dedup();
+
+        for err in errs {
+            self.push_error(err);
+        }
     }
 
     /// iterate through each constraint and transform the underlying types to satisfy them
@@ -945,7 +978,7 @@ impl TypeCheck for petr_resolve::FunctionCall {
 mod tests {
     use expect_test::{expect, Expect};
     use petr_resolve::resolve_symbols;
-    use petr_utils::render_error;
+    use petr_utils::{render_error, SourceId};
 
     use super::*;
     fn check(
@@ -962,12 +995,15 @@ mod tests {
         let (errs, resolved) = resolve_symbols(ast, interner, Default::default());
         assert!(errs.is_empty(), "can't typecheck: unresolved symbols");
         let type_checker = TypeChecker::new(resolved);
-        let res = pretty_print_type_checker(type_checker);
+        let res = pretty_print_type_checker(type_checker, &source_map);
 
         expect.assert_eq(&res);
     }
 
-    fn pretty_print_type_checker(type_checker: TypeChecker) -> String {
+    fn pretty_print_type_checker(
+        type_checker: TypeChecker,
+        source_map: &IndexMap<SourceId, (&'static str, &'static str)>,
+    ) -> String {
         let mut s = String::new();
         for (id, ty) in &type_checker.type_map {
             let text = match id {
@@ -1006,7 +1042,8 @@ mod tests {
         if !type_checker.errors.is_empty() {
             s.push_str("\nErrors:\n");
             for error in type_checker.errors {
-                s.push_str(&format!("{}\n", miette::Report::new(error)));
+                let rendered = render_error(source_map, error);
+                s.push_str(&format!("{:?}\n", rendered));
             }
         }
         s

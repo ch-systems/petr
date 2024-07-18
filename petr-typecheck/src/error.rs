@@ -3,7 +3,7 @@ use thiserror::Error;
 
 use crate::PetrType;
 
-#[derive(Error, Debug, Diagnostic, PartialEq, Clone)]
+#[derive(Error, Debug, Diagnostic, PartialEq, Clone, Ord, PartialOrd, Eq)]
 pub enum TypeConstraintError {
     #[error("Failed to unify types: {0:?}, {1:?}")]
     UnificationFailure(PetrType, PetrType),
@@ -11,6 +11,8 @@ pub enum TypeConstraintError {
     FailedToSatisfy(PetrType, PetrType),
     #[error("Function {function} takes {expected:?} arguments, but got {got:?} arguments.")]
     ArgumentCountMismatch { function: String, expected: usize, got: usize },
+    #[error("Type could not be inferrred")]
+    UnknownInference,
 }
 
 /*
