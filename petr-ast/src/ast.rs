@@ -38,10 +38,24 @@ pub struct Module {
     pub name:  Path,
     pub nodes: Vec<SpannedItem<AstNode>>,
 }
+impl Module {
+    fn span_pointing_to_beginning_of_module(&self) -> petr_utils::Span {
+        let first = self.nodes.first().expect("Module was empty");
+        let mut span = first.span();
+        // make this span just point to a single character
+        span.zero_length()
+    }
+}
 
 impl Ast {
     pub fn new(nodes: Vec<Module>) -> Ast {
         Self { modules: nodes }
+    }
+
+    /// Generates a one-character span pointing to the beginning of this AST
+    pub fn span_pointing_to_beginning_of_ast(&self) -> petr_utils::Span {
+        let first = self.modules.first().expect("AST was empty");
+        first.span_pointing_to_beginning_of_module()
     }
 }
 
@@ -83,7 +97,7 @@ pub enum Visibility {
 #[derive(Clone)]
 pub struct TypeVariant {
     pub name:   Identifier,
-    pub fields: Box<[TypeField]>,
+    pub fields: Box<[SpannedItem<TypeField>]>,
 }
 
 #[derive(Clone)]
@@ -115,13 +129,13 @@ pub enum Expression {
     Variable(Identifier),
     IntrinsicCall(IntrinsicCall),
     Binding(ExpressionWithBindings),
-    TypeConstructor(Box<[Expression]>),
+    TypeConstructor(Box<[SpannedItem<Expression>]>),
 }
 
 #[derive(Clone)]
 pub struct ExpressionWithBindings {
     pub bindings:   Vec<Binding>,
-    pub expression: Box<Expression>,
+    pub expression: Box<SpannedItem<Expression>>,
     pub expr_id:    ExprId,
 }
 
@@ -131,13 +145,13 @@ pub struct ExprId(pub usize);
 #[derive(Clone)]
 pub struct Binding {
     pub name: Identifier,
-    pub val:  Expression,
+    pub val:  SpannedItem<Expression>,
 }
 
 #[derive(Clone)]
 pub struct IntrinsicCall {
     pub intrinsic: Intrinsic,
-    pub args:      Box<[Expression]>,
+    pub args:      Box<[SpannedItem<Expression>]>,
 }
 
 impl std::fmt::Display for Intrinsic {
@@ -170,7 +184,7 @@ pub enum Intrinsic {
 #[derive(Clone)]
 pub struct FunctionCall {
     pub func_name: Path,
-    pub args: Box<[Expression]>,
+    pub args: Box<[SpannedItem<Expression>]>,
     // used for the formatter, primarily
     pub args_were_parenthesized: bool,
 }

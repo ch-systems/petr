@@ -105,8 +105,8 @@ impl PrettyPrint for TypeVariant {
             self.fields
                 .iter()
                 .map(|field| {
-                    let name = field.name.pretty_print(interner, 0);
-                    let ty = field.ty.pretty_print(interner, 0);
+                    let name = field.item().name.pretty_print(interner, 0);
+                    let ty = field.item().ty.pretty_print(interner, 0);
                     format!("{}: {}", name, ty)
                 })
                 .collect::<Vec<_>>()

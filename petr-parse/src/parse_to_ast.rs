@@ -78,12 +78,13 @@ impl Parse for TypeVariant {
             loop {
                 let peek = *p.peek().item();
                 if peek == Token::Identifier {
+                    let span = p.span();
                     let field_name = p.parse()?;
                     let field = p.parse()?;
-                    buf.push(TypeField {
+                    buf.push(span.with_item(TypeField {
                         name: field_name,
                         ty:   field,
-                    });
+                    }));
                 } else {
                     break;
                 }
@@ -235,9 +236,10 @@ impl Parse for Identifier {
         if *identifier.item() != Token::Identifier {
             p.push_error(p.span().with_item(ParseErrorKind::ExpectedIdentifier(p.slice().to_string())));
         }
+        let span = p.span();
         let slice = Rc::from(p.slice());
         let id = p.intern(slice);
-        Some(Identifier { id })
+        Some(Identifier { id, span })
     }
 }
 
@@ -294,7 +296,7 @@ impl Parse for ExpressionWithBindings {
         p.token(Token::Let)?;
 
         let bindings: Vec<Binding> = p.sequence_one_or_more(Token::Comma)?;
-        let expression: Expression = p.parse()?;
+        let expression = p.parse()?;
 
         Some(ExpressionWithBindings {
             bindings,
@@ -309,7 +311,7 @@ impl Parse for Binding {
         p.with_help("while parsing let binding", |p| {
             let name: Identifier = p.parse()?;
             p.token(Token::Equals)?;
-            let expr: Expression = p.parse()?;
+            let expr = p.parse()?;
             Some(Binding { name, val: expr })
         })
     }
@@ -357,7 +359,10 @@ impl Parse for Module {
                 // intern all identifiers in the name
                 let identifiers = name
                     .into_iter()
-                    .map(|id| Identifier { id: p.intern(id) })
+                    .map(|id| Identifier {
+                        id:   p.intern(id),
+                        span: p.span(),
+                    })
                     .collect::<Vec<_>>()
                     .into_boxed_slice();
                 let name = Path { identifiers };

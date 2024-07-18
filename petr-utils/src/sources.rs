@@ -189,6 +189,13 @@ impl Span {
     pub fn source(&self) -> SourceId {
         self.source
     }
+
+    pub fn zero_length(&self) -> Self {
+        Span {
+            source: self.source,
+            span:   SourceSpan::new(self.span.offset().into(), 0.into()),
+        }
+    }
 }
 
 pub mod error_printing {

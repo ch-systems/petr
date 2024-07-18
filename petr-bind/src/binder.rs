@@ -1,7 +1,7 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, rc::Rc};
 
 use petr_ast::{dependency::Dependency, Ast, Binding, ExprId, Expression, FunctionDeclaration, Ty, TypeDeclaration};
-use petr_utils::{idx_map_key, Identifier, IndexMap, Path, SymbolId};
+use petr_utils::{idx_map_key, Identifier, IndexMap, Path, SpannedItem, SymbolId, SymbolInterner};
 // TODO:
 // - i don't know if type cons needs a scope. Might be good to remove that.
 // - replace "scope_chain.last().expect()" with "self.current_scope()" which doesn't return an option
@@ -48,13 +48,13 @@ pub enum Item {
 }
 
 pub struct Binder {
-    scopes:      IndexMap<ScopeId, Scope<Item>>,
+    scopes:      IndexMap<ScopeId, Scope<SpannedItem<Item>>>,
     scope_chain: Vec<ScopeId>,
     /// Some expressions define their own scopes, like expressions with bindings
     // TODO rename to expr_scopes
     exprs: BTreeMap<ExprId, ScopeId>,
     bindings:    IndexMap<BindingId, Binding>,
-    functions:   IndexMap<FunctionId, FunctionDeclaration>,
+    functions:   IndexMap<FunctionId, SpannedItem<FunctionDeclaration>>,
     types:       IndexMap<TypeId, TypeDeclaration>,
     modules:     IndexMap<ModuleId, Module>,
     root_scope:  ScopeId,
@@ -145,7 +145,7 @@ impl Binder {
     pub fn get_function(
         &self,
         function_id: FunctionId,
-    ) -> &FunctionDeclaration {
+    ) -> &SpannedItem<FunctionDeclaration> {
         self.functions.get(function_id)
     }
 
@@ -162,27 +162,36 @@ impl Binder {
         name: SymbolId,
         scope_id: ScopeId,
     ) -> Option<&Item> {
+        self.find_spanned_symbol_in_scope(name, scope_id).map(|item| item.item())
+    }
+
+    /// Searches for a symbol in a scope or any of its parents
+    pub fn find_spanned_symbol_in_scope(
+        &self,
+        name: SymbolId,
+        scope_id: ScopeId,
+    ) -> Option<&SpannedItem<Item>> {
         let scope = self.scopes.get(scope_id);
         if let Some(item) = scope.items.get(&name) {
             return Some(item);
         }
 
         if let Some(parent_id) = scope.parent() {
-            return self.find_symbol_in_scope(name, parent_id);
+            return self.find_spanned_symbol_in_scope(name, parent_id);
         }
 
         None
     }
 
     /// Iterate over all scopes in the binder.
-    pub fn scope_iter(&self) -> impl Iterator<Item = (ScopeId, &Scope<Item>)> {
+    pub fn scope_iter(&self) -> impl Iterator<Item = (ScopeId, &Scope<SpannedItem<Item>>)> {
         self.scopes.iter()
     }
 
     pub fn insert_into_current_scope(
         &mut self,
         name: SymbolId,
-        item: Item,
+        item: SpannedItem<Item>,
     ) {
         let scope_id = self.current_scope_id();
         self.scopes.get_mut(scope_id).insert(name, item);
@@ -202,7 +211,7 @@ impl Binder {
     pub fn get_scope(
         &self,
         scope: ScopeId,
-    ) -> &Scope<Item> {
+    ) -> &Scope<SpannedItem<Item>> {
         self.scopes.get(scope)
     }
 
@@ -234,45 +243,49 @@ impl Binder {
     /// TODO (https://github.com/sezna/petr/issues/33)
     pub(crate) fn insert_type(
         &mut self,
-        ty_decl: &TypeDeclaration,
+        ty_decl: &SpannedItem<&TypeDeclaration>,
     ) -> Option<(Identifier, Item)> {
         // insert a function binding for every constructor
         // and a type binding for the parent type
-        let type_id = self.types.insert(ty_decl.clone());
+        let type_id = self.types.insert((*ty_decl.item()).clone());
         let type_item = Item::Type(type_id);
-        self.insert_into_current_scope(ty_decl.name.id, type_item.clone());
+        self.insert_into_current_scope(ty_decl.item().name.id, ty_decl.span().with_item(type_item.clone()));
 
-        ty_decl.variants.iter().for_each(|variant| {
+        ty_decl.item().variants.iter().for_each(|variant| {
             let span = variant.span();
             let variant = variant.item();
-            let (fields_as_parameters, func_scope) = self.with_scope(ScopeKind::TypeConstructor, |_, scope| {
+            let (fields_as_parameters, _func_scope) = self.with_scope(ScopeKind::TypeConstructor, |_, scope| {
                 (
                     variant
                         .fields
                         .iter()
                         .map(|field| petr_ast::FunctionParameter {
-                            name: field.name,
-                            ty:   field.ty,
+                            name: field.item().name,
+                            ty:   field.item().ty,
                         })
                         .collect::<Vec<_>>(),
                     scope,
                 )
             });
             // type constructors just access the arguments of the construction function directly
-            let type_constructor_exprs = variant.fields.iter().map(|field| Expression::Variable(field.name)).collect::<Vec<_>>();
+            let type_constructor_exprs = variant
+                .fields
+                .iter()
+                .map(|field| field.span().with_item(Expression::Variable(field.item().name)))
+                .collect::<Vec<_>>();
 
             let function = FunctionDeclaration {
                 name:        variant.name,
                 parameters:  fields_as_parameters.into_boxed_slice(),
-                return_type: Ty::Named(ty_decl.name),
+                return_type: Ty::Named(ty_decl.item().name),
                 body:        span.with_item(Expression::TypeConstructor(type_constructor_exprs.into_boxed_slice())),
-                visibility:  ty_decl.visibility,
+                visibility:  ty_decl.item().visibility,
             };
 
-            self.insert_function(&function);
+            self.insert_function(&ty_decl.span().with_item(&function));
         });
-        if ty_decl.is_exported() {
-            Some((ty_decl.name, type_item))
+        if ty_decl.item().is_exported() {
+            Some((ty_decl.item().name, type_item))
         } else {
             None
         }
@@ -280,19 +293,21 @@ impl Binder {
 
     pub(crate) fn insert_function(
         &mut self,
-        func: &FunctionDeclaration,
+        func: &SpannedItem<&FunctionDeclaration>,
     ) -> Option<(Identifier, Item)> {
-        let function_id = self.functions.insert(func.clone());
+        let span = func.span();
+        let func = func.item();
+        let function_id = self.functions.insert(span.with_item((*func).clone()));
         let func_body_scope = self.with_scope(ScopeKind::Function, |binder, function_body_scope| {
             for param in func.parameters.iter() {
-                binder.insert_into_current_scope(param.name.id, Item::FunctionParameter(param.ty));
+                binder.insert_into_current_scope(param.name.id, param.name.span().with_item(Item::FunctionParameter(param.ty)));
             }
 
             func.body.bind(binder);
             function_body_scope
         });
         let item = Item::Function(function_id, func_body_scope);
-        self.insert_into_current_scope(func.name.id, item.clone());
+        self.insert_into_current_scope(func.name.id, span.with_item(item.clone()));
         if func.is_exported() {
             Some((func.name, item))
         } else {
@@ -317,8 +332,8 @@ impl Binder {
             let module_scope = binder.create_scope_from_path(&module.name);
             binder.with_specified_scope(module_scope, |binder, scope_id| {
                 let exports = module.nodes.iter().filter_map(|node| match node.item() {
-                    petr_ast::AstNode::FunctionDeclaration(decl) => decl.bind(binder),
-                    petr_ast::AstNode::TypeDeclaration(decl) => decl.bind(binder),
+                    petr_ast::AstNode::FunctionDeclaration(decl) => node.span().with_item(decl.item()).bind(binder),
+                    petr_ast::AstNode::TypeDeclaration(decl) => node.span().with_item(decl.item()).bind(binder),
                     petr_ast::AstNode::ImportStatement(stmt) => stmt.bind(binder),
                 });
                 let exports = BTreeMap::from_iter(exports);
@@ -338,6 +353,7 @@ impl Binder {
     pub fn from_ast_and_deps(
         ast: &Ast,
         dependencies: Vec<Dependency>,
+        interner: &mut SymbolInterner,
     ) -> Self {
         let mut binder = Self::new();
 
@@ -348,14 +364,17 @@ impl Binder {
             ast: dep_ast,
         } in dependencies
         {
+            let span = dep_ast.span_pointing_to_beginning_of_ast();
+            let id = interner.insert(Rc::from(name));
+            let name = Identifier { id, span };
             let dep_scope = binder.create_scope_from_path(&Path::new(vec![name]));
             binder.with_specified_scope(dep_scope, |binder, _scope_id| {
                 for module in dep_ast.modules {
                     let module_scope = binder.create_scope_from_path(&module.name);
                     binder.with_specified_scope(module_scope, |binder, scope_id| {
                         let exports = module.nodes.iter().filter_map(|node| match node.item() {
-                            petr_ast::AstNode::FunctionDeclaration(decl) => decl.bind(binder),
-                            petr_ast::AstNode::TypeDeclaration(decl) => decl.bind(binder),
+                            petr_ast::AstNode::FunctionDeclaration(decl) => node.span().with_item(decl.item()).bind(binder),
+                            petr_ast::AstNode::TypeDeclaration(decl) => node.span().with_item(decl.item()).bind(binder),
                             petr_ast::AstNode::ImportStatement(stmt) => stmt.bind(binder),
                         });
                         let exports = BTreeMap::from_iter(exports);
@@ -373,8 +392,8 @@ impl Binder {
             let module_scope = binder.create_scope_from_path(&module.name);
             binder.with_specified_scope(module_scope, |binder, scope_id| {
                 let exports = module.nodes.iter().filter_map(|node| match node.item() {
-                    petr_ast::AstNode::FunctionDeclaration(decl) => decl.bind(binder),
-                    petr_ast::AstNode::TypeDeclaration(decl) => decl.bind(binder),
+                    petr_ast::AstNode::FunctionDeclaration(decl) => node.span().with_item(decl.item()).bind(binder),
+                    petr_ast::AstNode::TypeDeclaration(decl) => node.span().with_item(decl.item()).bind(binder),
                     petr_ast::AstNode::ImportStatement(stmt) => stmt.bind(binder),
                 });
                 let exports = BTreeMap::from_iter(exports);
@@ -423,7 +442,7 @@ impl Binder {
         item: Item,
     ) {
         let scope = self.scopes.get_mut(scope);
-        scope.insert(name.id, item);
+        scope.insert(name.id, name.span.with_item(item));
     }
 
     pub fn get_module(
@@ -470,7 +489,7 @@ impl Binder {
     pub fn iter_scope(
         &self,
         scope: ScopeId,
-    ) -> impl Iterator<Item = (&SymbolId, &Item)> {
+    ) -> impl Iterator<Item = (&SymbolId, &SpannedItem<Item>)> {
         self.scopes.get(scope).items.iter()
     }
 
@@ -541,7 +560,7 @@ mod tests {
             ));
             for (symbol_id, item) in &scope.items {
                 let symbol_name = interner.get(*symbol_id);
-                let item_description = match item {
+                let item_description = match item.item() {
                     Item::Binding(bind_id) => format!("Binding {:?}", bind_id),
                     Item::Function(function_id, _function_scope) => {
                         format!("Function {:?}", function_id)

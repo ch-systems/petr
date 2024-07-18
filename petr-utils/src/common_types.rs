@@ -13,14 +13,34 @@ lazy_static! {
     pub static ref SYMBOL_INTERNER: std::sync::RwLock<Vec<String>> = std::sync::RwLock::new(Vec::new());
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Identifier {
-    pub id: SymbolId,
+    pub id:   SymbolId,
+    pub span: crate::Span,
 }
 
-impl From<SymbolId> for Identifier {
-    fn from(value: SymbolId) -> Self {
-        Identifier { id: value }
+// ignore the span when comparing with ord and partialord
+impl PartialOrd for Identifier {
+    fn partial_cmp(
+        &self,
+        other: &Self,
+    ) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Identifier {
+    fn cmp(
+        &self,
+        other: &Self,
+    ) -> std::cmp::Ordering {
+        self.id.cmp(&other.id)
+    }
+}
+
+impl Identifier {
+    pub fn span(&self) -> crate::Span {
+        self.span
     }
 }
 

@@ -61,7 +61,8 @@ ir_ops! {
     Malloc "malloc" Reg: ptr_dest, Reg: size;
     MallocImmediate "malloci" Reg: ptr_dest, Size<Bytes>: imm;
     /// Register `src` will itself have its value written to the memory pointed to by `dest_ptr`
-    WriteRegisterToMemory "sri" Reg: src, Reg: dest_ptr
+    WriteRegisterToMemory "sri" Reg: src, Reg: dest_ptr;
+    Comment "comment" String: comment
 }
 
 idx_map_key!(LabelId);

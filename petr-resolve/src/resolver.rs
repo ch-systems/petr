@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use petr_ast::{Ast, Commented, Expression, FunctionDeclaration, FunctionParameter, OperatorExpression};
 use petr_bind::{Binder, Dependency, FunctionId, Item, ScopeId, TypeId};
-use petr_utils::{Identifier, Path, SpannedItem, SymbolInterner};
+use petr_utils::{Identifier, Path, Span, SpannedItem, SymbolInterner};
 use thiserror::Error;
 
 use crate::resolved::{QueryableResolvedItems, ResolvedItems};
@@ -78,6 +78,11 @@ pub struct FunctionCall {
     pub function: FunctionId,
     pub args:     Vec<Expr>,
 }
+impl FunctionCall {
+    pub fn span(&self) -> petr_utils::Span {
+        todo!()
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct Function {
@@ -90,17 +95,22 @@ pub struct Function {
 #[derive(Clone, Debug)]
 pub struct Expr {
     pub kind: ExprKind,
+    pub span: Span,
 }
 
 impl Expr {
-    pub fn error_recovery() -> Self {
+    pub fn error_recovery(span: Span) -> Self {
         Self {
             kind: ExprKind::ErrorRecovery,
+            span,
         }
     }
 
-    pub fn new(kind: ExprKind) -> Self {
-        Self { kind }
+    pub fn new(
+        kind: ExprKind,
+        span: Span,
+    ) -> Self {
+        Self { kind, span }
     }
 }
 
@@ -147,10 +157,10 @@ impl Resolver {
 
     pub fn new(
         ast: Ast,
-        interner: SymbolInterner,
+        mut interner: SymbolInterner,
         dependencies: Vec<Dependency>,
     ) -> Self {
-        let binder = Binder::from_ast_and_deps(&ast, dependencies);
+        let binder = Binder::from_ast_and_deps(&ast, dependencies, &mut interner);
         let mut resolver = Self {
             errs: Vec::new(),
             resolved: ResolvedItems::new(),
@@ -168,7 +178,7 @@ impl Resolver {
         let scopes_and_ids = binder.scope_iter().collect::<Vec<_>>();
         for (scope_id, scope) in scopes_and_ids {
             for (_name, item) in scope.iter() {
-                self.resolve_item(item, binder, scope_id)
+                self.resolve_item(item.item(), binder, scope_id)
             }
         }
     }
@@ -211,7 +221,7 @@ impl Resolver {
                 let scope_id = module.root_scope;
                 let scope = binder.iter_scope(scope_id);
                 for (_name, item) in scope {
-                    self.resolve_item(item, binder, scope_id);
+                    self.resolve_item(item.item(), binder, scope_id);
                 }
             },
             Import { .. } => { // do nothing?
@@ -300,7 +310,7 @@ pub trait Resolve {
     ) -> Option<Self::Resolved>;
 }
 
-impl Resolve for FunctionDeclaration {
+impl Resolve for SpannedItem<FunctionDeclaration> {
     type Resolved = Function;
 
     fn resolve(
@@ -315,27 +325,27 @@ impl Resolve for FunctionDeclaration {
         // - the return type
         // - the body
 
-        let mut params_buf = Vec::with_capacity(self.parameters.len());
+        let mut params_buf = Vec::with_capacity(self.item().parameters.len());
 
         // functions exist in their own scope with their own variables
-        for FunctionParameter { name, ty } in self.parameters.iter() {
+        for FunctionParameter { name, ty } in self.item().parameters.iter() {
             let ty = ty.resolve(resolver, binder, scope_id).unwrap_or(Type::Unit);
             params_buf.push((*name, ty));
         }
 
-        let return_type = self.return_type.resolve(resolver, binder, scope_id).unwrap_or(Type::Unit);
+        let return_type = self.item().return_type.resolve(resolver, binder, scope_id).unwrap_or(Type::Unit);
 
-        let body = match self.body.resolve(resolver, binder, scope_id) {
+        let body = match self.item().body.resolve(resolver, binder, scope_id) {
             Some(x) => x,
             // need to use an error recovery func here, so the FunctionId still exists in the
             // resolved function map.
             // If we were to return `None` and not resolve the function, then calls to this
             // function would hold a reference `FunctionId(x)` which would not exist anymore.
-            None => Expr::error_recovery(),
+            None => Expr::error_recovery(self.span()),
         };
 
         Some(Function {
-            name: self.name,
+            name: self.item().name,
             params: params_buf,
             return_type,
             body,
@@ -343,7 +353,7 @@ impl Resolve for FunctionDeclaration {
     }
 }
 
-impl Resolve for Expression {
+impl Resolve for SpannedItem<Expression> {
     type Resolved = Expr;
 
     fn resolve(
@@ -352,8 +362,8 @@ impl Resolve for Expression {
         binder: &Binder,
         scope_id: ScopeId,
     ) -> Option<Expr> {
-        Some(match self {
-            Expression::Literal(x) => Expr::new(ExprKind::Literal(x.clone())),
+        Some(match self.item() {
+            Expression::Literal(x) => Expr::new(ExprKind::Literal(x.clone()), self.span()),
             Expression::List(list) => {
                 let list: Vec<Expr> = list
                     .elements
@@ -364,7 +374,7 @@ impl Resolve for Expression {
                     })
                     .collect();
                 // TODO: do list combination type if list of unit, which functions like a block
-                Expr::new(ExprKind::List(list.into_boxed_slice()))
+                Expr::new(ExprKind::List(list.into_boxed_slice()), self.span())
             },
             Expression::Operator(op) => {
                 let OperatorExpression { lhs, rhs, op } = *op.clone();
@@ -379,7 +389,13 @@ impl Resolve for Expression {
                 let path = ["std", "ops", func];
 
                 let func_path = Path {
-                    identifiers: path.iter().map(|x| resolver.interner.insert(Rc::from(*x)).into()).collect(),
+                    identifiers: path
+                        .iter()
+                        .map(|x| Identifier {
+                            id:   resolver.interner.insert(Rc::from(*x)),
+                            span: self.span(),
+                        })
+                        .collect(),
                 };
 
                 let Some(either::Left(function)) = func_path.resolve(resolver, binder, scope_id) else {
@@ -394,12 +410,12 @@ impl Resolve for Expression {
                     args: vec![lhs.resolve(resolver, binder, scope_id)?, rhs.resolve(resolver, binder, scope_id)?],
                 };
 
-                Expr::new(ExprKind::FunctionCall(call))
+                Expr::new(ExprKind::FunctionCall(call), self.span())
             },
             Expression::FunctionCall(decl) => {
                 let resolved_call = decl.resolve(resolver, binder, scope_id)?;
 
-                Expr::new(ExprKind::FunctionCall(resolved_call))
+                Expr::new(ExprKind::FunctionCall(resolved_call), self.span())
             },
             Expression::Variable(var) => {
                 let item = match binder.find_symbol_in_scope(var.id, scope_id) {
@@ -420,12 +436,15 @@ impl Resolve for Expression {
                         //                        let expr = binding.resolve(resolver, binder, scope_id).expect("TODO errs");
                         //                        resolver.resolved.bindings.insert(*binding_id, expr.clone());
 
-                        Expr::new(ExprKind::Variable {
-                            name: *var,
-                            // I Think this works for inference -- instantiating a new generic
-                            // type. Should revisit for soundness.
-                            ty:   Type::Generic(binding.name),
-                        })
+                        Expr::new(
+                            ExprKind::Variable {
+                                name: *var,
+                                // I Think this works for inference -- instantiating a new generic
+                                // type. Should revisit for soundness.
+                                ty:   Type::Generic(binding.name),
+                            },
+                            self.span(),
+                        )
                     },
                     Item::FunctionParameter(ty) => {
                         let ty = match ty.resolve(resolver, binder, scope_id) {
@@ -437,7 +456,7 @@ impl Resolve for Expression {
                             },
                         };
 
-                        Expr::new(ExprKind::Variable { name: *var, ty })
+                        Expr::new(ExprKind::Variable { name: *var, ty }, self.span())
                     },
                     _ => unreachable!(),
                 }
@@ -454,11 +473,11 @@ impl Resolve for Expression {
                         None => todo!("error recov"),
                     })
                     .collect::<Vec<_>>();
-                Expr::new(ExprKind::TypeConstructor(resolved_args.into_boxed_slice()))
+                Expr::new(ExprKind::TypeConstructor(resolved_args.into_boxed_slice()), self.span())
             },
             Expression::IntrinsicCall(intrinsic) => {
                 let resolved = intrinsic.resolve(resolver, binder, scope_id)?;
-                Expr::new(ExprKind::Intrinsic(resolved))
+                Expr::new(ExprKind::Intrinsic(resolved), self.span())
             },
             Expression::Binding(bound_expression) => {
                 let scope_id = binder.get_expr_scope(bound_expression.expr_id).expect("invariant: scope should exist");
@@ -471,10 +490,13 @@ impl Resolve for Expression {
                     });
                 }
                 let expression = bound_expression.expression.resolve(resolver, binder, scope_id)?;
-                Expr::new(ExprKind::ExpressionWithBindings {
-                    expression: Box::new(expression),
-                    bindings,
-                })
+                Expr::new(
+                    ExprKind::ExpressionWithBindings {
+                        expression: Box::new(expression),
+                        bindings,
+                    },
+                    self.span(),
+                )
             },
         })
     }
@@ -633,7 +655,7 @@ impl Resolve for petr_ast::TypeDeclaration {
         // resolve the field type
         for variant in self.variants.iter() {
             for field in variant.item().fields.iter() {
-                if let Some(field_type) = field.ty.resolve(resolver, binder, scope_id) {
+                if let Some(field_type) = field.item().ty.resolve(resolver, binder, scope_id) {
                     field_types.push(field_type);
                 } else {
                     // Handle the error case where the field type could not be resolved

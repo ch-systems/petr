@@ -64,9 +64,7 @@ fn compile_snippet(code: String) -> Result<Lowerer, Vec<String>> {
     parse_errs.append(&mut new_parse_errs);
     let dependencies = vec![Dependency {
         key:          "stdlib".to_string(),
-        name:         Identifier {
-            id: interner.insert(Rc::from("std")),
-        },
+        name:         "std".into(),
         dependencies: vec![],
         ast:          dep_ast,
     }];

@@ -187,13 +187,10 @@ pub fn compile(
         interner = new_interner;
         parse_errs.append(&mut new_parse_errs);
         source_map = new_source_map;
-        let name = Identifier {
-            id: interner.insert(Rc::from(item.manifest.name)),
-        };
 
         dependencies.push(Dependency {
             key: item.key,
-            name,
+            name: item.manifest.name,
             dependencies: item.depends_on,
             ast,
         });

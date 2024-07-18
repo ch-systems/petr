@@ -3,7 +3,7 @@ use petr_utils::{Identifier, SpannedItem};
 
 use crate::{binder::ScopeKind, Bind, Binder, Item};
 
-impl Bind for TypeDeclaration {
+impl Bind for SpannedItem<&TypeDeclaration> {
     type Output = Option<(Identifier, Item)>;
 
     fn bind(
@@ -11,6 +11,17 @@ impl Bind for TypeDeclaration {
         binder: &mut Binder,
     ) -> Self::Output {
         binder.insert_type(self)
+    }
+}
+
+impl Bind for SpannedItem<TypeDeclaration> {
+    type Output = Option<(Identifier, Item)>;
+
+    fn bind(
+        &self,
+        binder: &mut Binder,
+    ) -> Self::Output {
+        binder.insert_type(&self.span().with_item(self.item()))
     }
 }
 
@@ -34,7 +45,7 @@ impl Bind for Expression {
             }) => binder.with_scope(ScopeKind::ExpressionWithBindings, |binder, scope_id| {
                 for binding in bindings.iter() {
                     let binding_id = binder.insert_binding(binding.clone());
-                    binder.insert_into_current_scope(binding.name.id, Item::Binding(binding_id));
+                    binder.insert_into_current_scope(binding.name.id, binding.name.span().with_item(Item::Binding(binding_id)));
                 }
                 expression.bind(binder);
                 binder.insert_expression(*expr_id, scope_id);
@@ -78,7 +89,19 @@ impl<T: Bind> Bind for SpannedItem<T> {
         self.item().bind(binder)
     }
 }
-impl Bind for FunctionDeclaration {
+
+impl Bind for SpannedItem<FunctionDeclaration> {
+    type Output = Option<(Identifier, Item)>;
+
+    fn bind(
+        &self,
+        binder: &mut Binder,
+    ) -> Self::Output {
+        binder.insert_function(&self.span().with_item(self.item()))
+    }
+}
+
+impl Bind for SpannedItem<&FunctionDeclaration> {
     type Output = Option<(Identifier, Item)>;
 
     fn bind(
@@ -104,7 +127,7 @@ impl Bind for ImportStatement {
         // the alias, if any, or the last path element if there is no alias
         let name = self.alias.unwrap_or_else(|| *self.path.iter().last().expect("should never be empty"));
 
-        binder.insert_into_current_scope(name.id, item.clone());
+        binder.insert_into_current_scope(name.id, name.span.with_item(item.clone()));
 
         if self.is_exported() {
             Some((name, item))

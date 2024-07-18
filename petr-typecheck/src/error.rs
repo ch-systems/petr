@@ -3,61 +3,18 @@ use thiserror::Error;
 
 use crate::PetrType;
 
-#[derive(Error, Debug, PartialEq, Clone)]
-pub struct TypeCheckError {
-    kind: TypeCheckErrorKind,
-    help: Option<String>,
-}
-
-impl std::fmt::Display for TypeCheckError {
-    fn fmt(
-        &self,
-        f: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
-        write!(f, "{}", self.kind)
-    }
-}
-
 #[derive(Error, Debug, Diagnostic, PartialEq, Clone)]
 pub enum TypeConstraintError {
     #[error("Failed to unify types: {0:?}, {1:?}")]
     UnificationFailure(PetrType, PetrType),
     #[error("Type {0:?} does not satisfy the constraints of type {1:?}")]
     FailedToSatisfy(PetrType, PetrType),
-}
-
-#[derive(Error, Debug, Diagnostic, PartialEq, Clone)]
-pub enum TypeCheckErrorKind {
-    #[error(transparent)]
-    UnificationFailure(#[from] TypeConstraintError),
-    // TODO: decl span as well as callsite span
     #[error("Function {function} takes {expected:?} arguments, but got {got:?} arguments.")]
     ArgumentCountMismatch { function: String, expected: usize, got: usize },
 }
 
-impl TypeCheckErrorKind {
-    pub fn into_err(self) -> TypeCheckError {
-        self.into()
-    }
-}
-
-impl TypeCheckError {
-    pub fn with_help(
-        mut self,
-        help: impl Into<String>,
-    ) -> Self {
-        self.help = Some(help.into());
-        self
-    }
-}
-
-impl From<TypeCheckErrorKind> for TypeCheckError {
-    fn from(kind: TypeCheckErrorKind) -> Self {
-        Self { kind, help: None }
-    }
-}
-
-impl Diagnostic for TypeCheckError {
+/*
+impl Diagnostic for TypeConstraintError {
     fn help<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
         self.help.as_ref().map(|x| -> Box<dyn std::fmt::Display> { Box::new(x) })
     }
@@ -90,3 +47,4 @@ impl Diagnostic for TypeCheckError {
         self.kind.diagnostic_source()
     }
 }
+*/

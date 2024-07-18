@@ -1,17 +1,27 @@
 mod error;
 
+// TODO(alex):
+// In type checking, store type-checked function calls with their name and signature as the key
+// and the bodies with different types as the value. Code generation then gets the monomorphiztion
+// with fully concrete types.
+//
+// associate spans with type constraints, so we know what originated the constraint
+
 use std::{collections::BTreeMap, rc::Rc};
 
-use error::{TypeCheckError, TypeCheckErrorKind, TypeConstraintError};
+use error::TypeConstraintError;
 pub use petr_bind::FunctionId;
 use petr_bind::TypeId;
 use petr_resolve::{Expr, ExprKind, QueryableResolvedItems};
 pub use petr_resolve::{Intrinsic as ResolvedIntrinsic, IntrinsicName, Literal};
-use petr_utils::{idx_map_key, Identifier, IndexMap, SymbolId};
+use petr_utils::{idx_map_key, Identifier, IndexMap, Span, SpannedItem, SymbolId};
+
+pub type TypeError = SpannedItem<TypeConstraintError>;
+pub type TResult<T> = Result<T, TypeError>;
 
 // TODO return QueryableTypeChecked instead of type checker
 // Clean up API so this is the only function exposed
-pub fn type_check(resolved: QueryableResolvedItems) -> (Vec<TypeCheckError>, TypeChecker) {
+pub fn type_check(resolved: QueryableResolvedItems) -> (Vec<TypeError>, TypeChecker) {
     let mut type_checker = TypeChecker::new(resolved);
     type_checker.fully_type_check();
     (type_checker.errors.clone(), type_checker)
@@ -49,33 +59,37 @@ impl From<&FunctionId> for TypeOrFunctionId {
 
 idx_map_key!(TypeVariable);
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct TypeConstraint {
     kind: TypeConstraintKind,
-    // TODO(pipe spans through for spanned type errors)
-    //     span
+    /// The span from which this type constraint originated
+    span: Span,
 }
 impl TypeConstraint {
     fn unify(
         t1: TypeVariable,
         t2: TypeVariable,
+        span: Span,
     ) -> Self {
         Self {
             kind: TypeConstraintKind::Unify(t1, t2),
+            span,
         }
     }
 
     fn satisfies(
         t1: TypeVariable,
         t2: TypeVariable,
+        span: Span,
     ) -> Self {
         Self {
             kind: TypeConstraintKind::Satisfies(t1, t2),
+            span,
         }
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum TypeConstraintKind {
     Unify(TypeVariable, TypeVariable),
     // constraint that lhs is a "subtype" or satisfies the typeclass constraints of "rhs"
@@ -117,16 +131,18 @@ impl TypeContext {
         &mut self,
         ty1: TypeVariable,
         ty2: TypeVariable,
+        span: Span,
     ) {
-        self.constraints.push(TypeConstraint::unify(ty1, ty2));
+        self.constraints.push(TypeConstraint::unify(ty1, ty2, span));
     }
 
     fn satisfies(
         &mut self,
         ty1: TypeVariable,
         ty2: TypeVariable,
+        span: Span,
     ) {
-        self.constraints.push(TypeConstraint::satisfies(ty1, ty2));
+        self.constraints.push(TypeConstraint::satisfies(ty1, ty2, span));
     }
 
     fn new_variable(&mut self) -> TypeVariable {
@@ -146,12 +162,13 @@ impl TypeContext {
 }
 
 pub struct TypeChecker {
-    ctx: TypeContext,
+    ctx:      TypeContext,
     type_map: BTreeMap<TypeOrFunctionId, TypeVariable>,
+
     typed_functions: BTreeMap<FunctionId, Function>,
-    errors: Vec<TypeCheckError>,
-    resolved: QueryableResolvedItems,
-    variable_scope: Vec<BTreeMap<Identifier, TypeVariable>>,
+    errors:          Vec<TypeError>,
+    resolved:        QueryableResolvedItems,
+    variable_scope:  Vec<BTreeMap<Identifier, TypeVariable>>,
 }
 
 #[derive(Clone, PartialEq, Debug, Eq, PartialOrd, Ord)]
@@ -257,24 +274,17 @@ impl TypeChecker {
     /// - satisfaction tries to make one type satisfy the constraints of another, although type
     ///   constraints don't exist in the language yet
     fn apply_constraints(&mut self) {
-        let mut errs = Vec::new();
         let constraints = self.ctx.constraints.clone();
         for constraint in constraints {
             match &constraint.kind {
                 TypeConstraintKind::Unify(t1, t2) => {
-                    if let Err(err) = self.apply_unify_constraint(*t1, *t2) {
-                        errs.push(err);
-                    }
+                    self.apply_unify_constraint(*t1, *t2, constraint.span);
                 },
                 TypeConstraintKind::Satisfies(t1, t2) => {
-                    if let Err(err) = self.apply_satisfies_constraint(*t1, *t2) {
-                        errs.push(err);
-                    }
+                    self.apply_satisfies_constraint(*t1, *t2, constraint.span);
                 },
             }
         }
-
-        errs.into_iter().for_each(|err| self.push_error(err));
     }
 
     /// Attempt to unify two types, returning an error if they cannot be unified
@@ -283,32 +293,34 @@ impl TypeChecker {
         &mut self,
         t1: TypeVariable,
         t2: TypeVariable,
-    ) -> Result<(), TypeConstraintError> {
+        span: Span,
+    ) {
         let ty1 = self.ctx.types.get(t1).clone();
         let ty2 = self.ctx.types.get(t2).clone();
         use PetrType::*;
         match (ty1, ty2) {
-            (a, b) if a == b => Ok(()),
-            (ErrorRecovery, _) | (_, ErrorRecovery) => Ok(()),
-            (Ref(a), _) => self.apply_unify_constraint(a, t2),
-            (_, Ref(b)) => self.apply_unify_constraint(t1, b),
+            (a, b) if a == b => (),
+            (ErrorRecovery, _) | (_, ErrorRecovery) => (),
+            (Ref(a), _) => self.apply_unify_constraint(a, t2, span),
+            (_, Ref(b)) => self.apply_unify_constraint(t1, b, span),
             (Infer(id), Infer(id2)) if id != id2 => {
                 // if two different inferred types are unified, replace the second with a reference
                 // to the first
                 self.ctx.update_type(t2, Ref(t1));
-                Ok(())
             },
             // instantiate the infer type with the known type
             (Infer(_), known) => {
+                println!("updating {:?} with {:?}", t1, known);
                 self.ctx.update_type(t1, known);
-                Ok(())
             },
             (known, Infer(_)) => {
+                println!("updating {:?} with {:?}", t1, known);
                 self.ctx.update_type(t2, known);
-                Ok(())
             },
             // lastly, if no unification rule exists for these two types, it is a mismatch
-            (a, b) => Err(TypeConstraintError::UnificationFailure(a, b)),
+            (a, b) => {
+                self.push_error(span.with_item(TypeConstraintError::UnificationFailure(a, b)));
+            },
         }
     }
 
@@ -318,17 +330,24 @@ impl TypeChecker {
         &mut self,
         t1: TypeVariable,
         t2: TypeVariable,
-    ) -> Result<(), TypeConstraintError> {
+        span: Span,
+    ) {
         let ty1 = self.ctx.types.get(t1);
         let ty2 = self.ctx.types.get(t2);
         use PetrType::*;
-        match (ty1, ty2) {
-            (a, b) if a == b => Ok(()),
-            (ErrorRecovery, _) | (_, ErrorRecovery) => Ok(()),
-            (Ref(a), _) => self.apply_satisfies_constraint(*a, t2),
-            (_, Ref(b)) => self.apply_satisfies_constraint(t1, *b),
-            (Infer(_), _) | (_, Infer(_)) => Ok(()),
-            (a, b) => todo!("Need to write satisfies rule for {:?} and {:?}", a, b),
+        match dbg!((ty1, ty2)) {
+            (a, b) if a == b => (),
+            (ErrorRecovery, _) | (_, ErrorRecovery) => (),
+            (Ref(a), _) => self.apply_satisfies_constraint(*a, t2, span),
+            (_, Ref(b)) => self.apply_satisfies_constraint(t1, *b, span),
+            // if t1 is a fully instantiated type, then t2 can be updated to be a reference to t1
+            (_known, Infer(_)) => {
+                self.ctx.update_type(t2, Ref(t1));
+            },
+            //            (Infer(_), _) | (_, Infer(_)) => Ok(()),
+            (a, b) => {
+                self.push_error(span.with_item(TypeConstraintError::FailedToSatisfy(a.clone(), b.clone())));
+            },
         }
     }
 
@@ -419,26 +438,27 @@ impl TypeChecker {
 
     fn push_error(
         &mut self,
-        e: impl Into<TypeCheckErrorKind>,
+        e: TypeError,
     ) {
-        let kind = e.into();
-        self.errors.push(kind.into());
+        self.errors.push(e);
     }
 
     pub fn unify(
         &mut self,
         ty1: TypeVariable,
         ty2: TypeVariable,
+        span: Span,
     ) {
-        self.ctx.unify(ty1, ty2);
+        self.ctx.unify(ty1, ty2, span);
     }
 
     pub fn satisfies(
         &mut self,
         ty1: TypeVariable,
         ty2: TypeVariable,
+        span: Span,
     ) {
-        self.ctx.satisfies(ty1, ty2);
+        self.ctx.satisfies(ty1, ty2, span);
     }
 
     fn get_untyped_function(
@@ -473,8 +493,8 @@ impl TypeChecker {
         &self,
         expr: &TypedExpr,
     ) -> TypeVariable {
-        use TypedExpr::*;
-        match expr {
+        use TypedExprKind::*;
+        match &expr.kind {
             FunctionCall { ty, .. } => *ty,
             Literal { ty, .. } => *ty,
             List { ty, .. } => *ty,
@@ -494,7 +514,7 @@ impl TypeChecker {
         expr: &TypedExpr,
     ) {
         let expr_ty = self.expr_ty(expr);
-        self.unify(ty, expr_ty);
+        self.unify(ty, expr_ty, expr.span());
     }
 
     pub fn string(&self) -> TypeVariable {
@@ -511,6 +531,10 @@ impl TypeChecker {
 
     pub fn error_recovery(&self) -> TypeVariable {
         self.ctx.error_recovery
+    }
+
+    pub fn errors(&self) -> &[TypeError] {
+        &self.errors
     }
 }
 
@@ -541,7 +565,19 @@ impl std::fmt::Debug for Intrinsic {
 }
 
 #[derive(Clone)]
-pub enum TypedExpr {
+pub struct TypedExpr {
+    pub kind: TypedExprKind,
+    span:     Span,
+}
+
+impl TypedExpr {
+    pub fn span(&self) -> Span {
+        self.span
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum TypedExprKind {
     FunctionCall {
         func: FunctionId,
         args: Vec<(Identifier, TypedExpr)>,
@@ -581,8 +617,8 @@ impl std::fmt::Debug for TypedExpr {
         &self,
         f: &mut std::fmt::Formatter<'_>,
     ) -> std::fmt::Result {
-        use TypedExpr::*;
-        match self {
+        use TypedExprKind::*;
+        match &self.kind {
             FunctionCall { func, args, .. } => {
                 write!(f, "function call to {} with args: ", func)?;
                 for (name, arg) in args {
@@ -614,8 +650,6 @@ impl std::fmt::Debug for TypedExpr {
     }
 }
 
-impl TypedExpr {}
-
 impl TypeCheck for Expr {
     type Output = TypedExpr;
 
@@ -623,24 +657,24 @@ impl TypeCheck for Expr {
         &self,
         ctx: &mut TypeChecker,
     ) -> Self::Output {
-        match &self.kind {
+        let kind = match &self.kind {
             ExprKind::Literal(lit) => {
                 let ty = ctx.convert_literal_to_type(lit);
-                TypedExpr::Literal { value: lit.clone(), ty }
+                TypedExprKind::Literal { value: lit.clone(), ty }
             },
             ExprKind::List(exprs) => {
                 if exprs.is_empty() {
                     let ty = ctx.unit();
-                    TypedExpr::List { elements: vec![], ty }
+                    TypedExprKind::List { elements: vec![], ty }
                 } else {
                     let type_checked_exprs = exprs.iter().map(|expr| expr.type_check(ctx)).collect::<Vec<_>>();
                     // unify the type of the first expr against everything else in the list
                     let first_ty = ctx.expr_ty(&type_checked_exprs[0]);
                     for expr in type_checked_exprs.iter().skip(1) {
                         let second_ty = ctx.expr_ty(expr);
-                        ctx.unify(first_ty, second_ty);
+                        ctx.unify(first_ty, second_ty, expr.span());
                     }
-                    TypedExpr::List {
+                    TypedExprKind::List {
                         elements: type_checked_exprs,
                         ty:       ctx.insert_type(PetrType::List(first_ty)),
                     }
@@ -651,50 +685,55 @@ impl TypeCheck for Expr {
                 // return the func return type
                 let func_decl = ctx.get_untyped_function(call.function).clone();
                 if call.args.len() != func_decl.params.len() {
-                    ctx.push_error(TypeCheckErrorKind::ArgumentCountMismatch {
+                    ctx.push_error(call.span().with_item(TypeConstraintError::ArgumentCountMismatch {
                         expected: func_decl.params.len(),
                         got:      call.args.len(),
                         function: ctx.realize_symbol(func_decl.name.id).to_string(),
-                    });
-                    return TypedExpr::ErrorRecovery;
+                    }));
+                    return TypedExpr {
+                        kind: TypedExprKind::ErrorRecovery,
+                        span: self.span,
+                    };
                 }
                 let mut args = Vec::with_capacity(call.args.len());
+                let mut arg_types = Vec::with_capacity(call.args.len());
 
                 for (arg, (param_name, param)) in call.args.iter().zip(func_decl.params.iter()) {
                     let arg_expr = arg.type_check(ctx);
                     let param_ty = ctx.to_type_var(param);
                     let arg_ty = ctx.expr_ty(&arg_expr);
-                    ctx.satisfies(arg_ty, param_ty);
+                    ctx.satisfies(arg_ty, param_ty, arg_expr.span());
+                    arg_types.push(arg_ty);
                     args.push((*param_name, arg_expr));
                 }
-                TypedExpr::FunctionCall {
+                TypedExprKind::FunctionCall {
                     func: call.function,
                     args,
                     ty: ctx.to_type_var(&func_decl.return_type),
                 }
             },
-            ExprKind::Unit => TypedExpr::Unit,
-            ExprKind::ErrorRecovery => TypedExpr::ErrorRecovery,
+            ExprKind::Unit => TypedExprKind::Unit,
+            ExprKind::ErrorRecovery => TypedExprKind::ErrorRecovery,
             ExprKind::Variable { name, ty } => {
                 // look up variable in scope
                 // find its expr return type
                 let var_ty = ctx.find_variable(*name).expect("variable not found in scope");
                 let ty = ctx.to_type_var(ty);
 
-                ctx.unify(var_ty, ty);
+                ctx.unify(var_ty, ty, name.span());
 
-                TypedExpr::Variable { ty, name: *name }
+                TypedExprKind::Variable { ty, name: *name }
             },
-            ExprKind::Intrinsic(intrinsic) => intrinsic.type_check(ctx),
+            ExprKind::Intrinsic(intrinsic) => return self.span.with_item(intrinsic.clone()).type_check(ctx),
             ExprKind::TypeConstructor(args) => {
                 // This ExprKind only shows up in the body of type constructor functions, and
                 // is basically a noop. The surrounding function decl will handle type checking for
                 // the type constructor.
                 let args = args.iter().map(|arg| arg.type_check(ctx)).collect::<Vec<_>>();
-                TypedExpr::TypeConstructor {
+                TypedExprKind::TypeConstructor {
                     // Right now we'll just give this a fresh variable and it'll get unified to the
                     // return type of the function. This should work....
-                    ty:   ctx.fresh_ty_var(),
+                    ty:   ctx.fresh_ty_var(), // todo!("alex: this was a fresh ty var, but it was being inferred to nothing. How can this be unified with the parent caller?"),
                     args: args.into_boxed_slice(),
                 }
             },
@@ -709,13 +748,15 @@ impl TypeCheck for Expr {
                         type_checked_bindings.push((binding.name, binding_ty));
                     }
 
-                    TypedExpr::ExprWithBindings {
+                    TypedExprKind::ExprWithBindings {
                         bindings:   type_checked_bindings,
                         expression: Box::new(expression.type_check(ctx)),
                     }
                 })
             },
-        }
+        };
+
+        TypedExpr { kind, span: self.span }
     }
 }
 
@@ -729,12 +770,12 @@ fn unify_basic_math_op(
     let lhs_ty = ctx.expr_ty(&lhs);
     let rhs_ty = ctx.expr_ty(&rhs);
     let int_ty = ctx.int();
-    ctx.unify(lhs_ty, int_ty);
-    ctx.unify(rhs_ty, int_ty);
+    ctx.unify(lhs_ty, int_ty, lhs.span());
+    ctx.unify(rhs_ty, int_ty, rhs.span());
     (lhs, rhs)
 }
 
-impl TypeCheck for ResolvedIntrinsic {
+impl TypeCheck for SpannedItem<ResolvedIntrinsic> {
     type Output = TypedExpr;
 
     fn type_check(
@@ -743,58 +784,58 @@ impl TypeCheck for ResolvedIntrinsic {
     ) -> Self::Output {
         use petr_resolve::IntrinsicName::*;
         let string_ty = ctx.string();
-        match self.intrinsic {
+        let kind = match self.item().intrinsic {
             Puts => {
-                if self.args.len() != 1 {
+                if self.item().args.len() != 1 {
                     todo!("puts arg len check");
                 }
                 // puts takes a single string and returns unit
-                let arg = self.args[0].type_check(ctx);
+                let arg = self.item().args[0].type_check(ctx);
                 ctx.unify_expr_return(string_ty, &arg);
-                TypedExpr::Intrinsic {
+                TypedExprKind::Intrinsic {
                     intrinsic: Intrinsic::Puts(Box::new(arg)),
                     ty:        ctx.unit(),
                 }
             },
             Add => {
-                if self.args.len() != 2 {
+                if self.item().args.len() != 2 {
                     todo!("add arg len check");
                 }
-                let (lhs, rhs) = unify_basic_math_op(&self.args[0], &self.args[1], ctx);
-                TypedExpr::Intrinsic {
+                let (lhs, rhs) = unify_basic_math_op(&self.item().args[0], &self.item().args[1], ctx);
+                TypedExprKind::Intrinsic {
                     intrinsic: Intrinsic::Add(Box::new(lhs), Box::new(rhs)),
                     ty:        ctx.int(),
                 }
             },
             Subtract => {
-                if self.args.len() != 2 {
+                if self.item().args.len() != 2 {
                     todo!("sub arg len check");
                 }
-                let (lhs, rhs) = unify_basic_math_op(&self.args[0], &self.args[1], ctx);
-                TypedExpr::Intrinsic {
+                let (lhs, rhs) = unify_basic_math_op(&self.item().args[0], &self.item().args[1], ctx);
+                TypedExprKind::Intrinsic {
                     intrinsic: Intrinsic::Subtract(Box::new(lhs), Box::new(rhs)),
                     ty:        ctx.int(),
                 }
             },
             Multiply => {
-                if self.args.len() != 2 {
+                if self.item().args.len() != 2 {
                     todo!("mult arg len check");
                 }
 
-                let (lhs, rhs) = unify_basic_math_op(&self.args[0], &self.args[1], ctx);
-                TypedExpr::Intrinsic {
+                let (lhs, rhs) = unify_basic_math_op(&self.item().args[0], &self.item().args[1], ctx);
+                TypedExprKind::Intrinsic {
                     intrinsic: Intrinsic::Multiply(Box::new(lhs), Box::new(rhs)),
                     ty:        ctx.int(),
                 }
             },
 
             Divide => {
-                if self.args.len() != 2 {
+                if self.item().args.len() != 2 {
                     todo!("Divide arg len check");
                 }
 
-                let (lhs, rhs) = unify_basic_math_op(&self.args[0], &self.args[1], ctx);
-                TypedExpr::Intrinsic {
+                let (lhs, rhs) = unify_basic_math_op(&self.item().args[0], &self.item().args[1], ctx);
+                TypedExprKind::Intrinsic {
                     intrinsic: Intrinsic::Divide(Box::new(lhs), Box::new(rhs)),
                     ty:        ctx.int(),
                 }
@@ -805,19 +846,21 @@ impl TypeCheck for ResolvedIntrinsic {
                 // will return `0` if the allocation fails
                 // in the future, this might change to _words_ of allocation,
                 // depending on the compilation target
-                if self.args.len() != 1 {
+                if self.item().args.len() != 1 {
                     todo!("malloc arg len check");
                 }
-                let arg = self.args[0].type_check(ctx);
+                let arg = self.item().args[0].type_check(ctx);
                 let arg_ty = ctx.expr_ty(&arg);
                 let int_ty = ctx.int();
-                ctx.unify(arg_ty, int_ty);
-                TypedExpr::Intrinsic {
+                ctx.unify(arg_ty, int_ty, arg.span());
+                TypedExprKind::Intrinsic {
                     intrinsic: Intrinsic::Malloc(Box::new(arg)),
                     ty:        int_ty,
                 }
             },
-        }
+        };
+
+        TypedExpr { kind, span: self.span() }
     }
 }
 
@@ -858,7 +901,11 @@ impl TypeCheck for petr_resolve::Function {
 
             let body_ty = ctx.expr_ty(&body);
 
-            ctx.unify(declared_return_type, body_ty);
+            if let ExprKind::TypeConstructor { .. } = self.body.kind {
+                println!("Unifying {:?} with {:?}", declared_return_type, body_ty);
+            }
+
+            ctx.unify(declared_return_type, body_ty, body.span());
 
             Function {
                 name: self.name,
@@ -890,7 +937,7 @@ impl TypeCheck for petr_resolve::FunctionCall {
 
         let arg_type = ctx.arrow_type(arg_types);
 
-        ctx.unify(func_type, arg_type);
+        ctx.unify(func_type, arg_type, self.span());
     }
 }
 
@@ -986,8 +1033,8 @@ mod tests {
             },
             PetrType::Arrow(tys) => {
                 let mut s = String::new();
-                s.push_str("(");
-                for (ix, ty) in tys.into_iter().enumerate() {
+                s.push('(');
+                for (ix, ty) in tys.iter().enumerate() {
                     let is_last = ix == tys.len() - 1;
 
                     s.push_str(&pretty_print_ty(ty, type_checker));
@@ -995,7 +1042,7 @@ mod tests {
                         s.push_str(" → ");
                     }
                 }
-                s.push_str(")");
+                s.push(')');
                 s
             },
             PetrType::ErrorRecovery => "error recovery".to_string(),
@@ -1009,8 +1056,8 @@ mod tests {
         type_checker: &TypeChecker,
     ) -> String {
         let interner = &type_checker.resolved.interner;
-        match typed_expr {
-            TypedExpr::ExprWithBindings { bindings, expression } => {
+        match &typed_expr.kind {
+            TypedExprKind::ExprWithBindings { bindings, expression } => {
                 let mut s = String::new();
                 for (name, expr) in bindings {
                     let ident = interner.get(name.id);
@@ -1023,13 +1070,13 @@ mod tests {
                 s.push_str(&format!("{:?} ({})", pretty_print_typed_expr(expression, type_checker), expr_ty));
                 s
             },
-            TypedExpr::Variable { name, ty } => {
+            TypedExprKind::Variable { name, ty } => {
                 let name = interner.get(name.id);
                 let ty = pretty_print_ty(ty, type_checker);
                 format!("variable {name}: {ty}")
             },
 
-            TypedExpr::FunctionCall { func, args, ty } => {
+            TypedExprKind::FunctionCall { func, args, ty } => {
                 let mut s = String::new();
                 s.push_str(&format!("function call to {} with args: ", func));
                 for (name, arg) in args {
@@ -1042,7 +1089,7 @@ mod tests {
                 s.push_str(&format!("returns {ty}"));
                 s
             },
-            TypedExpr::TypeConstructor { ty, .. } => format!("type constructor: {}", pretty_print_ty(ty, type_checker)),
+            TypedExprKind::TypeConstructor { ty, .. } => format!("type constructor: {}", pretty_print_ty(ty, type_checker)),
             otherwise => format!("{:?}", otherwise),
         }
     }

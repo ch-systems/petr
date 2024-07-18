@@ -5,10 +5,11 @@
 // - terminate instructions in correct places (end of entry point)
 // - comments on IR ops
 // - dead code elimination
+//
 
 use std::{collections::BTreeMap, rc::Rc};
 
-use petr_typecheck::{Function as TypeCheckedFunction, FunctionId, TypeChecker, TypeVariable, TypedExpr};
+use petr_typecheck::{Function as TypeCheckedFunction, FunctionId, TypeChecker, TypeVariable, TypedExpr, TypedExprKind};
 use petr_utils::{Identifier, IndexMap, SymbolId};
 
 mod error;
@@ -108,6 +109,7 @@ impl Lowerer {
             // will be the first thing popped off the stack
             // When we lower a function call, we push them onto the stack from first to last. Since
             // the stack is FILO, we reverse that order here.
+            println!("lowering func");
 
             for (param_name, param_ty) in func.params.iter().rev() {
                 // in order, assign parameters to registers
@@ -161,9 +163,9 @@ impl Lowerer {
         body: &TypedExpr,
         return_destination: ReturnDestination,
     ) -> Result<Vec<IrOpcode>, LoweringError> {
-        use TypedExpr::*;
+        use TypedExprKind::*;
 
-        match body {
+        match body.kind {
             Literal { value, ty: _ } => {
                 let data_label = self.insert_literal_data(value);
                 Ok(match return_destination {
@@ -171,6 +173,7 @@ impl Lowerer {
                 })
             },
             FunctionCall { func, args, ty: _ty } => {
+                println!("lowering call");
                 let mut buf = Vec::with_capacity(args.len());
                 // push all args onto the stack in order
                 for (_arg_name, arg_expr) in args {
@@ -227,6 +230,7 @@ impl Lowerer {
                 let mut buf = vec![];
                 // the memory model for types is currently not finalized,
                 // but for now, it is just sequential memory that is word-aligned
+                println!("lowering type constructor");
                 let ir_ty = self.to_ir_type(*ty);
                 let size_of_aggregate_type = ir_ty.size();
                 let ReturnDestination::Reg(return_destination) = return_destination;
@@ -279,7 +283,7 @@ impl Lowerer {
             Arrow(_) => todo!(),
             ErrorRecovery => todo!(),
             List(_) => todo!(),
-            Infer(_) => todo!("err: inference should be resolved by now"),
+            Infer(_) => todo!("err for var {param_ty}: inference should be resolved by now"),
         }
     }
 
@@ -446,13 +450,20 @@ mod tests {
         let (ast, errs, interner, source_map) = parser.into_result();
         if !errs.is_empty() {
             errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
-            panic!("fmt failed: code didn't parse");
+            panic!("ir gen failed: code didn't parse");
         }
         let (errs, resolved) = resolve_symbols(ast, interner, Default::default());
         if !errs.is_empty() {
             dbg!(&errs);
         }
         let type_checker = TypeChecker::new(resolved);
+
+        let typecheck_errors = type_checker.errors();
+        if !typecheck_errors.is_empty() {
+            typecheck_errors.iter().for_each(|err| eprintln!("{:?}", err));
+            panic!("ir gen failed: code didn't typecheck");
+        }
+
         let lowerer = Lowerer::new(type_checker);
         let res = lowerer.pretty_print();
 

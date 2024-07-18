@@ -6,7 +6,7 @@ pub struct Dependency {
     /// the manifest file
     pub key:          String,
     /// The name of the package as given in the manifest file
-    pub name:         petr_utils::Identifier,
+    pub name:         String,
     /// The keys of any packages that this package depends on
     pub dependencies: Vec<String>,
     /// The AST of the source code of this package
