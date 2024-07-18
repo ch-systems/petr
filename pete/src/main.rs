@@ -1,7 +1,6 @@
 use std::{
     fs,
     path::{Path, PathBuf},
-    rc::Rc,
 };
 
 use clap::Parser as ClapParser;

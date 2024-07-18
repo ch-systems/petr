@@ -613,8 +613,8 @@ mod tests {
                 1: Module test (parent scopeid0):
                   add: Function FunctionId(0)
                 2: Function (parent scopeid1):
-                  a: FunctionParameter Named(Identifier { id: SymbolId(3) })
-                  b: FunctionParameter Named(Identifier { id: SymbolId(3) })
+                  a: FunctionParameter Named(Identifier { id: SymbolId(3), span: Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(19), length: 3 } } })
+                  b: FunctionParameter Named(Identifier { id: SymbolId(3), span: Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(30), length: 3 } } })
             "#]],
         );
     }
@@ -630,8 +630,8 @@ mod tests {
                 1: Module test (parent scopeid0):
                   add: Function FunctionId(0)
                 2: Function (parent scopeid1):
-                  a: FunctionParameter Named(Identifier { id: SymbolId(3) })
-                  b: FunctionParameter Named(Identifier { id: SymbolId(3) })
+                  a: FunctionParameter Named(Identifier { id: SymbolId(3), span: Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(19), length: 3 } } })
+                  b: FunctionParameter Named(Identifier { id: SymbolId(3), span: Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(31), length: 3 } } })
             "#]],
         );
     }

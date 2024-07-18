@@ -41,7 +41,7 @@ pub struct Module {
 impl Module {
     fn span_pointing_to_beginning_of_module(&self) -> petr_utils::Span {
         let first = self.nodes.first().expect("Module was empty");
-        let mut span = first.span();
+        let span = first.span();
         // make this span just point to a single character
         span.zero_length()
     }

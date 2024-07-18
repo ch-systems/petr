@@ -165,7 +165,7 @@ impl Lowerer {
     ) -> Result<Vec<IrOpcode>, LoweringError> {
         use TypedExprKind::*;
 
-        match body.kind {
+        match &body.kind {
             Literal { value, ty: _ } => {
                 let data_label = self.insert_literal_data(value);
                 Ok(match return_destination {

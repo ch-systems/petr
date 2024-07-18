@@ -1090,7 +1090,7 @@ mod tests {
                 s
             },
             TypedExprKind::TypeConstructor { ty, .. } => format!("type constructor: {}", pretty_print_ty(ty, type_checker)),
-            otherwise => format!("{:?}", otherwise),
+            _otherwise => format!("{:?}", typed_expr),
         }
     }
 
