@@ -1,6 +1,8 @@
 use petr_typecheck::FunctionId;
 use petr_utils::idx_map_key;
 
+use crate::MonomorphizedFunctionId;
+
 idx_map_key!(FunctionLabel);
 
 idx_map_key!(DataLabel);
@@ -40,7 +42,7 @@ macro_rules! ir_ops {
 }
 
 ir_ops! {
-    JumpImmediate "jumpi" FunctionId: imm;
+    JumpImmediate "jumpi" MonomorphizedFunctionId: imm;
     Jump "jump" Reg:  dest;
     Add "add" Reg: dest, Reg: lhs, Reg: rhs;
     Multiply "mult" Reg: dest, Reg: lhs, Reg: rhs;
@@ -50,7 +52,7 @@ ir_ops! {
     StackPop "pop" TypedReg: dest;
     StackPush "push" TypedReg: src;
     Intrinsic "intrinsic" Intrinsic: intr;
-    FunctionLabel "func" FunctionId: label;
+    FunctionLabel "func" MonomorphizedFunctionId: label;
     LoadImmediate "imm" Reg: dest, u64: imm;
     Copy "cp" Reg: dest, Reg: src;
     Label "label" LabelId: label;
