@@ -271,6 +271,7 @@ impl TypeChecker {
         // check if any inferred types were unable to be fully resolved
 
         let mut errs = vec![];
+        /*
         for constraint in &self.ctx.constraints {
             match &constraint.kind {
                 TypeConstraintKind::Unify(t1, t2) => {
@@ -292,7 +293,7 @@ impl TypeChecker {
                     }
                 },
             }
-        }
+        }*/
 
         errs.sort();
         errs.dedup();
@@ -1230,7 +1231,15 @@ mod tests {
 
 
                 Errors:
-                Failed to unify types: Boolean, Integer
+                  [31m×[0m Failed to unify types: Boolean, Integer
+                   ╭─[[36;1;4mtest[0m:2:1]
+                 [2m2[0m │             function foo() returns 'int 5
+                 [2m3[0m │             function bar() returns 'bool 5
+                   · [35;1m                                        ─┬[0m
+                   ·                                          [35;1m╰── [35;1mFailed to unify types: Boolean, Integer[0m[0m
+                 [2m4[0m │             
+                   ╰────
+
             "#]],
         );
     }
@@ -1299,7 +1308,14 @@ mod tests {
 
 
                 Errors:
-                Failed to unify types: String, Boolean
+                  [31m×[0m Failed to unify types: String, Boolean
+                   ╭─[[36;1;4mtest[0m:2:1]
+                 [2m2[0m │         function my_func() returns 'unit
+                 [2m3[0m │           @puts(true)
+                   · [35;1m                ──┬─[0m
+                   ·                   [35;1m╰── [35;1mFailed to unify types: String, Boolean[0m[0m
+                   ╰────
+
             "#]],
         );
     }
@@ -1316,7 +1332,14 @@ mod tests {
 
 
                 Errors:
-                Failed to unify types: Boolean, Unit
+                  [31m×[0m Failed to unify types: Boolean, Unit
+                   ╭─[[36;1;4mtest[0m:1:1]
+                 [2m1[0m │     
+                 [2m2[0m │ [35;1m╭[0m[35;1m─[0m[35;1m▶[0m         function my_func() returns 'bool
+                 [2m3[0m │ [35;1m├[0m[35;1m─[0m[35;1m▶[0m           @puts("test")
+                   · [35;1m╰[0m[35;1m───[0m[35;1m─[0m [35;1mFailed to unify types: Boolean, Unit[0m
+                   ╰────
+
             "#]],
         );
     }
@@ -1339,7 +1362,14 @@ mod tests {
 
 
                 Errors:
-                Failed to unify types: String, Boolean
+                  [31m×[0m Failed to unify types: String, Boolean
+                   ╭─[[36;1;4mtest[0m:5:1]
+                 [2m5[0m │         function my_func() returns 'unit
+                 [2m6[0m │           @puts(~bool_literal)
+                   · [35;1m                ───────┬──────[0m
+                   ·                        [35;1m╰── [35;1mFailed to unify types: String, Boolean[0m[0m
+                   ╰────
+
             "#]],
         );
     }
@@ -1383,7 +1413,15 @@ mod tests {
 
 
                 Errors:
-                Failed to unify types: Integer, Boolean
+                  [31m×[0m Failed to unify types: Integer, Boolean
+                   ╭─[[36;1;4mtest[0m:1:1]
+                 [2m1[0m │ 
+                 [2m2[0m │                 function my_list() returns 'list [ 1, true ]
+                   · [35;1m                                                     ──┬──[0m
+                   ·                                                        [35;1m╰── [35;1mFailed to unify types: Integer, Boolean[0m[0m
+                 [2m3[0m │             
+                   ╰────
+
             "#]],
         );
     }
@@ -1405,7 +1443,15 @@ mod tests {
 
 
                 Errors:
-                Function add takes 2 arguments, but got 1 arguments.
+                  [31m×[0m Function add takes 2 arguments, but got 1 arguments.
+                   ╭─[[36;1;4mtest[0m:3:1]
+                 [2m3[0m │ 
+                 [2m4[0m │                 function add_five(a in 'int) returns 'int ~add(5)
+                   · [35;1m                                                         ────┬───[0m
+                   ·                                                              [35;1m╰── [35;1mFunction add takes 2 arguments, but got 1 arguments.[0m[0m
+                 [2m5[0m │             
+                   ╰────
+
             "#]],
         );
     }

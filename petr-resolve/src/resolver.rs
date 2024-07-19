@@ -77,10 +77,12 @@ impl Resolve for petr_ast::Ty {
 pub struct FunctionCall {
     pub function: FunctionId,
     pub args:     Vec<Expr>,
+    pub span:     Span,
 }
+
 impl FunctionCall {
     pub fn span(&self) -> petr_utils::Span {
-        todo!()
+        self.span
     }
 }
 
@@ -408,12 +410,13 @@ impl Resolve for SpannedItem<Expression> {
                 let call = FunctionCall {
                     function,
                     args: vec![lhs.resolve(resolver, binder, scope_id)?, rhs.resolve(resolver, binder, scope_id)?],
+                    span: self.span(),
                 };
 
                 Expr::new(ExprKind::FunctionCall(call), self.span())
             },
             Expression::FunctionCall(decl) => {
-                let resolved_call = decl.resolve(resolver, binder, scope_id)?;
+                let resolved_call = self.span().with_item(decl).resolve(resolver, binder, scope_id)?;
 
                 Expr::new(ExprKind::FunctionCall(resolved_call), self.span())
             },
@@ -552,7 +555,7 @@ impl<T: Resolve> Resolve for SpannedItem<T> {
     }
 }
 
-impl Resolve for petr_ast::FunctionCall {
+impl Resolve for SpannedItem<&petr_ast::FunctionCall> {
     type Resolved = FunctionCall;
 
     fn resolve(
@@ -561,7 +564,7 @@ impl Resolve for petr_ast::FunctionCall {
         binder: &Binder,
         scope_id: ScopeId,
     ) -> Option<Self::Resolved> {
-        let resolved_id = match self.func_name.resolve(resolver, binder, scope_id) {
+        let resolved_id = match self.item().func_name.resolve(resolver, binder, scope_id) {
             Some(either::Either::Left(func)) => func,
             Some(either::Either::Right(_ty)) => {
                 todo!("push error -- tried to call ty as func");
@@ -570,6 +573,7 @@ impl Resolve for petr_ast::FunctionCall {
         };
 
         let args = self
+            .item()
             .args
             .iter()
             .map(|x| match x.resolve(resolver, binder, scope_id) {
@@ -578,7 +582,11 @@ impl Resolve for petr_ast::FunctionCall {
             })
             .collect();
 
-        Some(FunctionCall { function: resolved_id, args })
+        Some(FunctionCall {
+            function: resolved_id,
+            args,
+            span: self.span(),
+        })
     }
 }
 

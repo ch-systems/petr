@@ -531,19 +531,11 @@ mod tests {
                 0: Int64(42)
 
                 ; PROGRAM_SECTION
-                	ENTRY: 1
-                function 0:
-                 0	pop v0
-                 1	pop v1
-                 2	cp v3 v1
-                 3	cp v4 v0
-                 4	add v2 v3 v4
-                 5	cp rr(func return value) v2
-                 6	ret
-                ENTRY: function 1:
-                 7	ld v5 datalabel0
-                 8	cp rr(func return value) v5
-                 9	ret
+                	ENTRY: 0
+                ENTRY: function 0:
+                 0	ld v0 datalabel0
+                 1	cp rr(func return value) v0
+                 2	ret
             "#]],
         );
     }
@@ -559,21 +551,13 @@ mod tests {
                 0: String("hello")
 
                 ; PROGRAM_SECTION
-                	ENTRY: 1
-                function 0:
-                 0	pop v0
-                 1	pop v1
-                 2	cp v3 v1
-                 3	cp v4 v0
-                 4	add v2 v3 v4
-                 5	cp rr(func return value) v2
-                 6	ret
-                ENTRY: function 1:
-                 7	ld v6 datalabel0
-                 8	intrinsic @puts(v6)
-                 9	imm v5 0
-                 10	cp rr(func return value) v5
-                 11	ret
+                	ENTRY: 0
+                ENTRY: function 0:
+                 0	ld v1 datalabel0
+                 1	intrinsic @puts(v1)
+                 2	imm v0 0
+                 3	cp rr(func return value) v0
+                 4	ret
             "#]],
         );
     }
@@ -592,26 +576,18 @@ mod tests {
                 ; PROGRAM_SECTION
                 	ENTRY: 1
                 function 0:
-                 0	pop v0
-                 1	pop v1
-                 2	cp v3 v1
-                 3	cp v4 v0
-                 4	add v2 v3 v4
-                 5	cp rr(func return value) v2
-                 6	ret
+                 0	pop v2
+                 1	ld v3 datalabel1
+                 2	cp rr(func return value) v3
+                 3	ret
                 ENTRY: function 1:
-                 7	ld v6 datalabel0
-                 8	push v6
-                 9	ppc
-                 10	jumpi functionid2
-                 11	cp v5 rr(func return value)
-                 12	cp rr(func return value) v5
-                 13	ret
-                function 2:
-                 14	pop v7
-                 15	ld v8 datalabel1
-                 16	cp rr(func return value) v8
-                 17	ret
+                 4	ld v1 datalabel0
+                 5	push v1
+                 6	ppc
+                 7	jumpi monomorphizedfunctionid0
+                 8	cp v0 rr(func return value)
+                 9	cp rr(func return value) v0
+                 10	ret
             "#]],
         );
     }
@@ -630,34 +606,34 @@ mod tests {
                 ; PROGRAM_SECTION
                 	ENTRY: 2
                 function 0:
-                 0	pop v0
-                 1	pop v1
-                 2	cp v3 v1
-                 3	cp v4 v0
-                 4	add v2 v3 v4
-                 5	cp rr(func return value) v2
+                 0	pop v8
+                 1	pop v9
+                 2	cp v11 v9
+                 3	cp v12 v8
+                 4	add v10 v11 v12
+                 5	cp rr(func return value) v10
                  6	ret
                 function 1:
-                 7	pop v5
-                 8	pop v6
-                 9	cp v8 v6
-                 10	push v8
-                 11	cp v9 v5
-                 12	push v9
+                 7	pop v3
+                 8	pop v4
+                 9	cp v6 v4
+                 10	push v6
+                 11	cp v7 v3
+                 12	push v7
                  13	ppc
-                 14	jumpi functionid0
-                 15	cp v7 rr(func return value)
-                 16	cp rr(func return value) v7
+                 14	jumpi monomorphizedfunctionid0
+                 15	cp v5 rr(func return value)
+                 16	cp rr(func return value) v5
                  17	ret
                 ENTRY: function 2:
-                 18	ld v11 datalabel0
-                 19	push v11
-                 20	ld v12 datalabel1
-                 21	push v12
+                 18	ld v1 datalabel0
+                 19	push v1
+                 20	ld v2 datalabel1
+                 21	push v2
                  22	ppc
-                 23	jumpi functionid1
-                 24	cp v10 rr(func return value)
-                 25	cp rr(func return value) v10
+                 23	jumpi monomorphizedfunctionid1
+                 24	cp v0 rr(func return value)
+                 25	cp rr(func return value) v0
                  26	ret
             "#]],
         );
@@ -676,31 +652,23 @@ mod tests {
                 1: Int64(2)
 
                 ; PROGRAM_SECTION
-                	ENTRY: 2
+                	ENTRY: 1
                 function 0:
-                 0	pop v0
-                 1	pop v1
-                 2	cp v3 v1
-                 3	cp v4 v0
-                 4	add v2 v3 v4
-                 5	cp rr(func return value) v2
-                 6	ret
-                function 1:
-                 7	pop v5
-                 8	pop v6
-                 9	cp v7 v6
-                 10	cp rr(func return value) v7
-                 11	ret
-                ENTRY: function 2:
-                 12	ld v9 datalabel0
-                 13	push v9
-                 14	ld v10 datalabel1
-                 15	push v10
-                 16	ppc
-                 17	jumpi functionid1
-                 18	cp v8 rr(func return value)
-                 19	cp rr(func return value) v8
-                 20	ret
+                 0	pop v3
+                 1	pop v4
+                 2	cp v5 v4
+                 3	cp rr(func return value) v5
+                 4	ret
+                ENTRY: function 1:
+                 5	ld v1 datalabel0
+                 6	push v1
+                 7	ld v2 datalabel1
+                 8	push v2
+                 9	ppc
+                 10	jumpi monomorphizedfunctionid0
+                 11	cp v0 rr(func return value)
+                 12	cp rr(func return value) v0
+                 13	ret
             "#]],
         );
     }
@@ -717,56 +685,56 @@ mod tests {
                 "#,
             expect![[r#"
                 ; DATA_SECTION
-                0: Int64(10)
-                1: Int64(20)
-                2: Int64(1)
-                3: Int64(2)
+                0: Int64(1)
+                1: Int64(2)
+                2: Int64(10)
+                3: Int64(20)
 
                 ; PROGRAM_SECTION
                 	ENTRY: 2
                 function 0:
-                 0	pop v0
-                 1	pop v1
-                 2	cp v3 v1
-                 3	cp v4 v0
-                 4	add v2 v3 v4
-                 5	cp rr(func return value) v2
+                 0	pop v14
+                 1	pop v15
+                 2	cp v17 v15
+                 3	cp v18 v14
+                 4	add v16 v17 v18
+                 5	cp rr(func return value) v16
                  6	ret
                 function 1:
-                 7	pop v5
-                 8	pop v6
-                 9	ld v8 datalabel0
-                 10	ld v9 datalabel1
-                 11	cp v10 v8
-                 12	push v10
-                 13	cp v12 v9
-                 14	push v12
-                 15	cp v14 v6
-                 16	push v14
-                 17	cp v15 v5
-                 18	push v15
+                 7	pop v3
+                 8	pop v4
+                 9	ld v6 datalabel2
+                 10	ld v7 datalabel3
+                 11	cp v8 v6
+                 12	push v8
+                 13	cp v10 v7
+                 14	push v10
+                 15	cp v12 v4
+                 16	push v12
+                 17	cp v13 v3
+                 18	push v13
                  19	ppc
-                 20	jumpi functionid0
-                 21	cp v13 rr(func return value)
-                 22	push v13
+                 20	jumpi monomorphizedfunctionid0
+                 21	cp v11 rr(func return value)
+                 22	push v11
                  23	ppc
-                 24	jumpi functionid0
-                 25	cp v11 rr(func return value)
-                 26	push v11
+                 24	jumpi monomorphizedfunctionid0
+                 25	cp v9 rr(func return value)
+                 26	push v9
                  27	ppc
-                 28	jumpi functionid0
-                 29	cp v7 rr(func return value)
-                 30	cp rr(func return value) v7
+                 28	jumpi monomorphizedfunctionid0
+                 29	cp v5 rr(func return value)
+                 30	cp rr(func return value) v5
                  31	ret
                 ENTRY: function 2:
-                 32	ld v17 datalabel2
-                 33	push v17
-                 34	ld v18 datalabel3
-                 35	push v18
+                 32	ld v1 datalabel0
+                 33	push v1
+                 34	ld v2 datalabel1
+                 35	push v2
                  36	ppc
-                 37	jumpi functionid1
-                 38	cp v16 rr(func return value)
-                 39	cp rr(func return value) v16
+                 37	jumpi monomorphizedfunctionid1
+                 38	cp v0 rr(func return value)
+                 39	cp rr(func return value) v0
                  40	ret
             "#]],
         );
@@ -786,66 +754,66 @@ mod tests {
                 "#,
             expect![[r#"
                 ; DATA_SECTION
-                0: Int64(20)
-                1: Int64(30)
-                2: Int64(42)
-                3: Int64(1)
-                4: Int64(2)
+                0: Int64(1)
+                1: Int64(2)
+                2: Int64(20)
+                3: Int64(30)
+                4: Int64(42)
 
                 ; PROGRAM_SECTION
                 	ENTRY: 2
                 function 0:
-                 0	pop v0
-                 1	pop v1
-                 2	cp v3 v1
-                 3	cp v4 v0
-                 4	add v2 v3 v4
-                 5	cp rr(func return value) v2
+                 0	pop v19
+                 1	pop v20
+                 2	cp v22 v20
+                 3	cp v23 v19
+                 4	add v21 v22 v23
+                 5	cp rr(func return value) v21
                  6	ret
                 function 1:
-                 7	pop v5
-                 8	pop v6
-                 9	cp v8 v6
-                 10	cp v9 v5
-                 11	ld v10 datalabel0
-                 12	ld v11 datalabel1
-                 13	ld v12 datalabel2
-                 14	cp v13 v8
-                 15	push v13
-                 16	cp v15 v9
-                 17	push v15
-                 18	cp v17 v10
-                 19	push v17
-                 20	cp v19 v11
-                 21	push v19
-                 22	cp v20 v12
-                 23	push v20
+                 7	pop v3
+                 8	pop v4
+                 9	cp v6 v4
+                 10	cp v7 v3
+                 11	ld v8 datalabel2
+                 12	ld v9 datalabel3
+                 13	ld v10 datalabel4
+                 14	cp v11 v6
+                 15	push v11
+                 16	cp v13 v7
+                 17	push v13
+                 18	cp v15 v8
+                 19	push v15
+                 20	cp v17 v9
+                 21	push v17
+                 22	cp v18 v10
+                 23	push v18
                  24	ppc
-                 25	jumpi functionid0
-                 26	cp v18 rr(func return value)
-                 27	push v18
+                 25	jumpi monomorphizedfunctionid0
+                 26	cp v16 rr(func return value)
+                 27	push v16
                  28	ppc
-                 29	jumpi functionid0
-                 30	cp v16 rr(func return value)
-                 31	push v16
+                 29	jumpi monomorphizedfunctionid0
+                 30	cp v14 rr(func return value)
+                 31	push v14
                  32	ppc
-                 33	jumpi functionid0
-                 34	cp v14 rr(func return value)
-                 35	push v14
+                 33	jumpi monomorphizedfunctionid0
+                 34	cp v12 rr(func return value)
+                 35	push v12
                  36	ppc
-                 37	jumpi functionid0
-                 38	cp v7 rr(func return value)
-                 39	cp rr(func return value) v7
+                 37	jumpi monomorphizedfunctionid0
+                 38	cp v5 rr(func return value)
+                 39	cp rr(func return value) v5
                  40	ret
                 ENTRY: function 2:
-                 41	ld v22 datalabel3
-                 42	push v22
-                 43	ld v23 datalabel4
-                 44	push v23
+                 41	ld v1 datalabel0
+                 42	push v1
+                 43	ld v2 datalabel1
+                 44	push v2
                  45	ppc
-                 46	jumpi functionid1
-                 47	cp v21 rr(func return value)
-                 48	cp rr(func return value) v21
+                 46	jumpi monomorphizedfunctionid1
+                 47	cp v0 rr(func return value)
+                 48	cp rr(func return value) v0
                  49	ret
             "#]],
         );
