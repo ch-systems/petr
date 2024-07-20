@@ -4,6 +4,24 @@ use miette::{Diagnostic, LabeledSpan, SourceSpan};
 #[derive(PartialEq, Eq, Clone)]
 pub struct SpannedItem<T>(T, Span);
 
+impl<T: PartialOrd> PartialOrd for SpannedItem<T> {
+    fn partial_cmp(
+        &self,
+        other: &Self,
+    ) -> Option<std::cmp::Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+
+impl<T: Ord> Ord for SpannedItem<T> {
+    fn cmp(
+        &self,
+        other: &Self,
+    ) -> std::cmp::Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
 impl<T> SpannedItem<T> {
     pub fn item(&self) -> &T {
         &self.0
@@ -188,6 +206,13 @@ impl Span {
 
     pub fn source(&self) -> SourceId {
         self.source
+    }
+
+    pub fn zero_length(&self) -> Self {
+        Span {
+            source: self.source,
+            span:   SourceSpan::new(self.span.offset().into(), 0.into()),
+        }
     }
 }
 

@@ -5,11 +5,12 @@
 // - terminate instructions in correct places (end of entry point)
 // - comments on IR ops
 // - dead code elimination
+//
 
 use std::{collections::BTreeMap, rc::Rc};
 
-use petr_typecheck::{Function as TypeCheckedFunction, FunctionId, TypeChecker, TypeVariable, TypedExpr};
-use petr_utils::{Identifier, IndexMap, SymbolId};
+use petr_typecheck::{FunctionId, TypeChecker, TypeVariable, TypedExpr, TypedExprKind};
+use petr_utils::{idx_map_key, Identifier, IndexMap, SymbolId};
 
 mod error;
 mod opcodes;
@@ -25,20 +26,26 @@ pub fn lower(checker: TypeChecker) -> Result<(DataSection, Vec<IrOpcode>), Lower
 
 // TODO: fully typed functions
 pub struct Function {
-    label: FunctionLabel,
-    body:  Vec<IrOpcode>,
+    body: Vec<IrOpcode>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct FunctionSignature {
+    label:          FunctionId,
+    concrete_types: Vec<IrTy>,
+}
+
+idx_map_key!(MonomorphizedFunctionId);
 
 pub type DataSection = IndexMap<DataLabel, DataSectionEntry>;
 /// Lowers typed nodes into an IR suitable for code generation.
 pub struct Lowerer {
     data_section: DataSection,
-    entry_point: Option<FunctionId>,
-    function_definitions: BTreeMap<FunctionId, Function>,
+    entry_point: Option<MonomorphizedFunctionId>,
     reg_assigner: usize,
-    function_label_assigner: usize,
     type_checker: TypeChecker,
     variables_in_scope: Vec<BTreeMap<SymbolId, Reg>>,
+    monomorphized_functions: IndexMap<MonomorphizedFunctionId, (FunctionSignature, Function)>,
 }
 
 #[derive(Debug, Clone)]
@@ -50,22 +57,29 @@ pub enum DataSectionEntry {
 
 impl Lowerer {
     pub fn new(type_checker: TypeChecker) -> Self {
+        // if there is an entry point, set that
+        // set entry point to func named main
+        let entry_point = type_checker
+            .functions()
+            .find(|(_func_id, func)| &*type_checker.get_symbol(func.name.id) == "main");
+
         let mut lowerer = Self {
             data_section: IndexMap::default(),
-            entry_point: {
-                // set entry point to func named main
-                type_checker
-                    .functions()
-                    .find(|(_func_id, func)| &*type_checker.get_symbol(func.name.id) == "main")
-                    .map(|(id, _)| id)
-            },
-            function_definitions: BTreeMap::default(),
+            entry_point: None,
             reg_assigner: 0,
-            function_label_assigner: 0,
             type_checker,
             variables_in_scope: Default::default(),
+            monomorphized_functions: Default::default(),
         };
-        lowerer.lower_all_functions().expect("errors should get caught before lowering");
+
+        let monomorphized_entry_point_id = entry_point.map(|(id, _func)| {
+            lowerer
+                .monomorphize_function(MonomorphizedFunction { id, params: vec![] })
+                .expect("handle errors better")
+        });
+
+        lowerer.entry_point = monomorphized_entry_point_id;
+        //        lowerer.lower_entry_point().expect("handle errors better");
         lowerer
     }
 
@@ -81,27 +95,25 @@ impl Lowerer {
             program_section.push(IrOpcode::ReturnImmediate(0));
         }
 
-        for (label, Function { label: _label, mut body }) in self.function_definitions {
+        for (label, (_signature, mut function)) in self.monomorphized_functions.into_iter() {
             program_section.push(IrOpcode::FunctionLabel(label));
-            program_section.append(&mut body);
+            program_section.append(&mut function.body);
         }
 
         (self.data_section.clone(), program_section)
     }
 
-    fn new_function_label(&mut self) -> FunctionLabel {
-        let label = self.function_label_assigner;
-        self.function_label_assigner += 1;
-        FunctionLabel::from(label)
-    }
-
     /// this lowers a function declaration.
-    fn lower_function(
+    fn monomorphize_function(
         &mut self,
-        id: FunctionId,
-        func: TypeCheckedFunction,
-    ) -> Result<(), LoweringError> {
-        let func_label = self.new_function_label();
+        func: MonomorphizedFunction,
+    ) -> Result<MonomorphizedFunctionId, LoweringError> {
+        if let Some(previously_monomorphized_definition) = self.monomorphized_functions.iter().find(|(_id, (sig, _))| *sig == func.signature()) {
+            return Ok(previously_monomorphized_definition.0);
+        }
+
+        let function_definition_body = self.type_checker.get_function(&func.id).body.clone();
+
         let mut buf = vec![];
         self.with_variable_context(|ctx| -> Result<_, _> {
             // Pop parameters off the stack in reverse order -- the last parameter for the function
@@ -111,11 +123,11 @@ impl Lowerer {
 
             for (param_name, param_ty) in func.params.iter().rev() {
                 // in order, assign parameters to registers
-                if fits_in_reg(param_ty) {
+                if param_ty.fits_in_reg() {
                     // load from stack into register
                     let param_reg = ctx.fresh_reg();
                     let ty_reg = TypedReg {
-                        ty:  ctx.to_ir_type(param_ty),
+                        ty:  param_ty.clone(),
                         reg: param_reg,
                     };
                     buf.push(IrOpcode::StackPop(ty_reg));
@@ -129,7 +141,7 @@ impl Lowerer {
 
             let return_reg = ctx.fresh_reg();
             let return_dest = ReturnDestination::Reg(return_reg);
-            let mut expr_body = ctx.lower_expr(&func.body, return_dest)?;
+            let mut expr_body = ctx.lower_expr(&function_definition_body, return_dest)?;
             buf.append(&mut expr_body);
             // load return value into func return register
 
@@ -138,14 +150,13 @@ impl Lowerer {
             // jump back to caller
             buf.push(IrOpcode::Return());
 
-            ctx.function_definitions.insert(
-                id,
-                Function {
-                    body:  buf,
-                    label: func_label,
+            Ok(ctx.monomorphized_functions.insert((
+                FunctionSignature {
+                    label:          func.id,
+                    concrete_types: func.params.iter().map(|(_name, ty)| ty.clone()).collect(),
                 },
-            );
-            Ok(())
+                Function { body: buf },
+            )))
         })
     }
 
@@ -160,9 +171,9 @@ impl Lowerer {
         body: &TypedExpr,
         return_destination: ReturnDestination,
     ) -> Result<Vec<IrOpcode>, LoweringError> {
-        use TypedExpr::*;
+        use TypedExprKind::*;
 
-        match body {
+        match &body.kind {
             Literal { value, ty: _ } => {
                 let data_label = self.insert_literal_data(value);
                 Ok(match return_destination {
@@ -171,12 +182,25 @@ impl Lowerer {
             },
             FunctionCall { func, args, ty: _ty } => {
                 let mut buf = Vec::with_capacity(args.len());
+
+                /*
+
+                    self.monomorphized_functions.insert(FunctionSignature {
+                    label:          *func,
+                    concrete_types: args
+                        .iter()
+                        .map(|(_name, expr)| self.to_ir_type(self.type_checker.expr_ty(expr)))
+                        .collect(),
+                });
+                */
+
                 // push all args onto the stack in order
                 for (_arg_name, arg_expr) in args {
                     let reg = self.fresh_reg();
                     let mut expr = self.lower_expr(arg_expr, ReturnDestination::Reg(reg))?;
+                    let arg_ty = self.type_checker.expr_ty(arg_expr);
                     expr.push(IrOpcode::StackPush(TypedReg {
-                        ty: self.to_ir_type(&arg_expr.ty()),
+                        ty: self.to_ir_type(arg_ty),
                         reg,
                     }));
 
@@ -185,8 +209,19 @@ impl Lowerer {
                 // push current PC onto the stack
                 buf.push(IrOpcode::PushPc());
 
+                let params_as_ir_types = args
+                    .iter()
+                    .map(|(name, expr)| (*name, self.to_ir_type(self.type_checker.expr_ty(expr))))
+                    .collect::<Vec<_>>();
+
+                // TODO deduplicate monomorphized functions
+                let monomorphized_func_id = self.monomorphize_function(MonomorphizedFunction {
+                    id:     *func,
+                    params: params_as_ir_types,
+                })?;
+
                 // jump to the function
-                buf.push(IrOpcode::JumpImmediate(*func));
+                buf.push(IrOpcode::JumpImmediate(monomorphized_func_id));
 
                 // after returning to this function, return the register
                 match return_destination {
@@ -194,6 +229,10 @@ impl Lowerer {
                         buf.push(IrOpcode::Copy(reg, Reg::Reserved(ReservedRegister::ReturnValueRegister)));
                     },
                 }
+
+                // add this call's function singature (label + concrete types) to the list of
+                // functions that need to be generated
+
                 //
                 Ok(buf)
             },
@@ -221,7 +260,30 @@ impl Lowerer {
                 buf.append(&mut expr);
                 Ok(buf)
             }),
-            TypeConstructor { .. } => todo!(),
+            TypeConstructor { ty, args } => {
+                let mut buf = vec![];
+                // the memory model for types is currently not finalized,
+                // but for now, it is just sequential memory that is word-aligned
+                let ir_ty = self.to_ir_type(*ty);
+                let size_of_aggregate_type = ir_ty.size();
+                let ReturnDestination::Reg(return_destination) = return_destination;
+                buf.push(IrOpcode::MallocImmediate(return_destination, size_of_aggregate_type));
+                // for each arg, lower it and store it in memory
+                let mut current_size_offset = 0;
+                let current_size_offset_reg = self.fresh_reg();
+                for arg in args.iter() {
+                    let reg = self.fresh_reg();
+                    buf.append(&mut self.lower_expr(arg, ReturnDestination::Reg(reg))?);
+                    buf.push(IrOpcode::LoadImmediate(current_size_offset_reg, current_size_offset));
+                    buf.push(IrOpcode::Add(current_size_offset_reg, current_size_offset_reg, return_destination));
+                    buf.push(IrOpcode::WriteRegisterToMemory(reg, current_size_offset_reg));
+
+                    let arg_ty = self.type_checker.expr_ty(arg);
+
+                    current_size_offset += self.to_ir_type(arg_ty).size().num_bytes() as u64;
+                }
+                Ok(buf)
+            },
         }
     }
 
@@ -238,27 +300,35 @@ impl Lowerer {
         })
     }
 
-    // convert a polytype type to an `IrTy`
     fn to_ir_type(
         &self,
-        param_ty: &TypeVariable,
+        param_ty: TypeVariable,
     ) -> IrTy {
-        let realized_ty = self.type_checker.realize_type(param_ty);
         use petr_typecheck::PetrType::*;
-        match realized_ty {
+        let ty = self.type_checker.look_up_variable(param_ty);
+        match ty {
             Unit => IrTy::Unit,
             Integer => IrTy::Int64,
             Boolean => IrTy::Boolean,
             String => IrTy::String,
-            Variable(_) => todo!("untyped variable"),
-        }
-    }
+            Ref(ty) => self.to_ir_type(*ty),
+            UserDefined { name: _, variants } => {
+                // get the user type
 
-    fn lower_all_functions(&mut self) -> Result<(), LoweringError> {
-        for (id, func) in self.type_checker.functions() {
-            self.lower_function(id, func)?;
+                IrTy::UserDefinedType {
+                    variants: variants
+                        .iter()
+                        .map(|variant| IrUserDefinedTypeVariant {
+                            fields: variant.fields.iter().map(|field| self.to_ir_type(*field)).collect(),
+                        })
+                        .collect(),
+                }
+            },
+            Arrow(_) => todo!(),
+            ErrorRecovery => todo!(),
+            List(_) => todo!(),
+            Infer(_) => todo!("err for var {param_ty}: inference should be resolved by now"),
         }
-        Ok(())
     }
 
     fn lower_intrinsic(
@@ -273,10 +343,7 @@ impl Lowerer {
                 // puts takes one arg and it is a string
                 let arg_reg = self.fresh_reg();
                 buf.append(&mut self.lower_expr(arg, ReturnDestination::Reg(arg_reg))?);
-                buf.push(IrOpcode::Intrinsic(Intrinsic::Puts(TypedReg {
-                    ty:  IrTy::Ptr(Box::new(IrTy::String)),
-                    reg: arg_reg,
-                })));
+                buf.push(IrOpcode::Intrinsic(Intrinsic::Puts(arg_reg)));
                 match return_destination {
                     ReturnDestination::Reg(reg) => {
                         buf.push(IrOpcode::LoadImmediate(reg, 0));
@@ -371,11 +438,11 @@ impl Lowerer {
         } else {
             result.push_str("\tNO ENTRY POINT\n");
         }
-        for (id, func) in &self.function_definitions {
+        for (id, (_sig, func)) in self.monomorphized_functions.iter() {
             result.push_str(&format!(
                 "{}function {}:\n",
-                if Some(*id) == self.entry_point { "ENTRY: " } else { "" },
-                Into::<usize>::into(*id)
+                if Some(id) == self.entry_point { "ENTRY: " } else { "" },
+                Into::<usize>::into(id)
             ));
             for opcode in &func.body {
                 result.push_str(&format!(" {pc}\t{}\n", opcode));
@@ -386,13 +453,22 @@ impl Lowerer {
     }
 }
 
-enum ReturnDestination {
-    Reg(Reg),
+struct MonomorphizedFunction {
+    id:     FunctionId,
+    params: Vec<(Identifier, IrTy)>,
 }
 
-fn fits_in_reg(_: &TypeVariable) -> bool {
-    // TODO
-    true
+impl MonomorphizedFunction {
+    fn signature(&self) -> FunctionSignature {
+        FunctionSignature {
+            label:          self.id,
+            concrete_types: self.params.iter().map(|(_name, ty)| ty.clone()).collect(),
+        }
+    }
+}
+
+enum ReturnDestination {
+    Reg(Reg),
 }
 
 #[allow(dead_code)]
@@ -425,13 +501,20 @@ mod tests {
         let (ast, errs, interner, source_map) = parser.into_result();
         if !errs.is_empty() {
             errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
-            panic!("fmt failed: code didn't parse");
+            panic!("ir gen failed: code didn't parse");
         }
         let (errs, resolved) = resolve_symbols(ast, interner, Default::default());
         if !errs.is_empty() {
             dbg!(&errs);
         }
         let type_checker = TypeChecker::new(resolved);
+
+        let typecheck_errors = type_checker.errors();
+        if !typecheck_errors.is_empty() {
+            typecheck_errors.iter().for_each(|err| eprintln!("{:?}", err));
+            panic!("ir gen failed: code didn't typecheck");
+        }
+
         let lowerer = Lowerer::new(type_checker);
         let res = lowerer.pretty_print();
 
@@ -449,19 +532,11 @@ mod tests {
                 0: Int64(42)
 
                 ; PROGRAM_SECTION
-                	ENTRY: 1
-                function 0:
-                 0	pop v0
-                 1	pop v1
-                 2	cp v3 v1
-                 3	cp v4 v0
-                 4	add v2 v3 v4
-                 5	cp rr(func return value) v2
-                 6	ret
-                ENTRY: function 1:
-                 7	ld v5 datalabel0
-                 8	cp rr(func return value) v5
-                 9	ret
+                	ENTRY: 0
+                ENTRY: function 0:
+                 0	ld v0 datalabel0
+                 1	cp rr(func return value) v0
+                 2	ret
             "#]],
         );
     }
@@ -477,21 +552,13 @@ mod tests {
                 0: String("hello")
 
                 ; PROGRAM_SECTION
-                	ENTRY: 1
-                function 0:
-                 0	pop v0
-                 1	pop v1
-                 2	cp v3 v1
-                 3	cp v4 v0
-                 4	add v2 v3 v4
-                 5	cp rr(func return value) v2
-                 6	ret
-                ENTRY: function 1:
-                 7	ld v6 datalabel0
-                 8	intrinsic @puts(v6)
-                 9	imm v5 0
-                 10	cp rr(func return value) v5
-                 11	ret
+                	ENTRY: 0
+                ENTRY: function 0:
+                 0	ld v1 datalabel0
+                 1	intrinsic @puts(v1)
+                 2	imm v0 0
+                 3	cp rr(func return value) v0
+                 4	ret
             "#]],
         );
     }
@@ -510,26 +577,18 @@ mod tests {
                 ; PROGRAM_SECTION
                 	ENTRY: 1
                 function 0:
-                 0	pop v0
-                 1	pop v1
-                 2	cp v3 v1
-                 3	cp v4 v0
-                 4	add v2 v3 v4
-                 5	cp rr(func return value) v2
-                 6	ret
+                 0	pop v2
+                 1	ld v3 datalabel1
+                 2	cp rr(func return value) v3
+                 3	ret
                 ENTRY: function 1:
-                 7	ld v6 datalabel0
-                 8	push v6
-                 9	ppc
-                 10	jumpi functionid2
-                 11	cp v5 rr(func return value)
-                 12	cp rr(func return value) v5
-                 13	ret
-                function 2:
-                 14	pop v7
-                 15	ld v8 datalabel1
-                 16	cp rr(func return value) v8
-                 17	ret
+                 4	ld v1 datalabel0
+                 5	push v1
+                 6	ppc
+                 7	jumpi monomorphizedfunctionid0
+                 8	cp v0 rr(func return value)
+                 9	cp rr(func return value) v0
+                 10	ret
             "#]],
         );
     }
@@ -548,34 +607,34 @@ mod tests {
                 ; PROGRAM_SECTION
                 	ENTRY: 2
                 function 0:
-                 0	pop v0
-                 1	pop v1
-                 2	cp v3 v1
-                 3	cp v4 v0
-                 4	add v2 v3 v4
-                 5	cp rr(func return value) v2
+                 0	pop v8
+                 1	pop v9
+                 2	cp v11 v9
+                 3	cp v12 v8
+                 4	add v10 v11 v12
+                 5	cp rr(func return value) v10
                  6	ret
                 function 1:
-                 7	pop v5
-                 8	pop v6
-                 9	cp v8 v6
-                 10	push v8
-                 11	cp v9 v5
-                 12	push v9
+                 7	pop v3
+                 8	pop v4
+                 9	cp v6 v4
+                 10	push v6
+                 11	cp v7 v3
+                 12	push v7
                  13	ppc
-                 14	jumpi functionid0
-                 15	cp v7 rr(func return value)
-                 16	cp rr(func return value) v7
+                 14	jumpi monomorphizedfunctionid0
+                 15	cp v5 rr(func return value)
+                 16	cp rr(func return value) v5
                  17	ret
                 ENTRY: function 2:
-                 18	ld v11 datalabel0
-                 19	push v11
-                 20	ld v12 datalabel1
-                 21	push v12
+                 18	ld v1 datalabel0
+                 19	push v1
+                 20	ld v2 datalabel1
+                 21	push v2
                  22	ppc
-                 23	jumpi functionid1
-                 24	cp v10 rr(func return value)
-                 25	cp rr(func return value) v10
+                 23	jumpi monomorphizedfunctionid1
+                 24	cp v0 rr(func return value)
+                 25	cp rr(func return value) v0
                  26	ret
             "#]],
         );
@@ -594,31 +653,23 @@ mod tests {
                 1: Int64(2)
 
                 ; PROGRAM_SECTION
-                	ENTRY: 2
+                	ENTRY: 1
                 function 0:
-                 0	pop v0
-                 1	pop v1
-                 2	cp v3 v1
-                 3	cp v4 v0
-                 4	add v2 v3 v4
-                 5	cp rr(func return value) v2
-                 6	ret
-                function 1:
-                 7	pop v5
-                 8	pop v6
-                 9	cp v7 v6
-                 10	cp rr(func return value) v7
-                 11	ret
-                ENTRY: function 2:
-                 12	ld v9 datalabel0
-                 13	push v9
-                 14	ld v10 datalabel1
-                 15	push v10
-                 16	ppc
-                 17	jumpi functionid1
-                 18	cp v8 rr(func return value)
-                 19	cp rr(func return value) v8
-                 20	ret
+                 0	pop v3
+                 1	pop v4
+                 2	cp v5 v4
+                 3	cp rr(func return value) v5
+                 4	ret
+                ENTRY: function 1:
+                 5	ld v1 datalabel0
+                 6	push v1
+                 7	ld v2 datalabel1
+                 8	push v2
+                 9	ppc
+                 10	jumpi monomorphizedfunctionid0
+                 11	cp v0 rr(func return value)
+                 12	cp rr(func return value) v0
+                 13	ret
             "#]],
         );
     }
@@ -635,56 +686,56 @@ mod tests {
                 "#,
             expect![[r#"
                 ; DATA_SECTION
-                0: Int64(10)
-                1: Int64(20)
-                2: Int64(1)
-                3: Int64(2)
+                0: Int64(1)
+                1: Int64(2)
+                2: Int64(10)
+                3: Int64(20)
 
                 ; PROGRAM_SECTION
                 	ENTRY: 2
                 function 0:
-                 0	pop v0
-                 1	pop v1
-                 2	cp v3 v1
-                 3	cp v4 v0
-                 4	add v2 v3 v4
-                 5	cp rr(func return value) v2
+                 0	pop v14
+                 1	pop v15
+                 2	cp v17 v15
+                 3	cp v18 v14
+                 4	add v16 v17 v18
+                 5	cp rr(func return value) v16
                  6	ret
                 function 1:
-                 7	pop v5
-                 8	pop v6
-                 9	ld v8 datalabel0
-                 10	ld v9 datalabel1
-                 11	cp v10 v8
-                 12	push v10
-                 13	cp v12 v9
-                 14	push v12
-                 15	cp v14 v6
-                 16	push v14
-                 17	cp v15 v5
-                 18	push v15
+                 7	pop v3
+                 8	pop v4
+                 9	ld v6 datalabel2
+                 10	ld v7 datalabel3
+                 11	cp v8 v6
+                 12	push v8
+                 13	cp v10 v7
+                 14	push v10
+                 15	cp v12 v4
+                 16	push v12
+                 17	cp v13 v3
+                 18	push v13
                  19	ppc
-                 20	jumpi functionid0
-                 21	cp v13 rr(func return value)
-                 22	push v13
+                 20	jumpi monomorphizedfunctionid0
+                 21	cp v11 rr(func return value)
+                 22	push v11
                  23	ppc
-                 24	jumpi functionid0
-                 25	cp v11 rr(func return value)
-                 26	push v11
+                 24	jumpi monomorphizedfunctionid0
+                 25	cp v9 rr(func return value)
+                 26	push v9
                  27	ppc
-                 28	jumpi functionid0
-                 29	cp v7 rr(func return value)
-                 30	cp rr(func return value) v7
+                 28	jumpi monomorphizedfunctionid0
+                 29	cp v5 rr(func return value)
+                 30	cp rr(func return value) v5
                  31	ret
                 ENTRY: function 2:
-                 32	ld v17 datalabel2
-                 33	push v17
-                 34	ld v18 datalabel3
-                 35	push v18
+                 32	ld v1 datalabel0
+                 33	push v1
+                 34	ld v2 datalabel1
+                 35	push v2
                  36	ppc
-                 37	jumpi functionid1
-                 38	cp v16 rr(func return value)
-                 39	cp rr(func return value) v16
+                 37	jumpi monomorphizedfunctionid1
+                 38	cp v0 rr(func return value)
+                 39	cp rr(func return value) v0
                  40	ret
             "#]],
         );
@@ -704,66 +755,66 @@ mod tests {
                 "#,
             expect![[r#"
                 ; DATA_SECTION
-                0: Int64(20)
-                1: Int64(30)
-                2: Int64(42)
-                3: Int64(1)
-                4: Int64(2)
+                0: Int64(1)
+                1: Int64(2)
+                2: Int64(20)
+                3: Int64(30)
+                4: Int64(42)
 
                 ; PROGRAM_SECTION
                 	ENTRY: 2
                 function 0:
-                 0	pop v0
-                 1	pop v1
-                 2	cp v3 v1
-                 3	cp v4 v0
-                 4	add v2 v3 v4
-                 5	cp rr(func return value) v2
+                 0	pop v19
+                 1	pop v20
+                 2	cp v22 v20
+                 3	cp v23 v19
+                 4	add v21 v22 v23
+                 5	cp rr(func return value) v21
                  6	ret
                 function 1:
-                 7	pop v5
-                 8	pop v6
-                 9	cp v8 v6
-                 10	cp v9 v5
-                 11	ld v10 datalabel0
-                 12	ld v11 datalabel1
-                 13	ld v12 datalabel2
-                 14	cp v13 v8
-                 15	push v13
-                 16	cp v15 v9
-                 17	push v15
-                 18	cp v17 v10
-                 19	push v17
-                 20	cp v19 v11
-                 21	push v19
-                 22	cp v20 v12
-                 23	push v20
+                 7	pop v3
+                 8	pop v4
+                 9	cp v6 v4
+                 10	cp v7 v3
+                 11	ld v8 datalabel2
+                 12	ld v9 datalabel3
+                 13	ld v10 datalabel4
+                 14	cp v11 v6
+                 15	push v11
+                 16	cp v13 v7
+                 17	push v13
+                 18	cp v15 v8
+                 19	push v15
+                 20	cp v17 v9
+                 21	push v17
+                 22	cp v18 v10
+                 23	push v18
                  24	ppc
-                 25	jumpi functionid0
-                 26	cp v18 rr(func return value)
-                 27	push v18
+                 25	jumpi monomorphizedfunctionid0
+                 26	cp v16 rr(func return value)
+                 27	push v16
                  28	ppc
-                 29	jumpi functionid0
-                 30	cp v16 rr(func return value)
-                 31	push v16
+                 29	jumpi monomorphizedfunctionid0
+                 30	cp v14 rr(func return value)
+                 31	push v14
                  32	ppc
-                 33	jumpi functionid0
-                 34	cp v14 rr(func return value)
-                 35	push v14
+                 33	jumpi monomorphizedfunctionid0
+                 34	cp v12 rr(func return value)
+                 35	push v12
                  36	ppc
-                 37	jumpi functionid0
-                 38	cp v7 rr(func return value)
-                 39	cp rr(func return value) v7
+                 37	jumpi monomorphizedfunctionid0
+                 38	cp v5 rr(func return value)
+                 39	cp rr(func return value) v5
                  40	ret
                 ENTRY: function 2:
-                 41	ld v22 datalabel3
-                 42	push v22
-                 43	ld v23 datalabel4
-                 44	push v23
+                 41	ld v1 datalabel0
+                 42	push v1
+                 43	ld v2 datalabel1
+                 44	push v2
                  45	ppc
-                 46	jumpi functionid1
-                 47	cp v21 rr(func return value)
-                 48	cp rr(func return value) v21
+                 46	jumpi monomorphizedfunctionid1
+                 47	cp v0 rr(func return value)
+                 48	cp rr(func return value) v0
                  49	ret
             "#]],
         );

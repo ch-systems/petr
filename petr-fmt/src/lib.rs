@@ -208,7 +208,7 @@ impl Formattable for Expression {
                 FormattedLines::new(vec![ctx.new_line(ident_as_string)])
             },
             Expression::List(list) => list.format(ctx),
-            Expression::TypeConstructor => unreachable!("this is only constructed after binding, which the formatter doesn't do"),
+            Expression::TypeConstructor(..) => unreachable!("this is only constructed after binding, which the formatter doesn't do"),
             Expression::FunctionCall(f) => f.format(ctx),
             Expression::IntrinsicCall(i) => i.format(ctx),
             Expression::Binding(binding) => binding.format(ctx),
@@ -477,6 +477,27 @@ impl Formattable for TypeVariant {
             fields_buf.push(field.format(ctx).into_single_line().content.to_string());
         }
         buf.push_str(&fields_buf.join(" "));
+        FormattedLines::new(vec![ctx.new_line(buf)])
+    }
+}
+
+// TODO: would be nice to format types and type fields as such
+// type Ptr =
+//      Unsized
+//          address 'int
+//    | Sized
+//          address 'int
+//          size 'int
+
+impl Formattable for TypeField {
+    fn format(
+        &self,
+        ctx: &mut FormatterContext,
+    ) -> FormattedLines {
+        let name = ctx.interner.get(self.name.id);
+        let mut buf = name.to_string();
+        buf.push(' ');
+        buf.push_str(&self.ty.pretty_print(&ctx.interner, ctx.indentation()));
         FormattedLines::new(vec![ctx.new_line(buf)])
     }
 }

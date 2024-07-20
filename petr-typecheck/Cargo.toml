@@ -6,10 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-petr-utils = { path = "../petr-utils" }
+petr-utils = { path = "../petr-utils", optional = true }
 petr-resolve = { path = "../petr-resolve" }
 petr-bind = { path = "../petr-bind" }
-polytype = "7.0.1"
 miette = { version = "5.10", features = ["fancy"] }
 thiserror = "1.0.61"
 
@@ -17,3 +16,7 @@ thiserror = "1.0.61"
 [dev-dependencies]
 petr-parse = { path = "../petr-parse" }
 expect-test = "1.5.0"
+
+[features]
+debug = ["petr-utils/debug"]
+default = ["dep:petr-utils"]

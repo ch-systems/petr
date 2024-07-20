@@ -77,9 +77,14 @@ impl Parse for TypeVariant {
             let name = p.parse()?;
             loop {
                 let peek = *p.peek().item();
-                if peek == Token::TyMarker {
-                    let field: Ty = p.parse()?;
-                    buf.push(field);
+                if peek == Token::Identifier {
+                    let span = p.span();
+                    let field_name = p.parse()?;
+                    let field = p.parse()?;
+                    buf.push(span.with_item(TypeField {
+                        name: field_name,
+                        ty:   field,
+                    }));
                 } else {
                     break;
                 }
@@ -231,9 +236,10 @@ impl Parse for Identifier {
         if *identifier.item() != Token::Identifier {
             p.push_error(p.span().with_item(ParseErrorKind::ExpectedIdentifier(p.slice().to_string())));
         }
+        let span = p.span();
         let slice = Rc::from(p.slice());
         let id = p.intern(slice);
-        Some(Identifier { id })
+        Some(Identifier { id, span })
     }
 }
 
@@ -262,6 +268,8 @@ where
 impl Parse for Expression {
     fn parse(p: &mut Parser) -> Option<Self> {
         p.with_help("while parsing expression", |p| -> Option<Self> {
+            // TODO Parser "map" function which takes a list of tokens and their corresponding
+            // parsers, which can auto-populate the ExpectedOneOf error
             match p.peek().item() {
                 item if item.is_operator() => {
                     let op: SpannedItem<Operator> = p.parse()?;
@@ -270,15 +278,29 @@ impl Parse for Expression {
                     let rhs: SpannedItem<Expression> = p.parse()?;
                     Some(Expression::Operator(Box::new(OperatorExpression { lhs, rhs, op })))
                 },
-                // TODO might not want to do variables this way
-                // may have to advance and peek to see if its a fn call etc
                 Token::Identifier => Some(Expression::Variable(p.parse()?)),
                 Token::OpenBracket => Some(Expression::List(p.parse()?)),
                 Token::Tilde => Some(Expression::FunctionCall(p.parse()?)),
                 Token::True | Token::False | Token::String | Token::Integer => Some(Expression::Literal(p.parse()?)),
                 Token::Intrinsic => Some(Expression::IntrinsicCall(p.parse()?)),
                 Token::Let => Some(Expression::Binding(p.parse()?)),
-                _ => None,
+                otherwise => {
+                    p.push_error(p.span().with_item(ParseErrorKind::ExpectedOneOf(
+                        vec![
+                            Token::Identifier,
+                            Token::OpenBracket,
+                            Token::Tilde,
+                            Token::True,
+                            Token::False,
+                            Token::String,
+                            Token::Integer,
+                            Token::Intrinsic,
+                            Token::Let,
+                        ],
+                        *otherwise,
+                    )));
+                    None
+                },
             }
         })
     }
@@ -290,7 +312,7 @@ impl Parse for ExpressionWithBindings {
         p.token(Token::Let)?;
 
         let bindings: Vec<Binding> = p.sequence_one_or_more(Token::Comma)?;
-        let expression: Expression = p.parse()?;
+        let expression = p.parse()?;
 
         Some(ExpressionWithBindings {
             bindings,
@@ -305,7 +327,7 @@ impl Parse for Binding {
         p.with_help("while parsing let binding", |p| {
             let name: Identifier = p.parse()?;
             p.token(Token::Equals)?;
-            let expr: Expression = p.parse()?;
+            let expr = p.parse()?;
             Some(Binding { name, val: expr })
         })
     }
@@ -353,19 +375,19 @@ impl Parse for Module {
                 // intern all identifiers in the name
                 let identifiers = name
                     .into_iter()
-                    .map(|id| Identifier { id: p.intern(id) })
+                    .map(|id| Identifier {
+                        id:   p.intern(id),
+                        span: p.span(),
+                    })
                     .collect::<Vec<_>>()
                     .into_boxed_slice();
                 let name = Path { identifiers };
+
                 let nodes: Vec<_> = p.many::<SpannedItem<AstNode>>();
+
                 Some(Module { name, nodes })
             },
-            a => {
-                p.push_error(module_name.span().with_item(ParseErrorKind::InternalError(format!(
-                    "Expected module name, found {a:?}. All tokens should be prefaced by a module."
-                ))));
-                None
-            },
+            _ => None,
         }
     }
 }

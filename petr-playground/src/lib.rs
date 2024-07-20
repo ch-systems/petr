@@ -2,8 +2,6 @@
 //! Nothing fancy at all, could definitely be improved over time to support better error reporting,
 //! etc
 
-use std::rc::Rc;
-
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -15,7 +13,7 @@ extern "C" {
     fn set_code_editor_content(s: &str);
 }
 
-use petr_api::{render_error, resolve_symbols, type_check, Dependency, Formattable, FormatterContext, Identifier, Lowerer, Parser, Vm};
+use petr_api::{render_error, resolve_symbols, type_check, Dependency, Formattable, FormatterContext, Lowerer, Parser, Vm};
 
 #[wasm_bindgen]
 pub fn run_snippet(code: &str) {
@@ -60,24 +58,23 @@ fn compile_snippet(code: String) -> Result<Lowerer, Vec<String>> {
     let (ast, mut parse_errs, interner, source_map) = parser.into_result();
     // add the standard library to the sources
     let parser = Parser::new_with_existing_interner_and_source_map(stdlib::stdlib(), interner, source_map);
-    let (dep_ast, mut new_parse_errs, mut interner, source_map) = parser.into_result();
+    let (dep_ast, mut new_parse_errs, interner, source_map) = parser.into_result();
     parse_errs.append(&mut new_parse_errs);
     let dependencies = vec![Dependency {
         key:          "stdlib".to_string(),
-        name:         Identifier {
-            id: interner.insert(Rc::from("std")),
-        },
+        name:         "std".into(),
         dependencies: vec![],
         ast:          dep_ast,
     }];
 
-    // TODO after diagnostics are implemented for these errors, append them to the errors and
+    // TODO after diagnostics are implemented for resolution errors, append them to the errors and
     // return them
     let (_resolution_errs, resolved) = resolve_symbols(ast, interner, dependencies);
-    let (_type_errs, type_checker) = type_check(resolved);
+    let (type_errs, type_checker) = type_check(resolved);
     let lowerer = Lowerer::new(type_checker);
 
     errs.extend(parse_errs.into_iter().map(|e| format!("{:?}", render_error(&source_map, e))));
+    errs.extend(type_errs.into_iter().map(|e| format!("{:?}", render_error(&source_map, e))));
 
     if !errs.is_empty() {
         Err(errs)

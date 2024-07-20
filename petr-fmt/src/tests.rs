@@ -321,9 +321,9 @@ fn ty_decl_one_variant() {
 fn ty_decl_one_variant_fields() {
     check(
         Default::default(),
-        "type foo = a 'int 'string",
+        "type foo = a intField 'int stringField 'string",
         expect![[r#"
-            type foo = a 'int 'string
+            type foo = a intField 'int stringField 'string
 
         "#]],
     );
@@ -333,10 +333,10 @@ fn ty_decl_one_variant_fields() {
 fn ty_decl_multi_variant_fields() {
     check(
         Default::default(),
-        "type foo = a 'int 'string | b 'bool 'bool",
+        "type foo = a first_field 'int second_field 'string | b first_field 'bool second_field 'bool",
         expect![[r#"
-            type foo = a 'int 'string
-                     | b 'bool 'bool
+            type foo = a first_field 'int second_field 'string
+                     | b first_field 'bool second_field 'bool
         "#]],
     );
 }

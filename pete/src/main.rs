@@ -1,7 +1,6 @@
 use std::{
     fs,
     path::{Path, PathBuf},
-    rc::Rc,
 };
 
 use clap::Parser as ClapParser;
@@ -187,13 +186,10 @@ pub fn compile(
         interner = new_interner;
         parse_errs.append(&mut new_parse_errs);
         source_map = new_source_map;
-        let name = Identifier {
-            id: interner.insert(Rc::from(item.manifest.name)),
-        };
 
         dependencies.push(Dependency {
             key: item.key,
-            name,
+            name: item.manifest.name,
             dependencies: item.depends_on,
             ast,
         });
@@ -221,11 +217,7 @@ pub fn compile(
 
     timings.end("type check");
 
-    // TODO impl diagnostic for type errors
-    if !type_errs.is_empty() {
-        dbg!(&type_errs);
-    }
-    // errs.append(&mut type_errs);
+    render_errors(type_errs, &source_map);
 
     timings.start("lowering");
     let lowerer: Lowerer = Lowerer::new(type_checker);

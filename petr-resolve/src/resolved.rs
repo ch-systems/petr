@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
-use petr_bind::{BindingId, FunctionId, TypeId};
-use petr_utils::SymbolInterner;
+use petr_bind::{BindingId, FunctionId};
+use petr_utils::{SymbolInterner, TypeId};
 
 use crate::resolver::{Binding, Function, TypeDeclaration};
 /// Contains things that have already been resolved.
@@ -76,16 +76,20 @@ impl QueryableResolvedItems {
         self.resolved_types.get(&id).expect("type IDs should always correspond to resolved types")
     }
 
+    // TODO  The cloning of the below iterators (`functions` and `types`) is not ideal.
     pub fn functions(&self) -> impl Iterator<Item = (FunctionId, Function)> {
         self.resolved_functions
             .iter()
-            // TODO below clone is not ideal
             .map(|(id, decl)| (*id, decl.clone()))
             .collect::<Vec<_>>()
             .into_iter()
     }
 
     pub fn types(&self) -> impl Iterator<Item = (TypeId, TypeDeclaration)> {
-        self.resolved_types.iter().map(|(id, decl)| (*id, *decl)).collect::<Vec<_>>().into_iter()
+        self.resolved_types
+            .iter()
+            .map(|(id, decl)| (*id, decl.clone()))
+            .collect::<Vec<_>>()
+            .into_iter()
     }
 }
