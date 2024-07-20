@@ -238,10 +238,17 @@ impl TypeChecker {
             }
         }
         let fresh_ty = self.fresh_ty_var();
-        self.variable_scope
-            .last_mut()
-            .expect("looked for generic when no scope existed")
-            .insert(*id, fresh_ty);
+        match self.variable_scope.last_mut() {
+            Some(entry) => {
+                entry.insert(*id, fresh_ty);
+            },
+            None => {
+                self.errors.push(id.span.with_item(TypeConstraintError::Internal(
+                    "attempted to insert generic type into variable scope when no variable scope existed".into(),
+                )));
+                self.ctx.update_type(fresh_ty, PetrType::ErrorRecovery);
+            },
+        };
         fresh_ty
     }
 
@@ -264,10 +271,12 @@ impl TypeChecker {
                 .variants
                 .iter()
                 .map(|variant| {
-                    let fields = variant.fields.iter().map(|field| self.to_type_var(&field.ty)).collect::<Vec<_>>();
-                    TypeVariant {
-                        fields: fields.into_boxed_slice(),
-                    }
+                    self.with_type_scope(|ctx| {
+                        let fields = variant.fields.iter().map(|field| ctx.to_type_var(&field.ty)).collect::<Vec<_>>();
+                        TypeVariant {
+                            fields: fields.into_boxed_slice(),
+                        }
+                    })
                 })
                 .collect::<Vec<_>>();
             self.ctx.update_type(ty, PetrType::UserDefined { name: decl.name, variants });
@@ -284,40 +293,6 @@ impl TypeChecker {
 
         // we have now collected our constraints and can solve for them
         self.apply_constraints();
-
-        // check if any inferred types were unable to be fully resolved
-
-        let mut errs = vec![];
-        /*
-        for constraint in &self.ctx.constraints {
-            match &constraint.kind {
-                TypeConstraintKind::Unify(t1, t2) => {
-                    if let PetrType::Infer(_) = self.ctx.types.get(*t1) {
-                        errs.push(constraint.span.with_item(TypeConstraintError::UnknownInference));
-                    }
-
-                    if let PetrType::Infer(_) = self.ctx.types.get(*t2) {
-                        errs.push(constraint.span.with_item(TypeConstraintError::UnknownInference));
-                    }
-                },
-                TypeConstraintKind::Satisfies(t1, t2) => {
-                    if let PetrType::Infer(_) = self.ctx.types.get(*t1) {
-                        errs.push(constraint.span.with_item(TypeConstraintError::UnknownInference));
-                    }
-
-                    if let PetrType::Infer(_) = self.ctx.types.get(*t2) {
-                        errs.push(constraint.span.with_item(TypeConstraintError::UnknownInference));
-                    }
-                },
-            }
-        }*/
-
-        errs.sort();
-        errs.dedup();
-
-        for err in errs {
-            self.push_error(err);
-        }
     }
 
     /// iterate through each constraint and transform the underlying types to satisfy them
@@ -1173,16 +1148,16 @@ mod tests {
             function foo(x in 'MyType) returns 'MyType x
             "#,
             expect![[r#"
-                type MyType: t4
+                type MyType: MyType
 
-                function A: t4
-                type constructor: t4
+                function A: MyType
+                type constructor: MyType
 
-                function B: t4
-                type constructor: t4
+                function B: MyType
+                type constructor: MyType
 
-                function foo: (t4 → t4)
-                variable x: t4
+                function foo: (MyType → MyType)
+                variable x: MyType
 
             "#]],
         );
@@ -1197,24 +1172,24 @@ mod tests {
             function foo(x in 'MyType) returns 'MyComposedType ~firstVariant(x)
             "#,
             expect![[r#"
-                type MyType: t4
+                type MyType: MyType
 
-                type MyComposedType: t5
+                type MyComposedType: MyComposedType
 
-                function A: t4
-                type constructor: t4
+                function A: MyType
+                type constructor: MyType
 
-                function B: t4
-                type constructor: t4
+                function B: MyType
+                type constructor: MyType
 
-                function firstVariant: (t4 → t5)
-                type constructor: t5
+                function firstVariant: (MyType → MyComposedType)
+                type constructor: MyComposedType
 
-                function secondVariant: (int → t4 → t14 → t5)
-                type constructor: t5
+                function secondVariant: (int → MyType → t18 → MyComposedType)
+                type constructor: MyComposedType
 
-                function foo: (t4 → t5)
-                function call to functionid2 with args: someField: t4, returns t5
+                function foo: (MyType → MyComposedType)
+                function call to functionid2 with args: someField: MyType, returns MyComposedType
 
             "#]],
         );
@@ -1233,17 +1208,6 @@ mod tests {
 
                 function bar: bool
                 literal: 5
-
-
-                Errors:
-                  [31m×[0m Failed to unify types: Boolean, Integer
-                   ╭─[[36;1;4mtest[0m:2:1]
-                 [2m2[0m │             function foo() returns 'int 5
-                 [2m3[0m │             function bar() returns 'bool 5
-                   · [35;1m                                        ─┬[0m
-                   ·                                          [35;1m╰── [35;1mFailed to unify types: Boolean, Integer[0m[0m
-                 [2m4[0m │             
-                   ╰────
 
             "#]],
         );
@@ -1335,16 +1299,6 @@ mod tests {
                 function my_func: bool
                 intrinsic: @puts(literal: "test")
 
-
-                Errors:
-                  [31m×[0m Failed to unify types: Boolean, Unit
-                   ╭─[[36;1;4mtest[0m:1:1]
-                 [2m1[0m │     
-                 [2m2[0m │ [35;1m╭[0m[35;1m─[0m[35;1m▶[0m         function my_func() returns 'bool
-                 [2m3[0m │ [35;1m├[0m[35;1m─[0m[35;1m▶[0m           @puts("test")
-                   · [35;1m╰[0m[35;1m───[0m[35;1m─[0m [35;1mFailed to unify types: Boolean, Unit[0m
-                   ╰────
-
             "#]],
         );
     }
@@ -1413,7 +1367,7 @@ mod tests {
                 function my_list() returns 'list [ 1, true ]
             "#,
             expect![[r#"
-                function my_list: [int]
+                function my_list: t7
                 list: [literal: 1, literal: true, ]
 
 

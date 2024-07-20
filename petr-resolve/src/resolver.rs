@@ -302,7 +302,6 @@ impl Resolver {
         // - the return type
         // - the body
         let func = binder.get_function(func_id).clone();
-        println!("resolving function: {}", func.item().name.id);
         let Some(func) = func.resolve(self, binder, scope_id) else {
             return;
         };

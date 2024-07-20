@@ -13,4 +13,6 @@ pub enum TypeConstraintError {
     ArgumentCountMismatch { function: String, expected: usize, got: usize },
     #[error("Type could not be inferrred")]
     UnknownInference,
+    #[error("Internal compiler error: {0}")]
+    Internal(String),
 }
