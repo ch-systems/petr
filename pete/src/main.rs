@@ -159,12 +159,24 @@ pub fn compile(
     // parse
     // construct an interner for symbols, which will be used throughout the whole compilation.
     let parser = Parser::new(buf);
-    let (ast, mut parse_errs, mut interner, mut source_map) = parser.into_result();
+    let (ast, mut parse_errs, interner, source_map) = parser.into_result();
 
     timings.end("parse user code");
     timings.start("parse dependencies");
 
-    let mut dependencies = Vec::with_capacity(build_plan.items.len());
+    let mut dependencies = Vec::with_capacity(build_plan.items.len() + 1);
+
+    // add the stdlib
+    let parser = Parser::new_with_existing_interner_and_source_map(stdlib::stdlib(), interner, source_map);
+    let (dep_ast, mut new_parse_errs, mut interner, mut source_map) = parser.into_result();
+    parse_errs.append(&mut new_parse_errs);
+
+    dependencies.push(Dependency {
+        key:          "stdlib".to_string(),
+        name:         "std".into(),
+        dependencies: vec![],
+        ast:          dep_ast,
+    });
 
     for item in build_plan.items {
         let (lockfile, buf, _build_plan) = load_project_and_dependencies(&item.path_to_source)?;

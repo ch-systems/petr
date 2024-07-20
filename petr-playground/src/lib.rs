@@ -99,6 +99,7 @@ fn compile_snippet(code: String) -> Result<Lowerer, Vec<String>> {
     let parser = Parser::new_with_existing_interner_and_source_map(stdlib::stdlib(), interner, source_map);
     let (dep_ast, mut new_parse_errs, interner, source_map) = parser.into_result();
     parse_errs.append(&mut new_parse_errs);
+
     let dependencies = vec![Dependency {
         key:          "stdlib".to_string(),
         name:         "std".into(),

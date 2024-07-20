@@ -15,4 +15,4 @@ thiserror = "1.0"
 toml = "0.8"
 termcolor = { version = "1.4" }
 petr-pkg = { "path" = "../petr-pkg" }
-
+stdlib = { "path" = "../stdlib" }
