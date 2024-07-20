@@ -3,13 +3,14 @@
 
 use std::rc::Rc;
 
+use miette::Diagnostic;
 use petr_ast::{Ast, Commented, Expression, FunctionDeclaration, FunctionParameter, OperatorExpression};
 use petr_bind::{Binder, Dependency, FunctionId, Item, ScopeId};
 use petr_utils::{Identifier, Path, Span, SpannedItem, SymbolInterner, TypeId};
 use thiserror::Error;
 
 use crate::resolved::{QueryableResolvedItems, ResolvedItems};
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Diagnostic)]
 pub enum ResolutionError {
     #[error("Function parameter not found: {0}")]
     FunctionParameterNotFound(String),
@@ -22,7 +23,7 @@ pub enum ResolutionError {
 pub(crate) struct Resolver {
     pub resolved: ResolvedItems,
     pub interner: SymbolInterner,
-    pub errs:     Vec<ResolutionError>,
+    pub errs:     Vec<SpannedItem<ResolutionError>>,
 }
 
 #[derive(Debug, Clone)]
@@ -217,9 +218,8 @@ impl Resolver {
                 let resolved_expr = match binding.val.resolve(self, binder, scope_id) {
                     Some(o) => o,
                     None => {
-                        // TODO i think this is incorrect
                         let name = self.interner.get(binding.name.id);
-                        self.errs.push(ResolutionError::NotFound(name.to_string()));
+                        self.errs.push(binding.name.span.with_item(ResolutionError::NotFound(name.to_string())));
                         return;
                     },
                 };
@@ -308,7 +308,7 @@ impl Resolver {
         self.resolved.insert_function(func_id, func);
     }
 
-    pub fn into_queryable(self) -> (Vec<ResolutionError>, QueryableResolvedItems) {
+    pub fn into_queryable(self) -> (Vec<SpannedItem<ResolutionError>>, QueryableResolvedItems) {
         (
             self.errs,
             QueryableResolvedItems::new(self.resolved.resolved_functions, self.resolved.resolved_types, self.interner),
@@ -415,9 +415,10 @@ impl Resolve for SpannedItem<Expression> {
                 };
 
                 let Some(either::Left(function)) = func_path.resolve(resolver, binder, scope_id) else {
-                    resolver
-                        .errs
-                        .push(ResolutionError::OperatorImplementationNotFound(func.to_string(), path.join(".")));
+                    resolver.errs.push(
+                        self.span()
+                            .with_item(ResolutionError::OperatorImplementationNotFound(func.to_string(), path.join("."))),
+                    );
                     return None;
                 };
 
@@ -437,26 +438,20 @@ impl Resolve for SpannedItem<Expression> {
             Expression::Variable(var) => {
                 let item = match binder.find_symbol_in_scope(var.id, scope_id) {
                     Some(item @ Item::FunctionParameter(_) | item @ Item::Binding(_)) => item,
-                    a => todo!("variable references non-variable item: {a:?}"),
-                    /*
-                    None => {
+                    _otherwise => {
                         let var_name = resolver.interner.get(var.id);
-                        todo!();
-                        // resolver.errs.push(ResolutionError::NotFound(var_name.to_string()));
+                        resolver.errs.push(var.span.with_item(ResolutionError::NotFound(var_name.to_string())));
                         return None;
                     },
-                    */
                 };
                 match item {
                     Item::Binding(binding_id) => {
                         let binding = binder.get_binding(*binding_id);
-                        //                        let expr = binding.resolve(resolver, binder, scope_id).expect("TODO errs");
-                        //                        resolver.resolved.bindings.insert(*binding_id, expr.clone());
 
                         Expr::new(
                             ExprKind::Variable {
                                 name: *var,
-                                // I Think this works for inference -- instantiating a new generic
+                                // I think this works for inference -- instantiating a new generic
                                 // type. Should revisit for soundness.
                                 ty:   Type::Generic(binding.name),
                             },
@@ -533,7 +528,7 @@ impl Resolve for petr_ast::IntrinsicCall {
             .iter()
             .map(|x| match x.resolve(resolver, binder, scope_id) {
                 Some(x) => x,
-                None => todo!("error recov"),
+                None => Expr::error_recovery(x.span()),
             })
             .collect();
         Some(Intrinsic {
@@ -583,7 +578,18 @@ impl Resolve for SpannedItem<&petr_ast::FunctionCall> {
             Some(either::Either::Right(_ty)) => {
                 todo!("push error -- tried to call ty as func");
             },
-            _ => todo!("not found error"),
+            None => {
+                let stringified_name = self
+                    .item()
+                    .func_name
+                    .identifiers
+                    .iter()
+                    .map(|x| resolver.interner.get(x.id))
+                    .collect::<Vec<_>>()
+                    .join(".");
+                resolver.errs.push(self.span().with_item(ResolutionError::NotFound(stringified_name)));
+                return None;
+            },
         };
 
         let args = self
@@ -620,7 +626,13 @@ impl Resolve for petr_utils::Path {
             binder.find_symbol_in_scope(item.id, scope_id)
         }) else {
             let name = self.identifiers.iter().map(|x| resolver.interner.get(x.id)).collect::<Vec<_>>().join(".");
-            resolver.errs.push(ResolutionError::NotFound(name));
+            resolver.errs.push(
+                self.identifiers
+                    .last()
+                    .expect("empty path shouldn't be possible")
+                    .span
+                    .with_item(ResolutionError::NotFound(name)),
+            );
             return None;
         };
 
@@ -638,7 +650,7 @@ impl Resolve for petr_utils::Path {
             let is_last = ix == self.identifiers.len() - 2; // -2 because we advanced the iter by one already
             let Some(next_symbol) = binder.find_symbol_in_scope(item.id, rover.root_scope) else {
                 let name = resolver.interner.get(item.id);
-                resolver.errs.push(ResolutionError::NotFound(name.to_string()));
+                resolver.errs.push(item.span.with_item(ResolutionError::NotFound(name.to_string())));
                 return None;
             };
 

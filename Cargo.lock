@@ -1096,6 +1096,7 @@ version = "0.1.0"
 dependencies = [
  "either",
  "expect-test",
+ "miette",
  "petr-ast",
  "petr-bind",
  "petr-parse",

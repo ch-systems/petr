@@ -198,18 +198,10 @@ pub fn compile(
     timings.end("parse dependencies");
     timings.end("parsing stage");
 
-    render_errors(parse_errs, &source_map);
-    // errs.append(&mut parse_errs);
     // resolve symbols
     timings.start("symbol resolution");
     let (resolution_errs, resolved) = petr_resolve::resolve_symbols(ast, interner, dependencies);
     timings.end("symbol resolution");
-
-    // TODO impl diagnostic for resolution errors
-    if !resolution_errs.is_empty() {
-        dbg!(&resolution_errs);
-    }
-    // errs.append(&mut resolution_errs);
 
     timings.start("type check");
     // type check
@@ -217,12 +209,13 @@ pub fn compile(
 
     timings.end("type check");
 
-    render_errors(type_errs, &source_map);
-
     timings.start("lowering");
     let lowerer: Lowerer = Lowerer::new(type_checker);
     timings.end("lowering");
 
+    render_errors(parse_errs, &source_map);
+    render_errors(type_errs, &source_map);
+    render_errors(resolution_errs, &source_map);
     Ok(lowerer)
 }
 

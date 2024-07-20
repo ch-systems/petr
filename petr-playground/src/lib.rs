@@ -17,6 +17,15 @@ use petr_api::{render_error, resolve_symbols, type_check, Dependency, Formattabl
 
 #[wasm_bindgen]
 pub fn run_snippet(code: &str) {
+    run_snippet_inner(code, set_output_content);
+}
+
+fn run_snippet_inner<F>(
+    code: &str,
+    set_output_content: F,
+) where
+    F: Fn(&str),
+{
     let lowerer = match compile_snippet(code.to_string()) {
         Ok(o) => o,
         Err(e) => {
@@ -38,6 +47,36 @@ pub fn run_snippet(code: &str) {
     };
 
     set_output_content(&format!("Logs:<br>\t{}<br>Result: <br>\t{:#?}", logs.join("\n\t"), result.inner()));
+}
+
+#[test]
+fn test_run_snippet() {
+    fn retrieve_output_content(s: &str) {
+        assert_eq!(s, "Logs:<br>\tHello, World!\nResult: <br>\tUnit");
+    }
+
+    run_snippet_inner(
+        r#"
+function main() returns 'unit
+            let a = ~std.io.print("yo"),
+            ~std.io.print "Hello, World!"
+"#,
+        retrieve_output_content,
+    );
+}
+
+#[test]
+fn repro_of_wasm_panic() {
+    fn retrieve_output_content(s: &str) {
+        assert_eq!(s, "Logs:<br>\tHello, World!\nResult: <br>\tUnit");
+    }
+    run_snippet_inner(
+        r#"
+        function main() returns 'int
+  let boo = ~std.io.println "yo"
+  5"#,
+        retrieve_output_content,
+    );
 }
 
 fn errors_to_html(e: &[String]) -> String {
@@ -67,14 +106,13 @@ fn compile_snippet(code: String) -> Result<Lowerer, Vec<String>> {
         ast:          dep_ast,
     }];
 
-    // TODO after diagnostics are implemented for resolution errors, append them to the errors and
-    // return them
-    let (_resolution_errs, resolved) = resolve_symbols(ast, interner, dependencies);
+    let (resolution_errs, resolved) = resolve_symbols(ast, interner, dependencies);
     let (type_errs, type_checker) = type_check(resolved);
     let lowerer = Lowerer::new(type_checker);
 
     errs.extend(parse_errs.into_iter().map(|e| format!("{:?}", render_error(&source_map, e))));
     errs.extend(type_errs.into_iter().map(|e| format!("{:?}", render_error(&source_map, e))));
+    errs.extend(resolution_errs.into_iter().map(|e| format!("{:?}", render_error(&source_map, e))));
 
     if !errs.is_empty() {
         Err(errs)
