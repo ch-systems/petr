@@ -1,4 +1,3 @@
-use petr_typecheck::FunctionId;
 use petr_utils::idx_map_key;
 
 use crate::MonomorphizedFunctionId;
@@ -103,6 +102,19 @@ pub enum IrTy {
     Unit,
     String,
     Boolean,
+    UserDefinedType { variants: Vec<IrUserDefinedTypeVariant> },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct IrUserDefinedTypeVariant {
+    pub fields: Vec<IrTy>,
+}
+
+impl IrUserDefinedTypeVariant {
+    pub fn size(&self) -> Size<Bytes> {
+        // the size of a product type is the sum of the sizes of its fields
+        self.fields.iter().map(|f| f.size().num_bytes()).sum::<usize>().into()
+    }
 }
 
 impl IrTy {
@@ -114,6 +126,14 @@ impl IrTy {
             // size of the pointer to the string
             IrTy::String => 8,
             IrTy::Boolean => 1,
+            // the size of a sum type is the size of the largest variant
+            IrTy::UserDefinedType { variants } => {
+                return variants
+                    .iter()
+                    .map(|v| v.size())
+                    .max()
+                    .expect("user defined type should have at least one variant")
+            },
         }
         .into()
     }

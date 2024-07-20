@@ -268,6 +268,8 @@ where
 impl Parse for Expression {
     fn parse(p: &mut Parser) -> Option<Self> {
         p.with_help("while parsing expression", |p| -> Option<Self> {
+            // TODO Parser "map" function which takes a list of tokens and their corresponding
+            // parsers, which can auto-populate the ExpectedOneOf error
             match p.peek().item() {
                 item if item.is_operator() => {
                     let op: SpannedItem<Operator> = p.parse()?;
@@ -276,15 +278,29 @@ impl Parse for Expression {
                     let rhs: SpannedItem<Expression> = p.parse()?;
                     Some(Expression::Operator(Box::new(OperatorExpression { lhs, rhs, op })))
                 },
-                // TODO might not want to do variables this way
-                // may have to advance and peek to see if its a fn call etc
                 Token::Identifier => Some(Expression::Variable(p.parse()?)),
                 Token::OpenBracket => Some(Expression::List(p.parse()?)),
                 Token::Tilde => Some(Expression::FunctionCall(p.parse()?)),
                 Token::True | Token::False | Token::String | Token::Integer => Some(Expression::Literal(p.parse()?)),
                 Token::Intrinsic => Some(Expression::IntrinsicCall(p.parse()?)),
                 Token::Let => Some(Expression::Binding(p.parse()?)),
-                _ => None,
+                otherwise => {
+                    p.push_error(p.span().with_item(ParseErrorKind::ExpectedOneOf(
+                        vec![
+                            Token::Identifier,
+                            Token::OpenBracket,
+                            Token::Tilde,
+                            Token::True,
+                            Token::False,
+                            Token::String,
+                            Token::Integer,
+                            Token::Intrinsic,
+                            Token::Let,
+                        ],
+                        *otherwise,
+                    )));
+                    None
+                },
             }
         })
     }
@@ -366,7 +382,9 @@ impl Parse for Module {
                     .collect::<Vec<_>>()
                     .into_boxed_slice();
                 let name = Path { identifiers };
+
                 let nodes: Vec<_> = p.many::<SpannedItem<AstNode>>();
+
                 Some(Module { name, nodes })
             },
             _ => None,

@@ -5,13 +5,16 @@ use std::rc::Rc;
 #[cfg(feature = "debug")]
 use lazy_static::lazy_static;
 
-#[cfg(not(feature = "debug"))]
-use crate::idx_map_key;
-use crate::IndexMap;
+use crate::{idx_map_key, IndexMap};
 #[cfg(feature = "debug")]
 lazy_static! {
     pub static ref SYMBOL_INTERNER: std::sync::RwLock<Vec<String>> = std::sync::RwLock::new(Vec::new());
 }
+
+idx_map_key!(
+    /// The ID type of a type declaration.
+    TypeId
+);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Identifier {

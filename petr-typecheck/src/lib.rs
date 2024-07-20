@@ -11,10 +11,9 @@ use std::{collections::BTreeMap, rc::Rc};
 
 use error::TypeConstraintError;
 pub use petr_bind::FunctionId;
-use petr_bind::TypeId;
 use petr_resolve::{Expr, ExprKind, QueryableResolvedItems};
 pub use petr_resolve::{Intrinsic as ResolvedIntrinsic, IntrinsicName, Literal};
-use petr_utils::{idx_map_key, Identifier, IndexMap, Span, SpannedItem, SymbolId};
+use petr_utils::{idx_map_key, Identifier, IndexMap, Span, SpannedItem, SymbolId, TypeId};
 
 pub type TypeError = SpannedItem<TypeConstraintError>;
 pub type TResult<T> = Result<T, TypeError>;
@@ -162,13 +161,12 @@ impl TypeContext {
 }
 
 pub struct TypeChecker {
-    ctx:      TypeContext,
+    ctx: TypeContext,
     type_map: BTreeMap<TypeOrFunctionId, TypeVariable>,
-
     typed_functions: BTreeMap<FunctionId, Function>,
-    errors:          Vec<TypeError>,
-    resolved:        QueryableResolvedItems,
-    variable_scope:  Vec<BTreeMap<Identifier, TypeVariable>>,
+    errors: Vec<TypeError>,
+    resolved: QueryableResolvedItems,
+    variable_scope: Vec<BTreeMap<Identifier, TypeVariable>>,
 }
 
 #[derive(Clone, PartialEq, Debug, Eq, PartialOrd, Ord)]
@@ -181,12 +179,20 @@ pub enum PetrType {
     /// A reference to another type
     Ref(TypeVariable),
     /// A user-defined type
-    UserDefined(TypeId),
+    UserDefined {
+        name:     Identifier,
+        variants: Vec<TypeVariant>,
+    },
     Arrow(Vec<TypeVariable>),
     ErrorRecovery,
     List(TypeVariable),
     /// the usize is just an identifier for use in rendering the type
     Infer(usize),
+}
+
+#[derive(Clone, PartialEq, Debug, Eq, PartialOrd, Ord)]
+pub struct TypeVariant {
+    pub fields: Box<[TypeVariable]>,
 }
 
 impl TypeChecker {
@@ -252,8 +258,19 @@ impl TypeChecker {
     }
 
     fn fully_type_check(&mut self) {
-        for (id, _) in self.resolved.types() {
+        for (id, decl) in self.resolved.types() {
             let ty = self.fresh_ty_var();
+            let variants = decl
+                .variants
+                .iter()
+                .map(|variant| {
+                    let fields = variant.fields.iter().map(|field| self.to_type_var(&field.ty)).collect::<Vec<_>>();
+                    TypeVariant {
+                        fields: fields.into_boxed_slice(),
+                    }
+                })
+                .collect::<Vec<_>>();
+            self.ctx.update_type(ty, PetrType::UserDefined { name: decl.name, variants });
             self.type_map.insert(id.into(), ty);
         }
 
@@ -344,11 +361,9 @@ impl TypeChecker {
             },
             // instantiate the infer type with the known type
             (Infer(_), known) => {
-                println!("updating {:?} with {:?}", t1, known);
                 self.ctx.update_type(t1, known);
             },
             (known, Infer(_)) => {
-                println!("updating {:?} with {:?}", t1, known);
                 self.ctx.update_type(t2, known);
             },
             // lastly, if no unification rule exists for these two types, it is a mismatch
@@ -369,7 +384,7 @@ impl TypeChecker {
         let ty1 = self.ctx.types.get(t1);
         let ty2 = self.ctx.types.get(t2);
         use PetrType::*;
-        match dbg!((ty1, ty2)) {
+        match (ty1, ty2) {
             (a, b) if a == b => (),
             (ErrorRecovery, _) | (_, ErrorRecovery) => (),
             (Ref(a), _) => self.apply_satisfies_constraint(*a, t2, span),
@@ -759,15 +774,14 @@ impl TypeCheck for Expr {
                 TypedExprKind::Variable { ty, name: *name }
             },
             ExprKind::Intrinsic(intrinsic) => return self.span.with_item(intrinsic.clone()).type_check(ctx),
-            ExprKind::TypeConstructor(args) => {
+            ExprKind::TypeConstructor(parent_type_id, args) => {
                 // This ExprKind only shows up in the body of type constructor functions, and
                 // is basically a noop. The surrounding function decl will handle type checking for
                 // the type constructor.
                 let args = args.iter().map(|arg| arg.type_check(ctx)).collect::<Vec<_>>();
+                let ty = ctx.get_type(*parent_type_id);
                 TypedExprKind::TypeConstructor {
-                    // Right now we'll just give this a fresh variable and it'll get unified to the
-                    // return type of the function. This should work....
-                    ty:   ctx.fresh_ty_var(), // todo!("alex: this was a fresh ty var, but it was being inferred to nothing. How can this be unified with the parent caller?"),
+                    ty:   *ty,
                     args: args.into_boxed_slice(),
                 }
             },
@@ -906,7 +920,7 @@ trait TypeCheck {
     ) -> Self::Output;
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Function {
     pub name:      Identifier,
     pub params:    Vec<(Identifier, TypeVariable)>,
@@ -932,14 +946,6 @@ impl TypeCheck for petr_resolve::Function {
             let body = self.body.type_check(ctx);
 
             let declared_return_type = ctx.to_type_var(&self.return_type);
-
-            let body_ty = ctx.expr_ty(&body);
-
-            if let ExprKind::TypeConstructor { .. } = self.body.kind {
-                println!("Unifying {:?} with {:?}", declared_return_type, body_ty);
-            }
-
-            ctx.unify(declared_return_type, body_ty, body.span());
 
             Function {
                 name: self.name,
@@ -1064,9 +1070,8 @@ mod tests {
             PetrType::Boolean => "bool".to_string(),
             PetrType::String => "string".to_string(),
             PetrType::Ref(ty) => pretty_print_ty(ty, type_checker),
-            PetrType::UserDefined(id) => {
-                let ty = type_checker.resolved.get_type(*id);
-                let name = type_checker.resolved.interner.get(ty.name.id);
+            PetrType::UserDefined { name, variants: _ } => {
+                let name = type_checker.resolved.interner.get(name.id);
                 name.to_string()
             },
             PetrType::Arrow(tys) => {
@@ -1205,7 +1210,7 @@ mod tests {
                 function firstVariant: (t4 → t5)
                 type constructor: t5
 
-                function secondVariant: (int → t4 → t17 → t5)
+                function secondVariant: (int → t4 → t14 → t5)
                 type constructor: t5
 
                 function foo: (t4 → t5)

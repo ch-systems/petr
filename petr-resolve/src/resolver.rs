@@ -4,8 +4,8 @@
 use std::rc::Rc;
 
 use petr_ast::{Ast, Commented, Expression, FunctionDeclaration, FunctionParameter, OperatorExpression};
-use petr_bind::{Binder, Dependency, FunctionId, Item, ScopeId, TypeId};
-use petr_utils::{Identifier, Path, Span, SpannedItem, SymbolInterner};
+use petr_bind::{Binder, Dependency, FunctionId, Item, ScopeId};
+use petr_utils::{Identifier, Path, Span, SpannedItem, SymbolInterner, TypeId};
 use thiserror::Error;
 
 use crate::resolved::{QueryableResolvedItems, ResolvedItems};
@@ -25,9 +25,22 @@ pub(crate) struct Resolver {
     pub errs:     Vec<ResolutionError>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct TypeDeclaration {
+    pub name:     Identifier,
+    pub variants: Box<[TypeVariant]>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TypeVariant {
+    pub name:   Identifier,
+    pub fields: Box<[TypeField]>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TypeField {
     pub name: Identifier,
+    pub ty:   Type,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -124,7 +137,8 @@ pub enum ExprKind {
     Variable { name: Identifier, ty: Type },
     Intrinsic(Intrinsic),
     Unit,
-    TypeConstructor(Box<[Expr]>),
+    // the `id` is the id of the type declaration that defined this constructor
+    TypeConstructor(TypeId, Box<[Expr]>),
     ErrorRecovery,
     ExpressionWithBindings { bindings: Vec<Binding>, expression: Box<Expr> },
 }
@@ -288,6 +302,7 @@ impl Resolver {
         // - the return type
         // - the body
         let func = binder.get_function(func_id).clone();
+        println!("resolving function: {}", func.item().name.id);
         let Some(func) = func.resolve(self, binder, scope_id) else {
             return;
         };
@@ -464,7 +479,7 @@ impl Resolve for SpannedItem<Expression> {
                     _ => unreachable!(),
                 }
             },
-            Expression::TypeConstructor(args) => {
+            Expression::TypeConstructor(parent_type_id, args) => {
                 // Type constructor expressions themselves don't actually do anything.
                 // The function parameters and return types
                 // of the function are what get type checked -- there is no fn body, and this
@@ -476,7 +491,7 @@ impl Resolve for SpannedItem<Expression> {
                         None => todo!("error recov"),
                     })
                     .collect::<Vec<_>>();
-                Expr::new(ExprKind::TypeConstructor(resolved_args.into_boxed_slice()), self.span())
+                Expr::new(ExprKind::TypeConstructor(*parent_type_id, resolved_args.into_boxed_slice()), self.span())
             },
             Expression::IntrinsicCall(intrinsic) => {
                 let resolved = intrinsic.resolve(resolver, binder, scope_id)?;
@@ -656,23 +671,34 @@ impl Resolve for petr_ast::TypeDeclaration {
     ) -> Option<Self::Resolved> {
         // when resolving a type declaration,
         // we just need to resolve all the inner types from the fields
-        let mut field_types = Vec::new();
 
         // for variant in variants
         // for field in variant's fields
         // resolve the field type
+        let mut variants = Vec::with_capacity(self.variants.len());
         for variant in self.variants.iter() {
+            let mut field_types = Vec::with_capacity(variant.item().fields.len());
             for field in variant.item().fields.iter() {
                 if let Some(field_type) = field.item().ty.resolve(resolver, binder, scope_id) {
-                    field_types.push(field_type);
+                    field_types.push(TypeField {
+                        name: field.item().name,
+                        ty:   field_type,
+                    });
                 } else {
-                    // Handle the error case where the field type could not be resolved
+                    // TODO Handle the error case where the field type could not be resolved
                     return None;
                 }
             }
+            variants.push(TypeVariant {
+                name:   variant.item().name,
+                fields: field_types.into_boxed_slice(),
+            });
         }
 
-        Some(TypeDeclaration { name: self.name })
+        Some(TypeDeclaration {
+            name:     self.name,
+            variants: variants.into_boxed_slice(),
+        })
     }
 }
 

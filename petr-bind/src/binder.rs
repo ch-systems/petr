@@ -27,11 +27,6 @@ idx_map_key!(
 );
 
 idx_map_key!(
-    /// The ID type of a type declaration.
-    TypeId
-);
-
-idx_map_key!(
     /// The ID type of a module.
    ModuleId
 );
@@ -41,7 +36,7 @@ pub enum Item {
     Binding(BindingId),
     // the `ScopeId` is the scope of the function body
     Function(FunctionId, ScopeId),
-    Type(TypeId),
+    Type(petr_utils::TypeId),
     FunctionParameter(Ty),
     Module(ModuleId),
     Import { path: Path, alias: Option<Identifier> },
@@ -55,7 +50,7 @@ pub struct Binder {
     exprs: BTreeMap<ExprId, ScopeId>,
     bindings:    IndexMap<BindingId, Binding>,
     functions:   IndexMap<FunctionId, SpannedItem<FunctionDeclaration>>,
-    types:       IndexMap<TypeId, TypeDeclaration>,
+    types:       IndexMap<petr_utils::TypeId, TypeDeclaration>,
     modules:     IndexMap<ModuleId, Module>,
     root_scope:  ScopeId,
 }
@@ -151,7 +146,7 @@ impl Binder {
 
     pub fn get_type(
         &self,
-        type_id: TypeId,
+        type_id: petr_utils::TypeId,
     ) -> &TypeDeclaration {
         self.types.get(type_id)
     }
@@ -278,7 +273,7 @@ impl Binder {
                 name:        variant.name,
                 parameters:  fields_as_parameters.into_boxed_slice(),
                 return_type: Ty::Named(ty_decl.item().name),
-                body:        span.with_item(Expression::TypeConstructor(type_constructor_exprs.into_boxed_slice())),
+                body:        span.with_item(Expression::TypeConstructor(type_id, type_constructor_exprs.into_boxed_slice())),
                 visibility:  ty_decl.item().visibility,
             };
 

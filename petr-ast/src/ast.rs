@@ -82,6 +82,7 @@ pub struct TypeDeclaration {
     pub variants:   Box<[SpannedItem<TypeVariant>]>,
     pub visibility: Visibility,
 }
+
 impl TypeDeclaration {
     pub fn is_exported(&self) -> bool {
         self.visibility == Visibility::Exported
@@ -129,7 +130,7 @@ pub enum Expression {
     Variable(Identifier),
     IntrinsicCall(IntrinsicCall),
     Binding(ExpressionWithBindings),
-    TypeConstructor(Box<[SpannedItem<Expression>]>),
+    TypeConstructor(petr_utils::TypeId, Box<[SpannedItem<Expression>]>),
 }
 
 #[derive(Clone)]

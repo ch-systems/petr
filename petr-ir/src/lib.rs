@@ -264,7 +264,6 @@ impl Lowerer {
                 let mut buf = vec![];
                 // the memory model for types is currently not finalized,
                 // but for now, it is just sequential memory that is word-aligned
-                println!("lowering type constructor");
                 let ir_ty = self.to_ir_type(*ty);
                 let size_of_aggregate_type = ir_ty.size();
                 let ReturnDestination::Reg(return_destination) = return_destination;
@@ -313,22 +312,24 @@ impl Lowerer {
             Boolean => IrTy::Boolean,
             String => IrTy::String,
             Ref(ty) => self.to_ir_type(*ty),
-            UserDefined(_) => todo!(),
+            UserDefined { name: _, variants } => {
+                // get the user type
+
+                IrTy::UserDefinedType {
+                    variants: variants
+                        .iter()
+                        .map(|variant| IrUserDefinedTypeVariant {
+                            fields: variant.fields.iter().map(|field| self.to_ir_type(*field)).collect(),
+                        })
+                        .collect(),
+                }
+            },
             Arrow(_) => todo!(),
             ErrorRecovery => todo!(),
             List(_) => todo!(),
             Infer(_) => todo!("err for var {param_ty}: inference should be resolved by now"),
         }
     }
-
-    /*
-    fn lower_all_functions(&mut self) -> Result<(), LoweringError> {
-        for (id, func) in self.type_checker.functions() {
-            self.lower_function(id, func)?;
-        }
-        Ok(())
-    }
-    */
 
     fn lower_intrinsic(
         &mut self,

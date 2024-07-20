@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
-use petr_bind::{BindingId, FunctionId, TypeId};
-use petr_utils::SymbolInterner;
+use petr_bind::{BindingId, FunctionId};
+use petr_utils::{SymbolInterner, TypeId};
 
 use crate::resolver::{Binding, Function, TypeDeclaration};
 /// Contains things that have already been resolved.
@@ -86,6 +86,10 @@ impl QueryableResolvedItems {
     }
 
     pub fn types(&self) -> impl Iterator<Item = (TypeId, TypeDeclaration)> {
-        self.resolved_types.iter().map(|(id, decl)| (*id, *decl)).collect::<Vec<_>>().into_iter()
+        self.resolved_types
+            .iter()
+            .map(|(id, decl)| (*id, decl.clone()))
+            .collect::<Vec<_>>()
+            .into_iter()
     }
 }

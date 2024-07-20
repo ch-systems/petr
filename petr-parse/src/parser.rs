@@ -270,7 +270,22 @@ impl Parser {
         self.with_help(format!("while parsing {separator} separated sequence"), |p| {
             let mut buf = vec![];
             loop {
-                let item = P::parse(p);
+                // if there are no items in the buf, we try a backtracking parse in case this is
+                // a zero sequence
+                let item = if buf.is_empty() {
+                    let res = p.with_backtrack(|p| P::parse(p));
+                    match res {
+                        Ok(item) => Some(item),
+                        Err(_) => {
+                            // return the zero sequence
+                            break;
+                        },
+                    }
+                } else {
+                    // there is at least one item in the buf, so we know all parse errors arising
+                    // from `P` are valid
+                    P::parse(p)
+                };
                 match item {
                     Some(item) => buf.push(item),
                     None => {
@@ -283,6 +298,7 @@ impl Parser {
                     break;
                 }
             }
+
             Some(buf)
         })
     }
