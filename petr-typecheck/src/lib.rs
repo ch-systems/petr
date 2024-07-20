@@ -1277,12 +1277,12 @@ mod tests {
 
 
                 Errors:
-                  [31m×[0m Failed to unify types: String, Boolean
-                   ╭─[[36;1;4mtest[0m:2:1]
-                 [2m2[0m │         function my_func() returns 'unit
-                 [2m3[0m │           @puts(true)
-                   · [35;1m                ──┬─[0m
-                   ·                   [35;1m╰── [35;1mFailed to unify types: String, Boolean[0m[0m
+                  × Failed to unify types: String, Boolean
+                   ╭─[test:2:1]
+                 2 │         function my_func() returns 'unit
+                 3 │           @puts(true)
+                   ·                 ──┬─
+                   ·                   ╰── Failed to unify types: String, Boolean
                    ╰────
 
             "#]],
@@ -1321,12 +1321,12 @@ mod tests {
 
 
                 Errors:
-                  [31m×[0m Failed to unify types: String, Boolean
-                   ╭─[[36;1;4mtest[0m:5:1]
-                 [2m5[0m │         function my_func() returns 'unit
-                 [2m6[0m │           @puts(~bool_literal)
-                   · [35;1m                ───────┬──────[0m
-                   ·                        [35;1m╰── [35;1mFailed to unify types: String, Boolean[0m[0m
+                  × Failed to unify types: String, Boolean
+                   ╭─[test:5:1]
+                 5 │         function my_func() returns 'unit
+                 6 │           @puts(~bool_literal)
+                   ·                 ───────┬──────
+                   ·                        ╰── Failed to unify types: String, Boolean
                    ╰────
 
             "#]],
@@ -1372,13 +1372,13 @@ mod tests {
 
 
                 Errors:
-                  [31m×[0m Failed to unify types: Integer, Boolean
-                   ╭─[[36;1;4mtest[0m:1:1]
-                 [2m1[0m │ 
-                 [2m2[0m │                 function my_list() returns 'list [ 1, true ]
-                   · [35;1m                                                     ──┬──[0m
-                   ·                                                        [35;1m╰── [35;1mFailed to unify types: Integer, Boolean[0m[0m
-                 [2m3[0m │             
+                  × Failed to unify types: Integer, Boolean
+                   ╭─[test:1:1]
+                 1 │ 
+                 2 │                 function my_list() returns 'list [ 1, true ]
+                   ·                                                      ──┬──
+                   ·                                                        ╰── Failed to unify types: Integer, Boolean
+                 3 │             
                    ╰────
 
             "#]],
@@ -1402,13 +1402,13 @@ mod tests {
 
 
                 Errors:
-                  [31m×[0m Function add takes 2 arguments, but got 1 arguments.
-                   ╭─[[36;1;4mtest[0m:3:1]
-                 [2m3[0m │ 
-                 [2m4[0m │                 function add_five(a in 'int) returns 'int ~add(5)
-                   · [35;1m                                                         ────┬───[0m
-                   ·                                                              [35;1m╰── [35;1mFunction add takes 2 arguments, but got 1 arguments.[0m[0m
-                 [2m5[0m │             
+                  × Function add takes 2 arguments, but got 1 arguments.
+                   ╭─[test:3:1]
+                 3 │ 
+                 4 │                 function add_five(a in 'int) returns 'int ~add(5)
+                   ·                                                          ────┬───
+                   ·                                                              ╰── Function add takes 2 arguments, but got 1 arguments.
+                 5 │             
                    ╰────
 
             "#]],
