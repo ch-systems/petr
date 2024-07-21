@@ -600,7 +600,7 @@ mod tests {
     #[test]
     fn bind_function_decl() {
         check(
-            "function add(a in 'Int, b in 'Int) returns 'Int + 1 2",
+            "fn add(a in 'Int, b in 'Int) returns 'Int + 1 2",
             expect![[r#"
                 __Scopes__
                 0: Root (parent none):
@@ -608,8 +608,8 @@ mod tests {
                 1: Module test (parent scopeid0):
                   add: Function FunctionId(0)
                 2: Function (parent scopeid1):
-                  a: FunctionParameter Named(Identifier { id: SymbolId(3), span: Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(19), length: 3 } } })
-                  b: FunctionParameter Named(Identifier { id: SymbolId(3), span: Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(30), length: 3 } } })
+                  a: FunctionParameter Named(Identifier { id: SymbolId(3), span: Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(13), length: 3 } } })
+                  b: FunctionParameter Named(Identifier { id: SymbolId(3), span: Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(24), length: 3 } } })
             "#]],
         );
     }
@@ -617,7 +617,7 @@ mod tests {
     #[test]
     fn bind_list_new_scope() {
         check(
-            "function add(a in 'Int, b in  'Int) returns 'Int [ 1, 2, 3, 4, 5, 6 ]",
+            "fn add(a in 'Int, b in  'Int) returns 'Int [ 1, 2, 3, 4, 5, 6 ]",
             expect![[r#"
                 __Scopes__
                 0: Root (parent none):
@@ -625,8 +625,8 @@ mod tests {
                 1: Module test (parent scopeid0):
                   add: Function FunctionId(0)
                 2: Function (parent scopeid1):
-                  a: FunctionParameter Named(Identifier { id: SymbolId(3), span: Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(19), length: 3 } } })
-                  b: FunctionParameter Named(Identifier { id: SymbolId(3), span: Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(31), length: 3 } } })
+                  a: FunctionParameter Named(Identifier { id: SymbolId(3), span: Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(13), length: 3 } } })
+                  b: FunctionParameter Named(Identifier { id: SymbolId(3), span: Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(25), length: 3 } } })
             "#]],
         );
     }

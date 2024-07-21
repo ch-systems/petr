@@ -26,7 +26,7 @@ pub struct FormatterConfigManifestFormat {
     pub tab_size: Option<usize>,
     pub max_line_length: Option<usize>,
     pub put_fn_args_on_new_lines: Option<bool>,
-    pub put_trailing_commas_on_let_bindings: Option<bool>,
+    pub put_trailing_semis_on_let_bindings: Option<bool>,
     pub backup: Option<bool>,
 }
 
@@ -68,8 +68,8 @@ impl From<FormatterConfigManifestFormat> for petr_fmt::FormatterConfig {
         if let Some(conf) = value.put_fn_args_on_new_lines {
             builder = builder.put_fn_args_on_new_lines(conf);
         };
-        if let Some(conf) = value.put_trailing_commas_on_let_bindings {
-            builder = builder.put_trailing_commas_on_let_bindings(conf);
+        if let Some(conf) = value.put_trailing_semis_on_let_bindings {
+            builder = builder.put_trailing_semis_on_let_bindings(conf);
         };
         if let Some(conf) = value.backup {
             builder = builder.backup(conf);

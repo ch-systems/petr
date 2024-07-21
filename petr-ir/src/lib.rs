@@ -498,7 +498,7 @@ mod tests {
     ) {
         let input = input.into();
         let parser = petr_parse::Parser::new(vec![
-            ("std/ops.pt", "function add(lhs in 'int, rhs in 'int) returns 'int @add lhs, rhs"),
+            ("std/ops.pt", "fn add(lhs in 'int, rhs in 'int) returns 'int @add lhs, rhs"),
             ("test", &input),
         ]);
         let (ast, errs, interner, source_map) = parser.into_result();
@@ -535,7 +535,7 @@ mod tests {
     fn basic_main_func() {
         check(
             r#"
-            function main() returns 'int 42
+            fn main() returns 'int 42
             "#,
             expect![[r#"
                 ; DATA_SECTION
@@ -555,7 +555,7 @@ mod tests {
     fn func_calls_intrinsic() {
         check(
             r#"
-                function main() returns 'unit @puts("hello")
+                fn main() returns 'unit @puts("hello")
                 "#,
             expect![[r#"
                 ; DATA_SECTION
@@ -576,8 +576,8 @@ mod tests {
     fn func_calls_other_func() {
         check(
             r#"
-                    function main() returns 'bool ~foo(123)
-                    function foo(a in 'int) returns 'bool true
+                    fn main() returns 'bool ~foo(123)
+                    fn foo(a in 'int) returns 'bool true
                     "#,
             expect![[r#"
                 ; DATA_SECTION
@@ -606,8 +606,8 @@ mod tests {
     fn func_args_with_op() {
         check(
             r#"
-                function add(x in 'int, y in 'int) returns 'int + x y
-                function main() returns 'int ~add(1, 2)
+                fn add(x in 'int, y in 'int) returns 'int + x y
+                fn main() returns 'int ~add(1, 2)
                 "#,
             expect![[r#"
                 ; DATA_SECTION
@@ -654,8 +654,8 @@ mod tests {
     fn func_args() {
         check(
             r#"
-                function test(x in 'int, y in 'int) returns 'int x
-                function main() returns 'int ~test(1, 2)
+                fn test(x in 'int, y in 'int) returns 'int x
+                fn main() returns 'int ~test(1, 2)
                 "#,
             expect![[r#"
                 ; DATA_SECTION
@@ -688,11 +688,11 @@ mod tests {
     fn let_bindings_with_ops() {
         check(
             r#"
-                function add(x in 'int, y in 'int) returns 'int
-                    let a = 10,
+                fn add(x in 'int, y in 'int) returns 'int
+                    let a = 10;
                         b = 20
                     + a + b + x y
-                function main() returns 'int ~add(1, 2)
+                fn main() returns 'int ~add(1, 2)
                 "#,
             expect![[r#"
                 ; DATA_SECTION
@@ -754,14 +754,14 @@ mod tests {
     fn let_bindings() {
         check(
             r#"
-                function hi(x in 'int, y in 'int) returns 'int
-                    let a = x,
-                        b = y,
-                        c = 20,
-                        d = 30,
-                        e = 42,
+                fn hi(x in 'int, y in 'int) returns 'int
+                    let a = x;
+                        b = y;
+                        c = 20;
+                        d = 30;
+                        e = 42;
                     + a + b + c + d e
-                function main() returns 'int ~hi(1, 2)
+                fn main() returns 'int ~hi(1, 2)
                 "#,
             expect![[r#"
                 ; DATA_SECTION

@@ -34,7 +34,7 @@ pub enum Token {
     String,
     #[regex(r#"(\{\-)[^-}]*(\-\})"#)]
     Comment,
-    #[token("function")]
+    #[token("fn")]
     FunctionKeyword,
     #[token("in")]
     InKeyword,
@@ -56,7 +56,7 @@ pub enum Token {
     Pipe,
     #[token("to")]
     ToKeyword,
-    #[token("Function")]
+    #[regex(r#"export\s+fn"#)]
     ExportFunctionKeyword,
     #[token("Type")]
     ExportTypeKeyword,
@@ -70,14 +70,14 @@ pub enum Token {
     Let,
     #[token("import")]
     Import,
-    #[token("export")]
-    Export,
     #[token(".")]
     Dot,
     #[token("as")]
     As,
     #[regex(r#"\@[_a-zA-Z][_a-zA-Z0-9]{0,30}"#)]
     Intrinsic,
+    #[token(";")]
+    Semicolon,
     NewFile(SourceId),
     Eof,
 }
@@ -129,9 +129,9 @@ impl std::fmt::Display for Token {
             Let => write!(f, "let"),
             NewFile(source_id) => write!(f, "new file {source_id:?}"),
             Import => write!(f, "import"),
-            Export => write!(f, "export"),
             Dot => write!(f, "."),
             As => write!(f, "as"),
+            Semicolon => write!(f, ";"),
         }
     }
 }

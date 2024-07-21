@@ -105,12 +105,7 @@ impl Formattable for FunctionDeclaration {
         ctx: &mut FormatterContext,
     ) -> FormattedLines {
         let mut lines: Vec<Line> = Vec::new();
-        let mut buf: String = if self.visibility == Visibility::Exported {
-            "Function "
-        } else {
-            "function "
-        }
-        .to_string();
+        let mut buf: String = if self.visibility == Visibility::Exported { "export fn " } else { "fn " }.to_string();
 
         buf.push_str(&ctx.interner.get(self.name.id));
 
@@ -245,11 +240,11 @@ impl Formattable for ExpressionWithBindings {
                     lines.append(&mut expr_lines[1..].to_vec());
                 }
                 // add comma to the end of the last line
-                if !is_last || ctx.config.put_trailing_commas_on_let_bindings() {
+                if !is_last || ctx.config.put_trailing_semis_on_let_bindings() {
                     let last_line = lines.last().expect("invariant");
                     let last_line_indentation = last_line.indentation;
                     let mut last_line_content = last_line.content.to_string();
-                    last_line_content.push(',');
+                    last_line_content.push(';');
                     *(lines.last_mut().expect("invariant")) = Line {
                         content:     Rc::from(last_line_content),
                         indentation: last_line_indentation,

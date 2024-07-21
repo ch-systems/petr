@@ -27,9 +27,9 @@ fn check(
 fn basic_func_decl() {
     check(
         Default::default(),
-        "function foo(a in 'int, b in 'int) returns 'int + 2 3",
+        "fn foo(a in 'int, b in 'int) returns 'int + 2 3",
         expect![[r#"
-            function foo(
+            fn foo(
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
@@ -42,9 +42,9 @@ fn basic_func_decl() {
 fn func_decl_params_same_line() {
     check(
         FCB::default().put_fn_params_on_new_lines(false).build(),
-        "function foo(a in 'int, b in 'int) returns 'int + 2 3",
+        "fn foo(a in 'int, b in 'int) returns 'int + 2 3",
         expect![[r#"
-            function foo(
+            fn foo(
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
@@ -57,10 +57,10 @@ fn func_decl_params_same_line() {
 fn commented_fn_decl() {
     check(
         Default::default(),
-        "{- this function does stuff -} function foo(a in 'int, b in 'int) returns 'int + 2 3",
+        "{- this fn does stuff -} fn foo(a in 'int, b in 'int) returns 'int + 2 3",
         expect![[r#"
-            {- this function does stuff -}
-            function foo(
+            {- this fn does stuff -}
+            fn foo(
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
@@ -73,11 +73,11 @@ fn commented_fn_decl() {
 fn multiple_comments_before_fn() {
     check(
         Default::default(),
-        "{- comment one -} {- comment two -} function foo(a in 'int, b in 'int) returns 'int + 2 3",
+        "{- comment one -} {- comment two -} fn foo(a in 'int, b in 'int) returns 'int + 2 3",
         expect![[r#"
             {- comment one
                comment two -}
-            function foo(
+            fn foo(
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
@@ -89,11 +89,11 @@ fn multiple_comments_before_fn() {
 fn multiple_comments_before_fn_no_join() {
     check(
         FCB::default().join_comments(false).build(),
-        "{- comment one -} {- comment two -} function foo(a in 'int, b in 'int) returns 'int + 2 3",
+        "{- comment one -} {- comment two -} fn foo(a in 'int, b in 'int) returns 'int + 2 3",
         expect![[r#"
             {- comment one -}
             {- comment two -}
-            function foo(
+            fn foo(
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
@@ -106,10 +106,10 @@ fn multiple_comments_before_fn_no_join() {
 fn extract_comments_from_within_decl() {
     check(
         FormatterConfig::default(),
-        "function {- this comment should get moved to a more normal location -} foo(a in 'int, b in 'int) returns 'int + 2 3",
+        "fn {- this comment should get moved to a more normal location -} foo(a in 'int, b in 'int) returns 'int + 2 3",
         expect![[r#"
             {- this comment should get moved to a more normal location -}
-            function foo(
+            fn foo(
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
@@ -122,16 +122,16 @@ fn extract_comments_from_within_decl() {
 fn multiple_functions() {
     check(
         Default::default(),
-        r#"function foo(a in 'int, b in 'int) returns 'int + 2 3
-        function bar(a in 'int, b in 'int) returns 'int + 2 3"#,
+        r#"fn foo(a in 'int, b in 'int) returns 'int + 2 3
+        fn bar(a in 'int, b in 'int) returns 'int + 2 3"#,
         expect![[r#"
-            function foo(
+            fn foo(
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
               + 2 3
 
-            function bar(
+            fn bar(
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
@@ -146,19 +146,19 @@ fn multiple_functions_with_comments() {
         Default::default(),
         r#"
 
-        function {- this function is called foo -} foo(a in 'int, b in 'int) returns 'int + 2 3
+        fn {- this function is called foo -} foo(a in 'int, b in 'int) returns 'int + 2 3
 
-        function{- this function is called bar -} bar(a in 'int, b in 'int) returns 'int + 2 3"#,
+        fn {- this function is called bar -} bar(a in 'int, b in 'int) returns 'int + 2 3"#,
         expect![[r#"
             {- this function is called foo -}
-            function foo(
+            fn foo(
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
               + 2 3
 
             {- this function is called bar -}
-            function bar(
+            fn bar(
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
@@ -173,12 +173,12 @@ fn multiple_functions_more_newlines_between_functions() {
         FCB::default().newlines_between_items(2).build(),
         r#"
 
-        function {- this function is called foo -} foo(a in 'int, b in 'int) returns 'int + 2 3
+        fn {- this function is called foo -} foo(a in 'int, b in 'int) returns 'int + 2 3
 
-        function{- this function is called bar -} bar(a in 'int, b in 'int) returns 'int + 2 3"#,
+        fn{- this function is called bar -} bar(a in 'int, b in 'int) returns 'int + 2 3"#,
         expect![[r#"
             {- this function is called foo -}
-            function foo(
+            fn foo(
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
@@ -186,7 +186,7 @@ fn multiple_functions_more_newlines_between_functions() {
 
 
             {- this function is called bar -}
-            function bar(
+            fn bar(
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
@@ -201,14 +201,14 @@ fn multiple_functions_newlines_between_comment_and_item() {
         FCB::default().newlines_between_comment_and_item(1).build(),
         r#"
 
-        function {- this function is called foo -} foo(a in 'int, b in 'int) returns 'int + 2 3
+        fn {- this function is called foo -} foo(a in 'int, b in 'int) returns 'int + 2 3
 
         {- bar should look like this -}
-        function{- this function is called bar -} bar(a in 'int, b in 'int) returns 'int + 2 3"#,
+        fn {- this function is called bar -} bar(a in 'int, b in 'int) returns 'int + 2 3"#,
         expect![[r#"
             {- this function is called foo -}
 
-            function foo(
+            fn foo(
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
@@ -217,7 +217,7 @@ fn multiple_functions_newlines_between_comment_and_item() {
             {- bar should look like this
                this function is called bar -}
 
-            function bar(
+            fn bar(
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
@@ -232,14 +232,14 @@ fn multiple_functions_newlines_between_comment_and_item_unjoined() {
         FCB::default().newlines_between_comment_and_item(1).join_comments(false).build(),
         r#"
 
-        function {- this function is called foo -} foo(a in 'int, b in 'int) returns 'int + 2 3
+        fn {- this function is called foo -} foo(a in 'int, b in 'int) returns 'int + 2 3
 
         {- bar should look like this -}
-        function{- this function is called bar -} bar(a in 'int, b in 'int) returns 'int + 2 3"#,
+        fn{- this function is called bar -} bar(a in 'int, b in 'int) returns 'int + 2 3"#,
         expect![[r#"
             {- this function is called foo -}
 
-            function foo(
+            fn foo(
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
@@ -248,7 +248,7 @@ fn multiple_functions_newlines_between_comment_and_item_unjoined() {
             {- bar should look like this -}
             {- this function is called bar -}
 
-            function bar(
+            fn bar(
               a ∈ 'int,
               b ∈ 'int,
             ) returns 'int
@@ -345,9 +345,9 @@ fn ty_decl_multi_variant_fields() {
 fn format_list() {
     check(
         Default::default(),
-        "function returns_list() returns 'list [1, 2, 3]",
+        "fn returns_list() returns 'list [1, 2, 3]",
         expect![[r#"
-            function returns_list() returns 'list
+            fn returns_list() returns 'list
               [1, 2, 3]
         "#]],
     );
@@ -357,21 +357,21 @@ fn format_list() {
 fn long_line_forces_newlines() {
     check(
         Default::default(),
-        "function returns_list() returns 'list [1, 2, 3]
+        "fn returns_list() returns 'list [1, 2, 3]
 
-        function returns_list(a in 'a, b in 'b, c in 'c, d in 'd, e in 'e, f in 'f) returns 'list [1, 2, 3, 4, 5]
+        fn returns_list(a in 'a, b in 'b, c in 'c, d in 'd, e in 'e, f in 'f) returns 'list [1, 2, 3, 4, 5]
 
-        function returns_list() returns 'list [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]
+        fn returns_list() returns 'list [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]
         ",
         expect![[r#"
-            function returns_list() returns 'list
+            fn returns_list() returns 'list
               [
                 1,
                 2,
                 3,
               ]
 
-            function returns_list(
+            fn returns_list(
               a ∈ 'a,
               b ∈ 'b,
               c ∈ 'c,
@@ -387,7 +387,7 @@ fn long_line_forces_newlines() {
                 5,
               ]
 
-            function returns_list() returns 'list
+            fn returns_list() returns 'list
               [
                 1,
                 2,
@@ -420,9 +420,9 @@ fn long_line_forces_newlines() {
 fn put_only_params_on_newlines_if_necessary() {
     check(
         Default::default(),
-        "function returns_list(a in 'a, b in 'b, c in 'c, d in 'd, e in 'e, f in 'f) returns 'list [1, 2, 3, 4]",
+        "fn returns_list(a in 'a, b in 'b, c in 'c, d in 'd, e in 'e, f in 'f) returns 'list [1, 2, 3, 4]",
         expect![[r#"
-            function returns_list(
+            fn returns_list(
               a ∈ 'a,
               b ∈ 'b,
               c ∈ 'c,
@@ -439,9 +439,9 @@ fn put_only_params_on_newlines_if_necessary() {
 fn put_only_params_and_body_on_newlines_if_necessary() {
     check(
         FCB::default().max_line_length(54).build(),
-        "function returns_list(a in 'a) returns 'aaaaaaaaaaaaaaaa [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]",
+        "fn returns_list(a in 'a) returns 'aaaaaaaaaaaaaaaa [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]",
         expect![[r#"
-            function returns_list(
+            fn returns_list(
               a ∈ 'a,
             ) returns 'aaaaaaaaaaaaaaaa
               [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
@@ -453,9 +453,9 @@ fn put_only_params_and_body_on_newlines_if_necessary() {
 fn no_matter_what_the_line_is_too_long_use_shortest_config_best_attempt() {
     check(
         FCB::default().max_line_length(1).build(),
-        "function returns_list(a in 'a) returns 'aaaaaaaaaaaaaaaaaaaaaaaaaaaa [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]",
+        "fn returns_list(a in 'a) returns 'aaaaaaaaaaaaaaaaaaaaaaaaaaaa [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]",
         expect![[r#"
-            function returns_list(
+            fn returns_list(
               a ∈ 'a,
             ) returns 'aaaaaaaaaaaaaaaaaaaaaaaaaaaa
               [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
@@ -467,9 +467,9 @@ fn no_matter_what_the_line_is_too_long_use_shortest_config_best_attempt() {
 fn exported_func() {
     check(
         Default::default(),
-        "Function foo() returns 'int + 1 2",
+        "export fn foo() returns 'int + 1 2",
         expect![[r#"
-            Function foo() returns 'int
+            export fn foo() returns 'int
               + 1 2
         "#]],
     )
@@ -479,11 +479,11 @@ fn exported_func() {
 fn func_application_in_list() {
     check(
         Default::default(),
-        "function foo() returns 'int [
+        "fn foo() returns 'int [
             ~foo 1,2,3,4
         ]",
         expect![[r#"
-            function foo() returns 'int
+            fn foo() returns 'int
               [~foo 1, 2, 3, 4]
         "#]],
     )
@@ -493,11 +493,11 @@ fn func_application_in_list() {
 fn func_application_in_list_with_parens_resolve_ambiguity() {
     check(
         Default::default(),
-        "function foo() returns 'int [
+        "fn foo() returns 'int [
             ~foo(1,2),3,4
          ]",
         expect![[r#"
-            function foo() returns 'int
+            fn foo() returns 'int
               [~foo(1, 2), 3, 4]
         "#]],
     )
@@ -507,9 +507,9 @@ fn func_application_in_list_with_parens_resolve_ambiguity() {
 fn func_application() {
     check(
         Default::default(),
-        "function foo() returns 'int ~foo 1,2,3,4",
+        "fn foo() returns 'int ~foo 1,2,3,4",
         expect![[r#"
-            function foo() returns 'int
+            fn foo() returns 'int
               ~foo 1, 2, 3, 4
         "#]],
     )
@@ -519,9 +519,9 @@ fn func_application() {
 fn string_in_list() {
     check(
         Default::default(),
-        "function returns_list() returns 'list [\"one\", \"two\", \"three\"]",
+        "fn returns_list() returns 'list [\"one\", \"two\", \"three\"]",
         expect![[r#"
-            function returns_list() returns 'list
+            fn returns_list() returns 'list
               ["one", "two", "three"]
         "#]],
     );
@@ -531,9 +531,9 @@ fn string_in_list() {
 fn string_in_operators() {
     check(
         Default::default(),
-        "function concat_strings() returns 'string + \"Hello, \" \"world!\"",
+        "fn concat_strings() returns 'string + \"Hello, \" \"world!\"",
         expect![[r#"
-            function concat_strings() returns 'string
+            fn concat_strings() returns 'string
               + "Hello, " "world!"
         "#]],
     );
@@ -543,9 +543,9 @@ fn string_in_operators() {
 fn string_literals() {
     check(
         Default::default(),
-        "function string_literals() returns 'string \"This is a string literal.\"",
+        "fn string_literals() returns 'string \"This is a string literal.\"",
         expect![[r#"
-            function string_literals() returns 'string
+            fn string_literals() returns 'string
               "This is a string literal."
         "#]],
     );
@@ -556,14 +556,14 @@ fn intrinsic() {
     check(
         Default::default(),
         r#"
-        function string_literals() returns 'string "This is a string literal."
+        fn string_literals() returns 'string "This is a string literal."
 
-        function my_func() returns 'unit @puts(~string_literal)"#,
+        fn my_func() returns 'unit @puts(~string_literal)"#,
         expect![[r#"
-            function string_literals() returns 'string
+            fn string_literals() returns 'string
               "This is a string literal."
 
-            function my_func() returns 'unit
+            fn my_func() returns 'unit
               @puts(~string_literal)
         "#]],
     );
@@ -574,31 +574,31 @@ fn intrinsic_2() {
     check(
         Default::default(),
         r#"
-                  function my_func() returns 'unit @puts("hello, world!")"#,
+                  fn my_func() returns 'unit @puts("hello, world!")"#,
         expect![[r#"
-            function my_func() returns 'unit
+            fn my_func() returns 'unit
               @puts("hello, world!")
         "#]],
     );
 }
 
 #[test]
-fn let_bindings_trailing_comma() {
+fn let_bindings_trailing_semi() {
     check(
-        FCB::default().put_trailing_commas_on_let_bindings(true).build(),
-        "function makes_function_call(c in 'int) returns 'int                      let a = 1, b = 20, ~fn_call a, b, let z = 10 c
+        FCB::default().put_trailing_semis_on_let_bindings(true).build(),
+        "fn makes_function_call(c in 'int) returns 'int                      let a = 1; b = 20; ~fn_call a, b, let z = 10 c
 
-            function fn_call(a in 'int, b in 'int, c in 'int) returns 'int + a + b c
+            fn fn_call(a in 'int, b in 'int, c in 'int) returns 'int + a + b c
                      ",
         expect![[r#"
-            function makes_function_call(
+            fn makes_function_call(
               c ∈ 'int,
             ) returns 'int
-              let a = 1,
-                  b = 20,
-              ~fn_call a, b, let z = 10, c
+              let a = 1;
+                  b = 20;
+              ~fn_call a, b, let z = 10; c
 
-            function fn_call(
+            fn fn_call(
               a ∈ 'int,
               b ∈ 'int,
               c ∈ 'int,
@@ -611,20 +611,20 @@ fn let_bindings_trailing_comma() {
 #[test]
 fn let_bindings_no_trailing_comma() {
     check(
-        FCB::default().put_trailing_commas_on_let_bindings(false).build(),
-        "function makes_function_call(c in 'int) returns 'int                      let a = 1, b = 20, ~fn_call a, b, let z = 10 c
+        FCB::default().put_trailing_semis_on_let_bindings(false).build(),
+        "fn makes_function_call(c in 'int) returns 'int                      let a = 1; b = 20; ~fn_call a, b, let z = 10 c
 
-            function fn_call(a in 'int, b in 'int, c in 'int) returns 'int + a + b c
+            fn fn_call(a in 'int, b in 'int, c in 'int) returns 'int + a + b c
                      ",
         expect![[r#"
-            function makes_function_call(
+            fn makes_function_call(
               c ∈ 'int,
             ) returns 'int
-              let a = 1,
+              let a = 1;
                   b = 20
               ~fn_call a, b, let z = 10 c
 
-            function fn_call(
+            fn fn_call(
               a ∈ 'int,
               b ∈ 'int,
               c ∈ 'int,

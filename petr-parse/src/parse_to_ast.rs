@@ -11,7 +11,7 @@ use crate::{
 
 impl Parse for FunctionCall {
     fn parse(p: &mut Parser) -> Option<Self> {
-        p.with_help("while parsing function call", |p| -> Option<Self> {
+        p.with_help("function call", |p| -> Option<Self> {
             p.token(Token::Tilde)?;
             let func_name = p.parse()?;
             // optionally, args can be in parens to resolve ambiguity
@@ -32,7 +32,7 @@ impl Parse for FunctionCall {
 
 impl Parse for Path {
     fn parse(p: &mut Parser) -> Option<Self> {
-        p.with_help("while parsing path", |p| -> Option<Self> {
+        p.with_help("path", |p| -> Option<Self> {
             let identifiers = p.sequence_one_or_more(Token::Dot)?;
             Some(Path {
                 identifiers: identifiers.into_boxed_slice(),
@@ -43,7 +43,7 @@ impl Parse for Path {
 
 impl Parse for TypeDeclaration {
     fn parse(p: &mut Parser) -> Option<Self> {
-        p.with_help("while parsing type declaration", |p| -> Option<Self> {
+        p.with_help("type declaration", |p| -> Option<Self> {
             let tok = p.one_of([Token::TypeKeyword, Token::ExportTypeKeyword])?;
             let visibility = match tok.item() {
                 Token::TypeKeyword => Visibility::Local,
@@ -72,7 +72,7 @@ impl Parse for TypeDeclaration {
 
 impl Parse for TypeVariant {
     fn parse(p: &mut Parser) -> Option<Self> {
-        p.with_help("while parsing type variant", |p| -> Option<Self> {
+        p.with_help("type variant", |p| -> Option<Self> {
             let mut buf = vec![];
             let name = p.parse()?;
             loop {
@@ -99,11 +99,11 @@ impl Parse for TypeVariant {
 
 impl Parse for AstNode {
     fn parse(p: &mut Parser) -> Option<Self> {
-        p.with_help("while parsing AST node", |p| match p.peek().item() {
+        match p.peek().item() {
             Token::FunctionKeyword | Token::ExportFunctionKeyword => Some(AstNode::FunctionDeclaration(p.parse()?)),
             Token::TypeKeyword | Token::ExportTypeKeyword => Some(AstNode::TypeDeclaration(p.parse()?)),
             Token::Eof | Token::NewFile(..) => None,
-            Token::Import | Token::Export => Some(AstNode::ImportStatement(p.parse()?)),
+            Token::Import => Some(AstNode::ImportStatement(p.parse()?)),
             a => {
                 let span = p.peek().span();
                 p.push_error(span.with_item(ParseErrorKind::ExpectedOneOf(
@@ -112,17 +112,16 @@ impl Parse for AstNode {
                 )));
                 None
             },
-        })
+        }
     }
 }
 
 impl Parse for ImportStatement {
     fn parse(p: &mut Parser) -> Option<Self> {
-        p.with_help("while parsing import or export statement", |p| -> Option<Self> {
-            let tok = p.one_of([Token::Import, Token::Export])?;
+        p.with_help("import statement", |p| -> Option<Self> {
+            let tok = p.token(Token::Import)?;
             let visibility = match tok.item() {
                 Token::Import => Visibility::Local,
-                Token::Export => Visibility::Exported,
                 _ => unreachable!(),
             };
             let path: Vec<Identifier> = p.sequence_one_or_more(Token::Dot)?;
@@ -138,7 +137,7 @@ impl Parse for ImportStatement {
 
 impl Parse for FunctionDeclaration {
     fn parse(p: &mut Parser) -> Option<Self> {
-        p.with_help("while parsing function declaration", |p| -> Option<Self> {
+        p.with_help("function declaration", |p| -> Option<Self> {
             let tok = p.one_of([Token::FunctionKeyword, Token::ExportFunctionKeyword])?;
             let visibility = match tok.item() {
                 Token::FunctionKeyword => Visibility::Local,
@@ -184,7 +183,7 @@ impl Parse for Literal {
 }
 impl Parse for FunctionParameter {
     fn parse(p: &mut Parser) -> Option<Self> {
-        p.with_help("while parsing function parameter", |p| -> Option<Self> {
+        p.with_help("function parameter", |p| -> Option<Self> {
             let name: Identifier = p.parse()?;
             p.one_of([Token::InKeyword, Token::IsInSymbol])?;
             let ty: Ty = p.parse()?;
@@ -197,7 +196,7 @@ impl Parse for Ty {
     // TODO types are not just idents,
     // they can be more than that
     fn parse(p: &mut Parser) -> Option<Self> {
-        p.with_help("while parsing type", |p| -> Option<Self> {
+        p.with_help("type", |p| -> Option<Self> {
             p.token(Token::TyMarker)?;
             let next: Identifier = p.parse()?;
             let ty = match p.slice() {
@@ -267,7 +266,7 @@ where
 
 impl Parse for Expression {
     fn parse(p: &mut Parser) -> Option<Self> {
-        p.with_help("while parsing expression", |p| -> Option<Self> {
+        p.with_help("expression", |p| -> Option<Self> {
             // TODO Parser "map" function which takes a list of tokens and their corresponding
             // parsers, which can auto-populate the ExpectedOneOf error
             match p.peek().item() {
@@ -311,7 +310,7 @@ impl Parse for ExpressionWithBindings {
     fn parse(p: &mut Parser) -> Option<Self> {
         p.token(Token::Let)?;
 
-        let bindings: Vec<Binding> = p.sequence_one_or_more(Token::Comma)?;
+        let bindings: Vec<Binding> = p.sequence_one_or_more(Token::Semicolon)?;
         let expression = p.parse()?;
 
         Some(ExpressionWithBindings {
@@ -324,7 +323,7 @@ impl Parse for ExpressionWithBindings {
 
 impl Parse for Binding {
     fn parse(p: &mut Parser) -> Option<Self> {
-        p.with_help("while parsing let binding", |p| {
+        p.with_help("let binding", |p| {
             let name: Identifier = p.parse()?;
             p.token(Token::Equals)?;
             let expr = p.parse()?;
@@ -335,7 +334,7 @@ impl Parse for Binding {
 
 impl Parse for IntrinsicCall {
     fn parse(p: &mut Parser) -> Option<Self> {
-        p.with_help("while parsing intrinsic call", |p| -> Option<Self> {
+        p.with_help("intrinsic call", |p| -> Option<Self> {
             let name = p.slice().to_string();
             let intrinsic = match &name[1..] {
                 "puts" => Intrinsic::Puts,

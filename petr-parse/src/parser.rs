@@ -144,7 +144,13 @@ impl Parser {
         }
         let mut help_text = Vec::with_capacity(self.help.len());
         for (indentation, help) in self.help.iter().enumerate() {
-            let text = format!("{}{}{help}", "  ".repeat(indentation), if indentation == 0 { "" } else { "↪ " });
+            let is_last = indentation == self.help.len() - 1;
+            let text = format!(
+                "{}{}{}{help}",
+                "  ".repeat(indentation),
+                if indentation == 0 { "" } else { "↪ " },
+                if is_last { "expected " } else { "while parsing " }
+            );
             help_text.push(text);
         }
         let err = err.map(|err| err.into_err().with_help(Some(help_text.join("\n"))));

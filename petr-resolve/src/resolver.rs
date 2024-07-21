@@ -847,7 +847,7 @@ mod tests {
     fn func_returns_list() {
         check(
             r#"
-            function foo(a in 'int) returns 'int [1, 2, 3]
+            fn foo(a in 'int) returns 'int [1, 2, 3]
             "#,
             expect![[r#"
                     _____FUNCTIONS_____
@@ -861,7 +861,7 @@ mod tests {
         check(
             r#"
             type MyType = a | b
-            function foo(a in 'MyType) returns 'MyType [1, 2, 3]
+            fn foo(a in 'MyType) returns 'MyType [1, 2, 3]
             "#,
             expect![[r#"
                 _____FUNCTIONS_____
@@ -879,7 +879,7 @@ mod tests {
     fn func_returns_named_type_declared_after_use() {
         check(
             r#"
-            function foo(a in 'MyType) returns 'MyType [
+            fn foo(a in 'MyType) returns 'MyType [
                 1,
                 2,
                 3
@@ -902,8 +902,8 @@ mod tests {
     fn call_func_before_decl() {
         check(
             r#"
-            function foo() returns 'MyType ~bar(5)
-            function bar(a in 'MyType) returns 'MyType [
+            fn foo() returns 'MyType ~bar(5)
+            fn bar(a in 'MyType) returns 'MyType [
                 1,
                 2,
                 3
@@ -927,8 +927,8 @@ mod tests {
     fn call_func_in_list_before_decl() {
         check(
             r#"
-            function foo() returns 'MyType ~bar(5)
-            function bar(a in 'MyType) returns 'MyType [
+            fn foo() returns 'MyType ~bar(5)
+            fn bar(a in 'MyType) returns 'MyType [
                 1,
                 2,
                 3
@@ -952,12 +952,12 @@ mod tests {
         check_multiple(
             vec![
                 r#"
-                Function exported_func(a in 'int) returns 'int a
+                export fn exported_func(a in 'int) returns 'int a
                 "#,
                 r#"
                 import test1.exported_func
 
-                function foo() returns 'int ~exported_func(5)
+                fn foo() returns 'int ~exported_func(5)
 
                "#,
             ],
@@ -975,12 +975,12 @@ mod tests {
         check_multiple(
             vec![
                 r#"
-                Function exported_func(a in 'int) returns 'int a
+                export fn exported_func(a in 'int) returns 'int a
                 "#,
                 r#"
                 import test1.exported_func as bar 
 
-                function foo() returns 'int ~bar(5)
+                fn foo() returns 'int ~bar(5)
 
                "#,
             ],

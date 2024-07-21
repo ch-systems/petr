@@ -1,6 +1,6 @@
 Type Ptr = Unsized address 'int | Sized address 'int size 'int 
 
-Function malloc(size in 'int) returns 'Ptr
+export fn malloc(size in 'int) returns 'Ptr
   let allocated = @malloc size
   ~Sized allocated, size
 
