@@ -11,7 +11,7 @@ monaco.languages.register({ id: "petr" });
 
 // Register a tokens provider for the language
 monaco.languages.setMonarchTokensProvider("petr", {
-  keywords: [ 'function', 'returns', 'in' ],
+  keywords: [ 'fn', 'returns', 'in', 'type', 'export' ],
 	tokenizer: {
 		root: [
       [/\~([a-zA-Z][a-zA-Z0-9]+)(\.[a-zA-Z]([a-zA-Z0-9])+)*/, "function-call"],
@@ -111,7 +111,7 @@ monaco.languages.registerCompletionItemProvider("mySpecialLanguage", {
 
 
 monaco.editor.create(document.getElementById('monaco-editor'), {
-	value: "function main() returns 'unit \n  ~std.io.print \"Hello, World!\"",
+	value: "fn main() returns 'unit \n  ~std.io.print \"Hello, World!\"",
 	language: 'petr',
   theme: "petr-theme",
 });
