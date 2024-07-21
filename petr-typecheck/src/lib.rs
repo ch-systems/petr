@@ -1,12 +1,5 @@
 mod error;
 
-// TODO(alex):
-// In type checking, store type-checked function calls with their name and signature as the key
-// and the bodies with different types as the value. Code generation then gets the monomorphiztion
-// with fully concrete types.
-//
-// associate spans with type constraints, so we know what originated the constraint
-
 use std::{collections::BTreeMap, rc::Rc};
 
 use error::TypeConstraintError;
