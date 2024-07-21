@@ -1,7 +1,7 @@
-Function add(lhs in 'int, rhs in 'int) returns 'int @add lhs, rhs
+export fn add(lhs in 'int, rhs in 'int) returns 'int @add lhs, rhs
 
-Function sub(lhs in 'int, rhs in 'int) returns 'int @subtract lhs, rhs
+export fn sub(lhs in 'int, rhs in 'int) returns 'int @subtract lhs, rhs
 
-Function mult(lhs in 'int, rhs in 'int) returns 'int @multiply lhs, rhs
+export fn mult(lhs in 'int, rhs in 'int) returns 'int @multiply lhs, rhs
 
-Function div(lhs in 'int, rhs in 'int) returns 'int @divide lhs, rhs
+export fn div(lhs in 'int, rhs in 'int) returns 'int @divide lhs, rhs

@@ -11,7 +11,7 @@ pub struct FormatterConfig {
     tab_size: usize,
     max_line_length: usize,
     put_fn_args_on_new_lines: bool,
-    put_trailing_commas_on_let_bindings: bool,
+    put_trailing_semis_on_let_bindings: bool,
     backup: bool,
 }
 
@@ -60,8 +60,8 @@ impl FormatterConfig {
         self.put_fn_args_on_new_lines
     }
 
-    pub fn put_trailing_commas_on_let_bindings(&self) -> bool {
-        self.put_trailing_commas_on_let_bindings
+    pub fn put_trailing_semis_on_let_bindings(&self) -> bool {
+        self.put_trailing_semis_on_let_bindings
     }
 
     pub fn backup(&self) -> bool {
@@ -81,7 +81,7 @@ impl FormatterConfig {
             tab_size: self.tab_size,
             max_line_length: self.max_line_length,
             put_fn_args_on_new_lines: self.put_fn_args_on_new_lines,
-            put_trailing_commas_on_let_bindings: self.put_trailing_commas_on_let_bindings,
+            put_trailing_semis_on_let_bindings: self.put_trailing_semis_on_let_bindings,
             backup: self.backup,
         }
     }
@@ -105,7 +105,7 @@ pub struct FormatterConfigBuilder {
     tab_size: usize,
     max_line_length: usize,
     put_fn_args_on_new_lines: bool,
-    put_trailing_commas_on_let_bindings: bool,
+    put_trailing_semis_on_let_bindings: bool,
     backup: bool,
 }
 
@@ -211,12 +211,12 @@ impl FormatterConfigBuilder {
         }
     }
 
-    pub fn put_trailing_commas_on_let_bindings(
+    pub fn put_trailing_semis_on_let_bindings(
         self,
-        put_trailing_commas_on_let_bindings: bool,
+        put_trailing_semis_on_let_bindings: bool,
     ) -> Self {
         Self {
-            put_trailing_commas_on_let_bindings,
+            put_trailing_semis_on_let_bindings,
             ..self
         }
     }
@@ -241,7 +241,7 @@ impl FormatterConfigBuilder {
             tab_size: self.tab_size,
             max_line_length: self.max_line_length,
             put_fn_args_on_new_lines: self.put_fn_args_on_new_lines,
-            put_trailing_commas_on_let_bindings: self.put_trailing_commas_on_let_bindings,
+            put_trailing_semis_on_let_bindings: self.put_trailing_semis_on_let_bindings,
             backup: self.backup,
         }
     }
@@ -261,7 +261,7 @@ impl Default for FormatterConfigBuilder {
             tab_size: 2,
             max_line_length: 80,
             put_fn_args_on_new_lines: false,
-            put_trailing_commas_on_let_bindings: false,
+            put_trailing_semis_on_let_bindings: false,
             backup: false,
         }
     }

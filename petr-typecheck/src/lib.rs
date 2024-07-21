@@ -525,7 +525,7 @@ impl TypeChecker {
             Unit => self.unit(),
             Variable { ty, .. } => *ty,
             Intrinsic { ty, .. } => *ty,
-            ErrorRecovery => self.error_recovery(),
+            ErrorRecovery(..) => self.ctx.error_recovery,
             ExprWithBindings { expression, .. } => self.expr_ty(expression),
             TypeConstructor { ty, .. } => *ty,
         }
@@ -553,7 +553,14 @@ impl TypeChecker {
         self.ctx.int_ty
     }
 
-    pub fn error_recovery(&self) -> TypeVariable {
+    /// To reference an error recovery type, you must provide an error.
+    /// This holds the invariant that error recovery types are only generated when
+    /// an error occurs.
+    pub fn error_recovery(
+        &mut self,
+        err: TypeError,
+    ) -> TypeVariable {
+        self.push_error(err);
         self.ctx.error_recovery
     }
 
@@ -624,8 +631,7 @@ pub enum TypedExprKind {
         ty:        TypeVariable,
         intrinsic: Intrinsic,
     },
-    // TODO put a span here?
-    ErrorRecovery,
+    ErrorRecovery(Span),
     ExprWithBindings {
         bindings:   Vec<(Identifier, TypedExpr)>,
         expression: Box<TypedExpr>,
@@ -661,7 +667,7 @@ impl std::fmt::Debug for TypedExpr {
             Unit => write!(f, "unit"),
             Variable { name, .. } => write!(f, "variable: {}", name.id),
             Intrinsic { intrinsic, .. } => write!(f, "intrinsic: {:?}", intrinsic),
-            ErrorRecovery => write!(f, "error recovery"),
+            ErrorRecovery(..) => write!(f, "error recovery"),
             ExprWithBindings { bindings, expression } => {
                 write!(f, "bindings: ")?;
                 for (name, expr) in bindings {
@@ -715,7 +721,7 @@ impl TypeCheck for Expr {
                         function: ctx.realize_symbol(func_decl.name.id).to_string(),
                     }));
                     return TypedExpr {
-                        kind: TypedExprKind::ErrorRecovery,
+                        kind: TypedExprKind::ErrorRecovery(self.span),
                         span: self.span,
                     };
                 }
@@ -737,7 +743,7 @@ impl TypeCheck for Expr {
                 }
             },
             ExprKind::Unit => TypedExprKind::Unit,
-            ExprKind::ErrorRecovery => TypedExprKind::ErrorRecovery,
+            ExprKind::ErrorRecovery => TypedExprKind::ErrorRecovery(self.span),
             ExprKind::Variable { name, ty } => {
                 // look up variable in scope
                 // find its expr return type
@@ -1000,7 +1006,7 @@ mod tests {
 
                     let name = type_checker.resolved.interner.get(func.name.id);
 
-                    format!("function {}", name)
+                    format!("fn {}", name)
                 },
             };
             s.push_str(&text);
@@ -1116,10 +1122,10 @@ mod tests {
     fn identity_resolution_concrete_type() {
         check(
             r#"
-            function foo(x in 'int) returns 'int x
+            fn foo(x in 'int) returns 'int x
             "#,
             expect![[r#"
-                function foo: (int → int)
+                fn foo: (int → int)
                 variable x: int
 
             "#]],
@@ -1130,10 +1136,10 @@ mod tests {
     fn identity_resolution_generic() {
         check(
             r#"
-            function foo(x in 'A) returns 'A x
+            fn foo(x in 'A) returns 'A x
             "#,
             expect![[r#"
-                function foo: (t4 → t4)
+                fn foo: (t4 → t4)
                 variable x: t4
 
             "#]],
@@ -1145,18 +1151,18 @@ mod tests {
         check(
             r#"
             type MyType = A | B
-            function foo(x in 'MyType) returns 'MyType x
+            fn foo(x in 'MyType) returns 'MyType x
             "#,
             expect![[r#"
                 type MyType: MyType
 
-                function A: MyType
+                fn A: MyType
                 type constructor: MyType
 
-                function B: MyType
+                fn B: MyType
                 type constructor: MyType
 
-                function foo: (MyType → MyType)
+                fn foo: (MyType → MyType)
                 variable x: MyType
 
             "#]],
@@ -1169,26 +1175,26 @@ mod tests {
             r#"
             type MyType = A | B
             type MyComposedType = firstVariant someField 'MyType | secondVariant someField 'int someField2 'MyType someField3 'GenericType
-            function foo(x in 'MyType) returns 'MyComposedType ~firstVariant(x)
+            fn foo(x in 'MyType) returns 'MyComposedType ~firstVariant(x)
             "#,
             expect![[r#"
                 type MyType: MyType
 
                 type MyComposedType: MyComposedType
 
-                function A: MyType
+                fn A: MyType
                 type constructor: MyType
 
-                function B: MyType
+                fn B: MyType
                 type constructor: MyType
 
-                function firstVariant: (MyType → MyComposedType)
+                fn firstVariant: (MyType → MyComposedType)
                 type constructor: MyComposedType
 
-                function secondVariant: (int → MyType → t18 → MyComposedType)
+                fn secondVariant: (int → MyType → t18 → MyComposedType)
                 type constructor: MyComposedType
 
-                function foo: (MyType → MyComposedType)
+                fn foo: (MyType → MyComposedType)
                 function call to functionid2 with args: someField: MyType, returns MyComposedType
 
             "#]],
@@ -1199,14 +1205,14 @@ mod tests {
     fn literal_unification_fail() {
         check(
             r#"
-            function foo() returns 'int 5
-            function bar() returns 'bool 5
+            fn foo() returns 'int 5
+            fn bar() returns 'bool 5
             "#,
             expect![[r#"
-                function foo: int
+                fn foo: int
                 literal: 5
 
-                function bar: bool
+                fn bar: bool
                 literal: 5
 
             "#]],
@@ -1217,14 +1223,14 @@ mod tests {
     fn literal_unification_success() {
         check(
             r#"
-            function foo() returns 'int 5
-            function bar() returns 'bool true
+            fn foo() returns 'int 5
+            fn bar() returns 'bool true
             "#,
             expect![[r#"
-                function foo: int
+                fn foo: int
                 literal: 5
 
-                function bar: bool
+                fn bar: bool
                 literal: true
 
             "#]],
@@ -1235,16 +1241,16 @@ mod tests {
     fn pass_zero_arity_func_to_intrinsic() {
         check(
             r#"
-        function string_literal() returns 'string
+        fn string_literal() returns 'string
           "This is a string literal."
 
-        function my_func() returns 'unit
+        fn my_func() returns 'unit
           @puts(~string_literal)"#,
             expect![[r#"
-                function string_literal: string
+                fn string_literal: string
                 literal: "This is a string literal."
 
-                function my_func: unit
+                fn my_func: unit
                 intrinsic: @puts(function call to functionid0 with args: )
 
             "#]],
@@ -1255,10 +1261,10 @@ mod tests {
     fn pass_literal_string_to_intrinsic() {
         check(
             r#"
-        function my_func() returns 'unit
+        fn my_func() returns 'unit
           @puts("test")"#,
             expect![[r#"
-                function my_func: unit
+                fn my_func: unit
                 intrinsic: @puts(literal: "test")
 
             "#]],
@@ -1269,17 +1275,17 @@ mod tests {
     fn pass_wrong_type_literal_to_intrinsic() {
         check(
             r#"
-        function my_func() returns 'unit
+        fn my_func() returns 'unit
           @puts(true)"#,
             expect![[r#"
-                function my_func: unit
+                fn my_func: unit
                 intrinsic: @puts(literal: true)
 
 
                 Errors:
                   × Failed to unify types: String, Boolean
                    ╭─[test:2:1]
-                 2 │         function my_func() returns 'unit
+                 2 │         fn my_func() returns 'unit
                  3 │           @puts(true)
                    ·                 ──┬─
                    ·                   ╰── Failed to unify types: String, Boolean
@@ -1293,10 +1299,10 @@ mod tests {
     fn intrinsic_and_return_ty_dont_match() {
         check(
             r#"
-        function my_func() returns 'bool
+        fn my_func() returns 'bool
           @puts("test")"#,
             expect![[r#"
-                function my_func: bool
+                fn my_func: bool
                 intrinsic: @puts(literal: "test")
 
             "#]],
@@ -1307,23 +1313,23 @@ mod tests {
     fn pass_wrong_type_fn_call_to_intrinsic() {
         check(
             r#"
-        function bool_literal() returns 'bool
+        fn bool_literal() returns 'bool
             true
 
-        function my_func() returns 'unit
+        fn my_func() returns 'unit
           @puts(~bool_literal)"#,
             expect![[r#"
-                function bool_literal: bool
+                fn bool_literal: bool
                 literal: true
 
-                function my_func: unit
+                fn my_func: unit
                 intrinsic: @puts(function call to functionid0 with args: )
 
 
                 Errors:
                   × Failed to unify types: String, Boolean
                    ╭─[test:5:1]
-                 5 │         function my_func() returns 'unit
+                 5 │         fn my_func() returns 'unit
                  6 │           @puts(~bool_literal)
                    ·                 ───────┬──────
                    ·                        ╰── Failed to unify types: String, Boolean
@@ -1337,24 +1343,24 @@ mod tests {
     fn multiple_calls_to_fn_dont_unify_params_themselves() {
         check(
             r#"
-        function bool_literal(a in 'A, b in 'B) returns 'bool
+        fn bool_literal(a in 'A, b in 'B) returns 'bool
             true
 
-        function my_func() returns 'bool
+        fn my_func() returns 'bool
             ~bool_literal(1, 2)
 
         {- should not unify the parameter types of bool_literal -}
-        function my_second_func() returns 'bool
+        fn my_second_func() returns 'bool
             ~bool_literal(true, false)
         "#,
             expect![[r#"
-                function bool_literal: (t4 → t5 → bool)
+                fn bool_literal: (t4 → t5 → bool)
                 literal: true
 
-                function my_func: bool
+                fn my_func: bool
                 function call to functionid0 with args: a: int, b: int, returns bool
 
-                function my_second_func: bool
+                fn my_second_func: bool
                 function call to functionid0 with args: a: bool, b: bool, returns bool
 
             "#]],
@@ -1364,10 +1370,10 @@ mod tests {
     fn list_different_types_type_err() {
         check(
             r#"
-                function my_list() returns 'list [ 1, true ]
+                fn my_list() returns 'list [ 1, true ]
             "#,
             expect![[r#"
-                function my_list: t7
+                fn my_list: t7
                 list: [literal: 1, literal: true, ]
 
 
@@ -1375,9 +1381,9 @@ mod tests {
                   × Failed to unify types: Integer, Boolean
                    ╭─[test:1:1]
                  1 │ 
-                 2 │                 function my_list() returns 'list [ 1, true ]
-                   ·                                                      ──┬──
-                   ·                                                        ╰── Failed to unify types: Integer, Boolean
+                 2 │                 fn my_list() returns 'list [ 1, true ]
+                   ·                                                ──┬──
+                   ·                                                  ╰── Failed to unify types: Integer, Boolean
                  3 │             
                    ╰────
 
@@ -1389,15 +1395,15 @@ mod tests {
     fn incorrect_number_of_args() {
         check(
             r#"
-                function add(a in 'int, b in 'int) returns 'int a
+                fn add(a in 'int, b in 'int) returns 'int a
 
-                function add_five(a in 'int) returns 'int ~add(5)
+                fn add_five(a in 'int) returns 'int ~add(5)
             "#,
             expect![[r#"
-                function add: (int → int → int)
+                fn add: (int → int → int)
                 variable a: int
 
-                function add_five: (int → int)
+                fn add_five: (int → int)
                 error recovery
 
 
@@ -1405,9 +1411,9 @@ mod tests {
                   × Function add takes 2 arguments, but got 1 arguments.
                    ╭─[test:3:1]
                  3 │ 
-                 4 │                 function add_five(a in 'int) returns 'int ~add(5)
-                   ·                                                          ────┬───
-                   ·                                                              ╰── Function add takes 2 arguments, but got 1 arguments.
+                 4 │                 fn add_five(a in 'int) returns 'int ~add(5)
+                   ·                                                    ────┬───
+                   ·                                                        ╰── Function add takes 2 arguments, but got 1 arguments.
                  5 │             
                    ╰────
 
@@ -1419,16 +1425,16 @@ mod tests {
     fn infer_let_bindings() {
         check(
             r#"
-            function hi(x in 'int, y in 'int) returns 'int
-    let a = x,
-        b = y,
-        c = 20,
-        d = 30,
-        e = 42,
+            fn hi(x in 'int, y in 'int) returns 'int
+    let a = x;
+        b = y;
+        c = 20;
+        d = 30;
+        e = 42;
     a
-function main() returns 'int ~hi(1, 2)"#,
+fn main() returns 'int ~hi(1, 2)"#,
             expect![[r#"
-                function hi: (int → int → int)
+                fn hi: (int → int → int)
                 a: variable: symbolid2 (int),
                 b: variable: symbolid4 (int),
                 c: literal: 20 (int),
@@ -1436,7 +1442,7 @@ function main() returns 'int ~hi(1, 2)"#,
                 e: literal: 42 (int),
                 "variable a: int" (int)
 
-                function main: int
+                fn main: int
                 function call to functionid0 with args: x: int, y: int, returns int
 
             "#]],

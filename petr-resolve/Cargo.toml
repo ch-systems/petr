@@ -10,6 +10,7 @@ either = "1.13.0"
 petr-ast = { path = "../petr-ast" }
 petr-bind = { path = "../petr-bind" }
 petr-utils = { path = "../petr-utils", optional = true }
+miette = { version = "5.10", features = ["fancy"] }
 thiserror = "1.0.61"
 
 [dev-dependencies]

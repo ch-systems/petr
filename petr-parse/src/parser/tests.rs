@@ -28,7 +28,7 @@ fn check<T: Into<String>>(
 #[test]
 fn prefix_operator_expression() {
     check(
-        vec!["function addToFive() returns 'Integer + 4 1"],
+        vec!["fn addToFive() returns 'Integer + 4 1"],
         expect![[r#"
             AST
             ____
@@ -42,7 +42,7 @@ fn prefix_operator_expression() {
 #[test]
 fn parse_parameters() {
     check(
-        vec!["function addTwoNums(a ∈ 'Integer, b ∈ 'Integer) returns 'Integer + a b"],
+        vec!["fn addTwoNums(a ∈ 'Integer, b ∈ 'Integer) returns 'Integer + a b"],
         expect![[r#"
             AST
             ____
@@ -58,8 +58,8 @@ fn parse_parameters() {
 
 #[test]
 fn parse_parameters_in_keyword_identical_to_symbol() {
-    let parser_one = Parser::new(vec![("test", "function addTwoNums(a ∈ 'Integer, b ∈ 'Integer) returns 'Integer + a b")]);
-    let parser_two = Parser::new(vec![("test", "function addTwoNums(a in 'Integer, b in 'Integer) returns 'Integer + a b")]);
+    let parser_one = Parser::new(vec![("test", "fn addTwoNums(a ∈ 'Integer, b ∈ 'Integer) returns 'Integer + a b")]);
+    let parser_two = Parser::new(vec![("test", "fn addTwoNums(a in 'Integer, b in 'Integer) returns 'Integer + a b")]);
     let (ast_one, errs_one, interner_one, _) = parser_one.into_result();
 
     let (ast_two, errs_two, interner_two, _) = parser_two.into_result();
@@ -74,7 +74,7 @@ fn parse_parameters_in_keyword_identical_to_symbol() {
 #[test]
 fn commented_function() {
     check(
-        vec![r#"{- this is a comment -} function addTwoNums(a in 'A, b in 'B) returns 'B + a b    "#],
+        vec![r#"{- this is a comment -} fn addTwoNums(a in 'A, b in 'B) returns 'B + a b    "#],
         expect![[r#"
             AST
             ____
@@ -92,7 +92,7 @@ fn commented_function() {
 #[test]
 fn multi_commented_function() {
     check(
-        vec![r#" {- comment one -} {- comment two -} function addTwoNums(a in 'A, b in 'B) returns 'B + a b    "#],
+        vec![r#" {- comment one -} {- comment two -} fn addTwoNums(a in 'A, b in 'B) returns 'B + a b    "#],
         expect![[r#"
             AST
             ____
@@ -111,7 +111,7 @@ fn multi_commented_function() {
 #[test]
 fn list_expr() {
     check(
-        vec!["function list_to_three() returns 'intlist [1, 2, 3]"],
+        vec!["fn list_to_three() returns 'intlist [1, 2, 3]"],
         expect![[r#"
             AST
             ____
@@ -125,7 +125,7 @@ fn list_expr() {
 #[test]
 fn list_with_nested_exprs() {
     check(
-        vec!["function list_to_three() returns 'intlist [+ 1 2 , 2, + 1 + 2 3]"],
+        vec!["fn list_to_three() returns 'intlist [+ 1 2 , 2, + 1 + 2 3]"],
         expect![[r#"
             AST
             ____
@@ -139,7 +139,7 @@ fn list_with_nested_exprs() {
 #[test]
 fn nested_list() {
     check(
-        vec!["function list_to_three() returns 'intlist [[1, 2], [3, 4, + 1 2]]"],
+        vec!["fn list_to_three() returns 'intlist [[1, 2], [3, 4, + 1 2]]"],
         expect![[r#"
             AST
             ____
@@ -153,7 +153,7 @@ fn nested_list() {
 #[test]
 fn fn_call() {
     check(
-        vec!["function makes_function_call() returns 'unit ~fn_call a, b, c"],
+        vec!["fn makes_function_call() returns 'unit ~fn_call a, b, c"],
         expect![[r#"
             AST
             ____
@@ -168,12 +168,12 @@ fn fn_call() {
 fn let_bindings() {
     check(
         vec![
-            "function makes_function_call(c in 'int) returns 'int
-                        let a = 1,
+            "fn makes_function_call(c in 'int) returns 'int
+                        let a = 1;
                             b = 20
                         ~fn_call a, b, c
 
-            function fn_call(a in 'int, b in 'int, c in 'int) returns 'int + a + b c
+            fn fn_call(a in 'int, b in 'int, c in 'int) returns 'int + a + b c
                      ",
         ],
         expect![[r#"
@@ -202,12 +202,12 @@ fn let_bindings() {
 fn let_bindings_trailing_comma() {
     check(
         vec![
-            "function makes_function_call(c in 'int) returns 'int
-                        let a = 1,
-                            b = 20,
+            "fn makes_function_call(c in 'int) returns 'int
+                        let a = 1;
+                            b = 20;
                         ~fn_call a, b, c
 
-            function fn_call(a in 'int, b in 'int, c in 'int) returns 'int + a + b c
+            fn fn_call(a in 'int, b in 'int, c in 'int) returns 'int + a + b c
                      ",
         ],
         expect![[r#"
@@ -237,9 +237,8 @@ fn imports_and_exports() {
     check(
         vec![
             "import moduleA.itemA
-             export moduleB.itemB
 
-             function someFunction(a in 'int) returns 'int + a 1
+             fn someFunction(a in 'int) returns 'int + a 1
 
              import something_else.foo as bar
             ",
@@ -249,7 +248,6 @@ fn imports_and_exports() {
             ____
             module test =
             import moduleA.itemA
-            export moduleB.itemB
             Func someFunction(
               a ∈ 'int
             ) -> 'int +(var(a) 1)

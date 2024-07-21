@@ -2,7 +2,11 @@
 //! Nothing fancy at all, could definitely be improved over time to support better error reporting,
 //! etc
 
+use petr_api::{render_error, resolve_symbols, type_check, Formattable, FormatterContext, Lowerer, Parser, Vm};
 use wasm_bindgen::prelude::*;
+
+#[cfg(test)]
+mod tests;
 
 #[wasm_bindgen]
 extern "C" {
@@ -13,10 +17,17 @@ extern "C" {
     fn set_code_editor_content(s: &str);
 }
 
-use petr_api::{render_error, resolve_symbols, type_check, Dependency, Formattable, FormatterContext, Lowerer, Parser, Vm};
-
 #[wasm_bindgen]
 pub fn run_snippet(code: &str) {
+    run_snippet_inner(code, set_output_content);
+}
+
+fn run_snippet_inner<F>(
+    code: &str,
+    set_output_content: F,
+) where
+    F: Fn(&str),
+{
     let lowerer = match compile_snippet(code.to_string()) {
         Ok(o) => o,
         Err(e) => {
@@ -50,37 +61,31 @@ fn errors_to_html(e: &[String]) -> String {
     buf
 }
 
-fn compile_snippet(code: String) -> Result<Lowerer, Vec<String>> {
-    let buf = vec![("snippet".to_string(), code)];
-    let mut errs = vec![];
-    let parser = Parser::new(buf);
+fn compile_snippet(input: String) -> Result<Lowerer, Vec<String>> {
+    let mut sources = stdlib::stdlib();
+    sources.push(("snippet", &input));
+    let parser = petr_api::Parser::new(sources);
+    let (ast, errs, interner, source_map) = parser.into_result();
+    if !errs.is_empty() {
+        return Err(errs.into_iter().map(|err| format!("{:?}", render_error(&source_map, err))).collect());
+    }
+    let (errs, resolved) = resolve_symbols(ast, interner, Default::default());
+    if !errs.is_empty() {
+        return Err(errs.into_iter().map(|err| format!("{:?}", render_error(&source_map, err))).collect());
+    }
 
-    let (ast, mut parse_errs, interner, source_map) = parser.into_result();
-    // add the standard library to the sources
-    let parser = Parser::new_with_existing_interner_and_source_map(stdlib::stdlib(), interner, source_map);
-    let (dep_ast, mut new_parse_errs, interner, source_map) = parser.into_result();
-    parse_errs.append(&mut new_parse_errs);
-    let dependencies = vec![Dependency {
-        key:          "stdlib".to_string(),
-        name:         "std".into(),
-        dependencies: vec![],
-        ast:          dep_ast,
-    }];
-
-    // TODO after diagnostics are implemented for resolution errors, append them to the errors and
-    // return them
-    let (_resolution_errs, resolved) = resolve_symbols(ast, interner, dependencies);
-    let (type_errs, type_checker) = type_check(resolved);
-    let lowerer = Lowerer::new(type_checker);
-
-    errs.extend(parse_errs.into_iter().map(|e| format!("{:?}", render_error(&source_map, e))));
-    errs.extend(type_errs.into_iter().map(|e| format!("{:?}", render_error(&source_map, e))));
+    let (errs, type_checker) = type_check(resolved);
 
     if !errs.is_empty() {
-        Err(errs)
-    } else {
-        Ok(lowerer)
+        return Err(errs.into_iter().map(|err| format!("{:?}", render_error(&source_map, err))).collect());
     }
+
+    let lowerer = match Lowerer::new(type_checker) {
+        Ok(l) => l,
+        Err(err) => panic!("lowering failed: {:?}", err),
+    };
+
+    Ok(lowerer)
 }
 
 #[wasm_bindgen]
@@ -93,6 +98,7 @@ pub fn format(code: String) {
             .map(|e| format!("{:?}", render_error(&source_map, e)))
             .collect::<Vec<_>>();
         set_output_content(&errs.join("<br>"));
+        return;
     }
     let mut ctx = FormatterContext::from_interner(interner).with_config(Default::default());
     let formatted_content = ast.line_length_aware_format(&mut ctx).render();

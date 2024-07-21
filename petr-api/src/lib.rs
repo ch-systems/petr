@@ -9,7 +9,7 @@ use std::{
 };
 
 pub use petr_fmt::{format_sources, Formattable, FormatterConfig, FormatterContext};
-pub use petr_ir::Lowerer;
+pub use petr_ir::{Lowerer, LoweringError};
 pub use petr_parse::Parser;
 #[cfg(not(feature = "no_std"))]
 pub use petr_pkg::{manifest::find_manifest, BuildPlan};
