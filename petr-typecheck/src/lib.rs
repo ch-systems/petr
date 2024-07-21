@@ -525,7 +525,7 @@ impl TypeChecker {
             Unit => self.unit(),
             Variable { ty, .. } => *ty,
             Intrinsic { ty, .. } => *ty,
-            ErrorRecovery => self.error_recovery(),
+            ErrorRecovery(..) => self.ctx.error_recovery,
             ExprWithBindings { expression, .. } => self.expr_ty(expression),
             TypeConstructor { ty, .. } => *ty,
         }
@@ -553,7 +553,14 @@ impl TypeChecker {
         self.ctx.int_ty
     }
 
-    pub fn error_recovery(&self) -> TypeVariable {
+    /// To reference an error recovery type, you must provide an error.
+    /// This holds the invariant that error recovery types are only generated when
+    /// an error occurs.
+    pub fn error_recovery(
+        &mut self,
+        err: TypeError,
+    ) -> TypeVariable {
+        self.push_error(err);
         self.ctx.error_recovery
     }
 
@@ -624,8 +631,7 @@ pub enum TypedExprKind {
         ty:        TypeVariable,
         intrinsic: Intrinsic,
     },
-    // TODO put a span here?
-    ErrorRecovery,
+    ErrorRecovery(Span),
     ExprWithBindings {
         bindings:   Vec<(Identifier, TypedExpr)>,
         expression: Box<TypedExpr>,
@@ -661,7 +667,7 @@ impl std::fmt::Debug for TypedExpr {
             Unit => write!(f, "unit"),
             Variable { name, .. } => write!(f, "variable: {}", name.id),
             Intrinsic { intrinsic, .. } => write!(f, "intrinsic: {:?}", intrinsic),
-            ErrorRecovery => write!(f, "error recovery"),
+            ErrorRecovery(..) => write!(f, "error recovery"),
             ExprWithBindings { bindings, expression } => {
                 write!(f, "bindings: ")?;
                 for (name, expr) in bindings {
@@ -715,7 +721,7 @@ impl TypeCheck for Expr {
                         function: ctx.realize_symbol(func_decl.name.id).to_string(),
                     }));
                     return TypedExpr {
-                        kind: TypedExprKind::ErrorRecovery,
+                        kind: TypedExprKind::ErrorRecovery(self.span),
                         span: self.span,
                     };
                 }
@@ -737,7 +743,7 @@ impl TypeCheck for Expr {
                 }
             },
             ExprKind::Unit => TypedExprKind::Unit,
-            ExprKind::ErrorRecovery => TypedExprKind::ErrorRecovery,
+            ExprKind::ErrorRecovery => TypedExprKind::ErrorRecovery(self.span),
             ExprKind::Variable { name, ty } => {
                 // look up variable in scope
                 // find its expr return type

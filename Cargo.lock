@@ -1041,10 +1041,12 @@ name = "petr-ir"
 version = "0.1.0"
 dependencies = [
  "expect-test",
+ "miette",
  "petr-parse",
  "petr-resolve",
  "petr-typecheck",
  "petr-utils",
+ "thiserror",
 ]
 
 [[package]]
@@ -1078,6 +1080,7 @@ dependencies = [
 name = "petr-playground"
 version = "0.1.0"
 dependencies = [
+ "expect-test",
  "petr-api",
  "stdlib",
  "wasm-bindgen",

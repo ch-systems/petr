@@ -4,6 +4,7 @@ use std::{
 };
 
 use clap::Parser as ClapParser;
+use error::PeteError;
 use petr_api::*;
 use petr_pkg::BuildPlan;
 use petr_resolve::Dependency;
@@ -19,6 +20,8 @@ pub mod error {
         TomlSeriatlize(#[from] toml::ser::Error),
         #[error(transparent)]
         Pkg(#[from] petr_pkg::error::PkgError),
+        #[error("Failed to lower code")]
+        FailedToLower,
     }
 }
 
@@ -222,7 +225,13 @@ pub fn compile(
     timings.end("type check");
 
     timings.start("lowering");
-    let lowerer: Lowerer = Lowerer::new(type_checker);
+    let lowerer: Lowerer = match Lowerer::new(type_checker) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("Failed to lower: {:?}", e);
+            return Err(PeteError::FailedToLower);
+        },
+    };
     timings.end("lowering");
 
     render_errors(parse_errs, &source_map);

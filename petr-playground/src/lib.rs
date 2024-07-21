@@ -2,6 +2,7 @@
 //! Nothing fancy at all, could definitely be improved over time to support better error reporting,
 //! etc
 
+use expect_test::expect;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -52,7 +53,7 @@ fn run_snippet_inner<F>(
 #[test]
 fn test_run_snippet() {
     fn retrieve_output_content(s: &str) {
-        assert_eq!(s, "Logs:<br>\tHello, World!\nResult: <br>\tUnit");
+        expect![""].assert_eq(s);
     }
 
     run_snippet_inner(
@@ -68,7 +69,7 @@ function main() returns 'unit
 #[test]
 fn repro_of_wasm_panic() {
     fn retrieve_output_content(s: &str) {
-        assert_eq!(s, "Logs:<br>\tHello, World!\nResult: <br>\tUnit");
+        expect![""].assert_eq(s);
     }
     run_snippet_inner(
         r#"
@@ -109,17 +110,24 @@ fn compile_snippet(code: String) -> Result<Lowerer, Vec<String>> {
 
     let (resolution_errs, resolved) = resolve_symbols(ast, interner, dependencies);
     let (type_errs, type_checker) = type_check(resolved);
-    let lowerer = Lowerer::new(type_checker);
 
     errs.extend(parse_errs.into_iter().map(|e| format!("{:?}", render_error(&source_map, e))));
     errs.extend(type_errs.into_iter().map(|e| format!("{:?}", render_error(&source_map, e))));
     errs.extend(resolution_errs.into_iter().map(|e| format!("{:?}", render_error(&source_map, e))));
 
     if !errs.is_empty() {
-        Err(errs)
-    } else {
-        Ok(lowerer)
+        return Err(errs);
     }
+
+    let lowerer = match Lowerer::new(type_checker) {
+        Ok(l) => l,
+        Err(e) => {
+            errs.push(format!("{:?}", e));
+            return Err(errs);
+        },
+    };
+
+    Ok(lowerer)
 }
 
 #[wasm_bindgen]

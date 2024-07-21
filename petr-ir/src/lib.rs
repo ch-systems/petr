@@ -10,17 +10,17 @@
 use std::{collections::BTreeMap, rc::Rc};
 
 use petr_typecheck::{FunctionId, TypeChecker, TypeVariable, TypedExpr, TypedExprKind};
-use petr_utils::{idx_map_key, Identifier, IndexMap, SymbolId};
+use petr_utils::{idx_map_key, Identifier, IndexMap, SpannedItem, SymbolId};
 
 mod error;
 mod opcodes;
 
-use error::*;
+pub use error::LoweringError;
 use opcodes::*;
 pub use opcodes::{DataLabel, Intrinsic, IrOpcode, Reg, ReservedRegister};
 
-pub fn lower(checker: TypeChecker) -> Result<(DataSection, Vec<IrOpcode>), LoweringError> {
-    let lowerer = Lowerer::new(checker);
+pub fn lower(checker: TypeChecker) -> Result<(DataSection, Vec<IrOpcode>)> {
+    let lowerer = Lowerer::new(checker)?;
     Ok(lowerer.finalize())
 }
 
@@ -36,6 +36,8 @@ pub struct FunctionSignature {
 }
 
 idx_map_key!(MonomorphizedFunctionId);
+
+pub type Result<T> = std::result::Result<T, SpannedItem<LoweringError>>;
 
 pub type DataSection = IndexMap<DataLabel, DataSectionEntry>;
 /// Lowers typed nodes into an IR suitable for code generation.
@@ -56,7 +58,7 @@ pub enum DataSectionEntry {
 }
 
 impl Lowerer {
-    pub fn new(type_checker: TypeChecker) -> Self {
+    pub fn new(type_checker: TypeChecker) -> Result<Self> {
         // if there is an entry point, set that
         // set entry point to func named main
         let entry_point = type_checker
@@ -72,15 +74,16 @@ impl Lowerer {
             monomorphized_functions: Default::default(),
         };
 
-        let monomorphized_entry_point_id = entry_point.map(|(id, _func)| {
-            lowerer
-                .monomorphize_function(MonomorphizedFunction { id, params: vec![] })
-                .expect("handle errors better")
-        });
+        let monomorphized_entry_point_id = match entry_point {
+            None => None,
+            Some((id, _func)) => {
+                let monomorphized_entry_point_id = lowerer.monomorphize_function(MonomorphizedFunction { id, params: vec![] })?;
+                Some(monomorphized_entry_point_id)
+            },
+        };
 
         lowerer.entry_point = monomorphized_entry_point_id;
-        //        lowerer.lower_entry_point().expect("handle errors better");
-        lowerer
+        Ok(lowerer)
     }
 
     pub fn finalize(self) -> (DataSection, Vec<IrOpcode>) {
@@ -107,7 +110,7 @@ impl Lowerer {
     fn monomorphize_function(
         &mut self,
         func: MonomorphizedFunction,
-    ) -> Result<MonomorphizedFunctionId, LoweringError> {
+    ) -> Result<MonomorphizedFunctionId> {
         if let Some(previously_monomorphized_definition) = self.monomorphized_functions.iter().find(|(_id, (sig, _))| *sig == func.signature()) {
             return Ok(previously_monomorphized_definition.0);
         }
@@ -115,7 +118,7 @@ impl Lowerer {
         let function_definition_body = self.type_checker.get_function(&func.id).body.clone();
 
         let mut buf = vec![];
-        self.with_variable_context(|ctx| -> Result<_, _> {
+        self.with_variable_context(|ctx| -> Result<_> {
             // Pop parameters off the stack in reverse order -- the last parameter for the function
             // will be the first thing popped off the stack
             // When we lower a function call, we push them onto the stack from first to last. Since
@@ -170,7 +173,7 @@ impl Lowerer {
         &mut self,
         body: &TypedExpr,
         return_destination: ReturnDestination,
-    ) -> Result<Vec<IrOpcode>, LoweringError> {
+    ) -> Result<Vec<IrOpcode>> {
         use TypedExprKind::*;
 
         match &body.kind {
@@ -247,8 +250,8 @@ impl Lowerer {
                 })
             },
             Intrinsic { ty: _ty, intrinsic } => self.lower_intrinsic(intrinsic, return_destination),
-            ErrorRecovery => Err(LoweringError),
-            ExprWithBindings { bindings, expression } => self.with_variable_context(|ctx| -> Result<_, _> {
+            ErrorRecovery(span) => Err(span.with_item(LoweringError::Internal("Lowering should not be performed on an AST with errors".into()))),
+            ExprWithBindings { bindings, expression } => self.with_variable_context(|ctx| -> Result<_> {
                 let mut buf = vec![];
                 for (name, expr) in bindings {
                     let reg = ctx.fresh_reg();
@@ -335,7 +338,7 @@ impl Lowerer {
         &mut self,
         intrinsic: &petr_typecheck::Intrinsic,
         return_destination: ReturnDestination,
-    ) -> Result<Vec<IrOpcode>, LoweringError> {
+    ) -> Result<Vec<IrOpcode>> {
         let mut buf = vec![];
         use petr_typecheck::Intrinsic::*;
         match intrinsic {
@@ -379,7 +382,7 @@ impl Lowerer {
         rhs: &TypedExpr,
         return_destination: ReturnDestination,
         op: fn(Reg, Reg, Reg) -> IrOpcode,
-    ) -> Result<Vec<IrOpcode>, LoweringError> {
+    ) -> Result<Vec<IrOpcode>> {
         let mut buf = vec![];
         let lhs_reg = self.fresh_reg();
         let rhs_reg = self.fresh_reg();
@@ -406,9 +409,9 @@ impl Lowerer {
     fn with_variable_context<F, T>(
         &mut self,
         func: F,
-    ) -> Result<T, LoweringError>
+    ) -> Result<T>
     where
-        F: FnOnce(&mut Self) -> Result<T, LoweringError>,
+        F: FnOnce(&mut Self) -> Result<T>,
     {
         self.variables_in_scope.push(Default::default());
         let res = func(self);
@@ -515,7 +518,14 @@ mod tests {
             panic!("ir gen failed: code didn't typecheck");
         }
 
-        let lowerer = Lowerer::new(type_checker);
+        let lowerer = match Lowerer::new(type_checker) {
+            Ok(lowerer) => lowerer,
+            Err(err) => {
+                eprintln!("{:?}", err);
+                panic!("ir gen failed: code didn't lower");
+            },
+        };
+
         let res = lowerer.pretty_print();
 
         expect.assert_eq(&res);
