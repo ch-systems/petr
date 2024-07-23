@@ -83,7 +83,6 @@ impl Lowerer {
                 Some(monomorphized_entry_point_id)
             },
         };
-        println!("my errors are {:?}", lowerer.errors);
 
         lowerer.entry_point = monomorphized_entry_point_id;
         Ok(lowerer)
@@ -188,18 +187,6 @@ impl Lowerer {
             },
             FunctionCall { func, args, ty: _ty } => {
                 let mut buf = Vec::with_capacity(args.len());
-
-                /*
-
-                    self.monomorphized_functions.insert(FunctionSignature {
-                    label:          *func,
-                    concrete_types: args
-                        .iter()
-                        .map(|(_name, expr)| self.to_ir_type(self.type_checker.expr_ty(expr)))
-                        .collect(),
-                });
-                */
-
                 // push all args onto the stack in order
                 for (_arg_name, arg_expr) in args {
                     let reg = self.fresh_reg();
@@ -270,7 +257,9 @@ impl Lowerer {
                 let mut buf = vec![];
                 // the memory model for types is currently not finalized,
                 // but for now, it is just sequential memory that is word-aligned
+                println!("BEFORE1");
                 let ir_ty = self.to_ir_type(*ty);
+                println!("AFTER1");
                 let size_of_aggregate_type = ir_ty.size();
                 let ReturnDestination::Reg(return_destination) = return_destination;
                 buf.push(IrOpcode::MallocImmediate(return_destination, size_of_aggregate_type));
@@ -286,7 +275,9 @@ impl Lowerer {
 
                     let arg_ty = self.type_checker.expr_ty(arg);
 
+                    println!("BEFORE2");
                     current_size_offset += self.to_ir_type(arg_ty).size().num_bytes() as u64;
+                    println!("AFTER2");
                 }
                 Ok(buf)
             },
@@ -485,6 +476,7 @@ impl Lowerer {
     }
 }
 
+#[derive(Debug)]
 struct MonomorphizedFunction {
     id:     FunctionId,
     params: Vec<(Identifier, IrTy)>,
