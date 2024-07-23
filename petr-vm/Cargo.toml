@@ -1,21 +1,25 @@
 [package]
 name = "petr-vm"
-version = "0.1.0"
-edition = "2021"
-license = "MIT"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+license.workspace = true
 description = "a basic VM for running and debugging petr IR"
 
 [dependencies]
-petr-ir = { path = "../petr-ir" }
-petr-utils = { path = "../petr-utils", optional = true }
+petr-ir = { path = "../petr-ir", version = "0.1.0" }
+petr-utils = { path = "../petr-utils", version = "0.1.0", optional = true }
 thiserror = "1.0.61"
 
 [dev-dependencies]
-petr-parse = { path = "../petr-parse" }
+petr-parse = { path = "../petr-parse", version = "0.1.0" }
 expect-test = "1.5.0"
-petr-resolve = { path = "../petr-resolve" }
-petr-typecheck = { path = "../petr-typecheck" }
-petr-stdlib = { path = "../petr-stdlib" }
+petr-resolve = { path = "../petr-resolve", version = "0.1.0" }
+petr-typecheck = { path = "../petr-typecheck", version = "0.1.0" }
+petr-stdlib = { path = "../petr-stdlib", version = "0.1.0" }
 
 [features]
 debug = ["petr-utils/debug"]

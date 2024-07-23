@@ -1,17 +1,21 @@
 [package]
 name = "petr-bind"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
 description = "The binding stage of the petr compiler"
-license = "MIT"
+license.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-petr-utils = { path = "../petr-utils" }
-petr-ast = { path = "../petr-ast" }
+petr-utils = { path = "../petr-utils", version = "0.1.0" }
+petr-ast = { path = "../petr-ast", version = "0.1.0" }
 
 
 [dev-dependencies]
 expect-test = "1.5.0"
-petr-parse = { path = "../petr-parse" }
+petr-parse = { path = "../petr-parse", version = "0.1.0" }

@@ -1,4 +1,5 @@
 [workspace]
+authors = ["Alex Hansen <alex@alex-hansen.com>"]
 resolver = "2"
 members = [
     "petr-parse",
@@ -17,4 +18,10 @@ members = [
     "petr-api",
     "petr-playground",
     "petr-stdlib",
-    ]
+]
+
+version = "0.1.0"
+edition = "2021"
+homepage = "petr.sh"
+license = "MIT"
+repository = "https://github.com/sezna/petr"

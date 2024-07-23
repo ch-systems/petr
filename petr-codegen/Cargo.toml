@@ -1,14 +1,18 @@
 [package]
 name = "petr-codegen"
-version = "0.1.0"
-edition = "2021"
-license = "MIT"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+license.workspace = true
 description = "Codegen stage of the petr compiler" 
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-petr-ir = { path = "../petr-ir" }
+petr-ir = { path = "../petr-ir", version = "0.1.0" }
 
 cranelift = "0.108.1"
 cranelift-native = "0.108.1"

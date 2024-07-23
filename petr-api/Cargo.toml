@@ -1,9 +1,13 @@
 [package]
 name = "petr-api"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
 description = "re-exports of useful APIs for the petr compiler"
-license = "MIT"
+license.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -12,12 +16,12 @@ petr-parse = { "path" = "../petr-parse" }
 petr-utils = { "path" = "../petr-utils", optional = true }
 petr-vm = { "path" = "../petr-vm" }
 petr-ir = { "path" = "../petr-ir" }
-petr-fmt = { path = "../petr-fmt" }
+petr-fmt = { path = "../petr-fmt", version = "0.1.0" }
 petr-typecheck = { "path" = "../petr-typecheck" }
 petr-resolve = { "path" = "../petr-resolve", optional = true }
 petr-pkg = { "path" = "../petr-pkg", optional = true }
 termcolor = { version = "1.4", optional = true }
-petr-profiling = { path = "../petr-profiling" }
+petr-profiling = { path = "../petr-profiling", version = "0.1.0" }
 miette = { version = "5.10", optional = true }
 thiserror = "1.0"
 toml = "0.8"

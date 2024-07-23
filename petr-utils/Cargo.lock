@@ -220,7 +220,7 @@ checksum = "b7401a30af6cb5818bb64852270bb722533397edcfc7344954a38f420819ece2"
 
 [[package]]
 name = "petr-utils"
-version = "0.1.0"
+version.workspace = true
 dependencies = [
  "miette",
 ]
