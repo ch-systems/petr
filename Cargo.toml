@@ -4,7 +4,7 @@ members = [
     "petr-parse",
     "petr-fmt",
     "petr-utils",
-    "pete",
+    "petr-cli",
     "petr-codegen",
     "petr-ast",
     "petr-typecheck",
@@ -15,5 +15,6 @@ members = [
     "petr-pkg",
     "petr-profiling", 
     "petr-api",
-    "petr-playground"
-, "stdlib"]
+    "petr-playground",
+    "petr-stdlib",
+    ]

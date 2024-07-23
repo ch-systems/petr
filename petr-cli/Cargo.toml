@@ -1,5 +1,5 @@
 [package]
-name = "pete"
+name = "petr-cli"
 version = "0.1.0"
 edition = "2021"
 
@@ -15,4 +15,8 @@ thiserror = "1.0"
 toml = "0.8"
 termcolor = { version = "1.4" }
 petr-pkg = { "path" = "../petr-pkg" }
-stdlib = { "path" = "../stdlib" }
+petr-stdlib = { "path" = "../petr-stdlib" }
+
+[[bin]]
+name = "pete"
+path = "src/main.rs"

@@ -13,7 +13,7 @@ petr-parse = { path = "../petr-parse" }
 expect-test = "1.5.0"
 petr-resolve = { path = "../petr-resolve" }
 petr-typecheck = { path = "../petr-typecheck" }
-stdlib = { path = "../stdlib" }
+petr-stdlib = { path = "../petr-stdlib" }
 
 [features]
 debug = ["petr-utils/debug"]
