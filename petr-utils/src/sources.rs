@@ -134,6 +134,32 @@ pub struct Span {
     span:   miette::SourceSpan,
 }
 
+impl PartialOrd for Span {
+    fn partial_cmp(
+        &self,
+        other: &Self,
+    ) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Span {
+    fn cmp(
+        &self,
+        other: &Self,
+    ) -> std::cmp::Ordering {
+        let self_offset = self.span.offset();
+        let self_len = self.span.len();
+        let self_source = self.source.0;
+
+        let other_offset = other.span.offset();
+        let other_len = other.span.len();
+        let other_source = other.source.0;
+
+        (self_offset, self_len, self_source).cmp(&(other_offset, other_len, other_source))
+    }
+}
+
 impl Span {
     pub fn new(
         source: SourceId,

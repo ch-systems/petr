@@ -4,3 +4,7 @@ export fn malloc(size in 'int) returns 'Ptr
   let allocated = @malloc size
   ~Sized allocated, size
 
+
+{- return the size of the type of the given expr -}
+export fn size_of(expr in 'A) returns 'int 
+  @size_of expr

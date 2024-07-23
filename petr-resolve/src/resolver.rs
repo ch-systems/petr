@@ -51,7 +51,7 @@ pub enum Type {
     Unit,
     String,
     // like `Unit`, but doesn't throw additional type errors to prevent cascading errors.
-    ErrorRecovery,
+    ErrorRecovery(Span),
     Named(TypeId),
     Generic(Identifier),
 }
@@ -738,7 +738,7 @@ mod tests {
                     Type::Bool => "bool".to_string(),
                     Type::Unit => "()".to_string(),
                     Type::String => "string".to_string(),
-                    Type::ErrorRecovery => "<error>".to_string(),
+                    Type::ErrorRecovery(..) => "<error>".to_string(),
                     Type::Named(id) => {
                         format!("named type {}", resolver.interner.get(resolver.get_type(*id).name.id))
                     },

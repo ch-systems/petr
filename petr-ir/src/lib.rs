@@ -48,6 +48,7 @@ pub struct Lowerer {
     type_checker: TypeChecker,
     variables_in_scope: Vec<BTreeMap<SymbolId, Reg>>,
     monomorphized_functions: IndexMap<MonomorphizedFunctionId, (FunctionSignature, Function)>,
+    errors: Vec<SpannedItem<LoweringError>>,
 }
 
 #[derive(Debug, Clone)]
@@ -72,6 +73,7 @@ impl Lowerer {
             type_checker,
             variables_in_scope: Default::default(),
             monomorphized_functions: Default::default(),
+            errors: Default::default(),
         };
 
         let monomorphized_entry_point_id = match entry_point {
@@ -81,6 +83,7 @@ impl Lowerer {
                 Some(monomorphized_entry_point_id)
             },
         };
+        println!("my errors are {:?}", lowerer.errors);
 
         lowerer.entry_point = monomorphized_entry_point_id;
         Ok(lowerer)
@@ -304,33 +307,37 @@ impl Lowerer {
     }
 
     fn to_ir_type(
-        &self,
+        &mut self,
         param_ty: TypeVariable,
     ) -> IrTy {
         use petr_typecheck::PetrType::*;
-        let ty = self.type_checker.look_up_variable(param_ty);
+        let ty = self.type_checker.look_up_variable(param_ty).clone();
         match ty {
             Unit => IrTy::Unit,
             Integer => IrTy::Int64,
             Boolean => IrTy::Boolean,
             String => IrTy::String,
-            Ref(ty) => self.to_ir_type(*ty),
+            Ref(ty) => self.to_ir_type(ty),
             UserDefined { name: _, variants } => {
                 // get the user type
+                let mut variants_buf = Vec::with_capacity(variants.len());
 
-                IrTy::UserDefinedType {
-                    variants: variants
-                        .iter()
-                        .map(|variant| IrUserDefinedTypeVariant {
-                            fields: variant.fields.iter().map(|field| self.to_ir_type(*field)).collect(),
-                        })
-                        .collect(),
+                for variant in variants {
+                    let mut fields_buf = Vec::with_capacity(variant.fields.len());
+                    for field in &variant.fields {
+                        fields_buf.push(self.to_ir_type(*field));
+                    }
+                    variants_buf.push(IrUserDefinedTypeVariant { fields: fields_buf });
                 }
+                IrTy::UserDefinedType { variants: variants_buf }
             },
             Arrow(_) => todo!(),
             ErrorRecovery => todo!(),
             List(_) => todo!(),
-            Infer(_) => todo!("err for var {param_ty}: inference should be resolved by now"),
+            Infer(_, span) => {
+                self.errors.push(span.with_item(LoweringError::UnableToInferType));
+                IrTy::Unit
+            },
         }
     }
 
@@ -369,6 +376,16 @@ impl Lowerer {
                         // the user should check that the ptr is not null
                         // which would mean a failed allocation
                         buf.push(IrOpcode::Copy(reg, ptr_dest));
+                    },
+                }
+                Ok(buf)
+            },
+            SizeOf(expr) => {
+                let ty = self.type_checker.expr_ty(expr);
+                let size = self.to_ir_type(ty).size();
+                match return_destination {
+                    ReturnDestination::Reg(reg) => {
+                        buf.push(IrOpcode::LoadImmediate(reg, size.num_bytes() as u64));
                     },
                 }
                 Ok(buf)
@@ -452,7 +469,19 @@ impl Lowerer {
                 pc += 1;
             }
         }
+        println!("in pretty print, my errors are {:?}", self.errors);
+
+        if !self.errors.is_empty() {
+            result.push_str("\n____ERRORS____");
+            for err in &self.errors {
+                result.push_str(&format!("{:?}\n", err));
+            }
+        }
         result
+    }
+
+    pub fn errors(&self) -> &[SpannedItem<LoweringError>] {
+        &self.errors
     }
 }
 
