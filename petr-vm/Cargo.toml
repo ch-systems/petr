@@ -2,6 +2,8 @@
 name = "petr-vm"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+description = "a basic VM for running and debugging petr IR"
 
 [dependencies]
 petr-ir = { path = "../petr-ir" }

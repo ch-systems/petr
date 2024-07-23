@@ -2,6 +2,8 @@
 name = "petr-ir"
 version = "0.1.0"
 edition = "2021"
+description = "target agnostic IR for the petr language"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

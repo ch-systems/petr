@@ -2,6 +2,8 @@
 name = "petr-profiling"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+description = "tools for profiling the performance of the petr compiler"
 
 [dependencies]
 cli-table = "0.4"

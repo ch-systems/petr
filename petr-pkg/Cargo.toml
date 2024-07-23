@@ -2,6 +2,8 @@
 name = "petr-pkg"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+description = "package management for the petr language"
 
 [dependencies]
 bcrypt = "0.15.1"
