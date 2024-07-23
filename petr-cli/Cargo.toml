@@ -13,15 +13,15 @@ description = "command line tool for compiling petr code"
 
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
-petr-api = { "path" = "../petr-api", features = ["fancy", "default"]  }
-petr-profiling = { "path" = "../petr-profiling" }
-petr-resolve = { "path" = "../petr-resolve" }
-petr-typecheck = { "path" = "../petr-typecheck" }
+petr-api = { "path" = "../petr-api", features = ["fancy", "default"], version = "0.1.0"  }
+petr-profiling = { "path" = "../petr-profiling", version = "0.1.0" }
+petr-resolve = { "path" = "../petr-resolve", version = "0.1.0" }
+petr-typecheck = { "path" = "../petr-typecheck", version = "0.1.0" }
 thiserror = "1.0"
 toml = "0.8"
 termcolor = { version = "1.4" }
-petr-pkg = { "path" = "../petr-pkg" }
-petr-stdlib = { "path" = "../petr-stdlib" }
+petr-pkg = { "path" = "../petr-pkg", version = "0.1.0" }
+petr-stdlib = { "path" = "../petr-stdlib", version = "0.1.0" }
 
 [[bin]]
 name = "pete"
