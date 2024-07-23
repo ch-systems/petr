@@ -12,14 +12,14 @@ license.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-petr-parse = { "path" = "../petr-parse" }
-petr-utils = { "path" = "../petr-utils", optional = true }
-petr-vm = { "path" = "../petr-vm" }
-petr-ir = { "path" = "../petr-ir" }
+petr-parse = { "path" = "../petr-parse", version = "0.1.0" }
+petr-utils = { "path" = "../petr-utils", optional = true, version = "0.1.0" }
+petr-vm = { "path" = "../petr-vm", version = "0.1.0" }
+petr-ir = { "path" = "../petr-ir", version = "0.1.0" }
 petr-fmt = { path = "../petr-fmt", version = "0.1.0" }
-petr-typecheck = { "path" = "../petr-typecheck" }
-petr-resolve = { "path" = "../petr-resolve", optional = true }
-petr-pkg = { "path" = "../petr-pkg", optional = true }
+petr-typecheck = { "path" = "../petr-typecheck", version = "0.1.0" }
+petr-resolve = { "path" = "../petr-resolve", version = "0.1.0", optional = true }
+petr-pkg = { "path" = "../petr-pkg", version = "0.1.0", optional = true }
 termcolor = { version = "1.4", optional = true }
 petr-profiling = { path = "../petr-profiling", version = "0.1.0" }
 miette = { version = "5.10", optional = true }
