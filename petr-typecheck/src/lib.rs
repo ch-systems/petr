@@ -959,7 +959,7 @@ impl TypeCheck for petr_resolve::FunctionCall {
 mod tests {
     use expect_test::{expect, Expect};
     use petr_resolve::resolve_symbols;
-    use petr_utils::{render_error, SourceId};
+    use petr_utils::render_error;
 
     use super::*;
     fn check(
@@ -971,20 +971,17 @@ mod tests {
         let (ast, errs, interner, source_map) = parser.into_result();
         if !errs.is_empty() {
             errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
-            panic!("fmt failed: code didn't parse");
+            panic!("test failed: code didn't parse");
         }
         let (errs, resolved) = resolve_symbols(ast, interner, Default::default());
         assert!(errs.is_empty(), "can't typecheck: unresolved symbols");
         let type_checker = TypeChecker::new(resolved);
-        let res = pretty_print_type_checker(type_checker, &source_map);
+        let res = pretty_print_type_checker(type_checker);
 
         expect.assert_eq(&res);
     }
 
-    fn pretty_print_type_checker(
-        type_checker: TypeChecker,
-        source_map: &IndexMap<SourceId, (&'static str, &'static str)>,
-    ) -> String {
+    fn pretty_print_type_checker(type_checker: TypeChecker) -> String {
         let mut s = String::new();
         for (id, ty) in &type_checker.type_map {
             let text = match id {
@@ -1023,8 +1020,7 @@ mod tests {
         if !type_checker.errors.is_empty() {
             s.push_str("\nErrors:\n");
             for error in type_checker.errors {
-                let rendered = render_error(source_map, error);
-                s.push_str(&format!("{:?}\n", rendered));
+                s.push_str(&format!("{:?}\n", error));
             }
         }
         s
@@ -1276,14 +1272,7 @@ mod tests {
 
 
                 Errors:
-                  × Failed to unify types: String, Boolean
-                   ╭─[test:2:1]
-                 2 │         fn my_func() returns 'unit
-                 3 │           @puts(true)
-                   ·                 ──┬─
-                   ·                   ╰── Failed to unify types: String, Boolean
-                   ╰────
-
+                SpannedItem UnificationFailure(String, Boolean) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(52), length: 4 } }]
             "#]],
         );
     }
@@ -1320,14 +1309,7 @@ mod tests {
 
 
                 Errors:
-                  × Failed to unify types: String, Boolean
-                   ╭─[test:5:1]
-                 5 │         fn my_func() returns 'unit
-                 6 │           @puts(~bool_literal)
-                   ·                 ───────┬──────
-                   ·                        ╰── Failed to unify types: String, Boolean
-                   ╰────
-
+                SpannedItem UnificationFailure(String, Boolean) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(110), length: 14 } }]
             "#]],
         );
     }
@@ -1371,15 +1353,7 @@ mod tests {
 
 
                 Errors:
-                  × Failed to unify types: Integer, Boolean
-                   ╭─[test:1:1]
-                 1 │ 
-                 2 │                 fn my_list() returns 'list [ 1, true ]
-                   ·                                                ──┬──
-                   ·                                                  ╰── Failed to unify types: Integer, Boolean
-                 3 │             
-                   ╰────
-
+                SpannedItem UnificationFailure(Integer, Boolean) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(48), length: 5 } }]
             "#]],
         );
     }
@@ -1401,15 +1375,7 @@ mod tests {
 
 
                 Errors:
-                  × Function add takes 2 arguments, but got 1 arguments.
-                   ╭─[test:3:1]
-                 3 │ 
-                 4 │                 fn add_five(a in 'int) returns 'int ~add(5)
-                   ·                                                    ────┬───
-                   ·                                                        ╰── Function add takes 2 arguments, but got 1 arguments.
-                 5 │             
-                   ╰────
-
+                SpannedItem ArgumentCountMismatch { function: "add", expected: 2, got: 1 } [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(113), length: 8 } }]
             "#]],
         );
     }
