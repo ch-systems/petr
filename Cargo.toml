@@ -4,7 +4,7 @@ members = [
     "petr-parse",
     "petr-fmt",
     "petr-utils",
-    "pete",
+    "petr-cli",
     "petr-codegen",
     "petr-ast",
     "petr-typecheck",
@@ -15,5 +15,14 @@ members = [
     "petr-pkg",
     "petr-profiling", 
     "petr-api",
-    "petr-playground"
-, "stdlib"]
+    "petr-playground",
+    "petr-stdlib",
+]
+ 
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+homepage = "https://petr.sh"
+license = "MIT"
+repository = "https://github.com/sezna/petr"
+authors = ["Alex Hansen <alex@alex-hansen.com>"]

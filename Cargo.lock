@@ -961,22 +961,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
 
 [[package]]
-name = "pete"
-version = "0.1.0"
-dependencies = [
- "clap 4.5.8",
- "petr-api",
- "petr-pkg",
- "petr-profiling",
- "petr-resolve",
- "petr-typecheck",
- "stdlib",
- "termcolor",
- "thiserror",
- "toml",
-]
-
-[[package]]
 name = "petr-api"
 version = "0.1.0"
 dependencies = [
@@ -1010,6 +994,22 @@ dependencies = [
  "petr-ast",
  "petr-parse",
  "petr-utils",
+]
+
+[[package]]
+name = "petr-cli"
+version = "0.1.0"
+dependencies = [
+ "clap 4.5.8",
+ "petr-api",
+ "petr-pkg",
+ "petr-profiling",
+ "petr-resolve",
+ "petr-stdlib",
+ "petr-typecheck",
+ "termcolor",
+ "thiserror",
+ "toml",
 ]
 
 [[package]]
@@ -1082,7 +1082,7 @@ version = "0.1.0"
 dependencies = [
  "expect-test",
  "petr-api",
- "stdlib",
+ "petr-stdlib",
  "wasm-bindgen",
 ]
 
@@ -1107,6 +1107,10 @@ dependencies = [
  "petr-utils",
  "thiserror",
 ]
+
+[[package]]
+name = "petr-stdlib"
+version = "0.1.0"
 
 [[package]]
 name = "petr-typecheck"
@@ -1137,9 +1141,9 @@ dependencies = [
  "petr-ir",
  "petr-parse",
  "petr-resolve",
+ "petr-stdlib",
  "petr-typecheck",
  "petr-utils",
- "stdlib",
  "thiserror",
 ]
 
@@ -1291,10 +1295,6 @@ name = "stable_deref_trait"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
-
-[[package]]
-name = "stdlib"
-version = "0.1.0"
 
 [[package]]
 name = "strsim"

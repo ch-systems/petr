@@ -1,16 +1,22 @@
 [package]
 name = "petr-parse"
-version = "0.1.0"
-edition = "2021"
+description = "parser for the petr language"
+
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 logos = "0.14.0"
 miette = { version = "5.10", features = ["fancy"] }
-petr-utils = { path = "../petr-utils" }
+petr-utils = { path = "../petr-utils", version = "0.1.0" }
 thiserror = "1.0.61"
-petr-ast = { path = "../petr-ast" }
+petr-ast = { path = "../petr-ast", version = "0.1.0" }
 
 [dev-dependencies]
 expect-test = "1.5.0"
