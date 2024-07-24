@@ -1,5 +1,5 @@
 author = "Alex Hansen <alex@alex-hansen.com>"
-license = "MIT"
+license.workspace = true
 name = "test_project"
 
 [formatter]

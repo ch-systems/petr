@@ -170,7 +170,7 @@ pub fn compile(
     let mut dependencies = Vec::with_capacity(build_plan.items.len() + 1);
 
     // add the stdlib
-    let parser = Parser::new_with_existing_interner_and_source_map(stdlib::stdlib(), interner, source_map);
+    let parser = Parser::new_with_existing_interner_and_source_map(petr_stdlib::stdlib(), interner, source_map);
     let (dep_ast, mut new_parse_errs, mut interner, mut source_map) = parser.into_result();
     parse_errs.append(&mut new_parse_errs);
 

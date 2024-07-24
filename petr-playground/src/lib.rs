@@ -62,7 +62,7 @@ fn errors_to_html(e: &[String]) -> String {
 }
 
 fn compile_snippet(input: String) -> Result<Lowerer, Vec<String>> {
-    let mut sources = stdlib::stdlib();
+    let mut sources = petr_stdlib::stdlib();
     sources.push(("snippet", &input));
     let parser = petr_api::Parser::new(sources);
     let (ast, errs, interner, source_map) = parser.into_result();

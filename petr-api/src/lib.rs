@@ -5,7 +5,6 @@
 use std::{
     fs,
     path::{Path, PathBuf},
-    rc::Rc,
 };
 
 pub use petr_fmt::{format_sources, Formattable, FormatterConfig, FormatterContext};
@@ -21,6 +20,8 @@ pub use petr_vm::Vm;
 use termcolor::{ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 pub mod error {
+    use petr_ir::LoweringError;
+    use petr_utils::SpannedItem;
     use thiserror::Error;
     #[derive(Error, Debug)]
     pub enum PeteError {
@@ -31,6 +32,8 @@ pub mod error {
         #[cfg(not(feature = "no_std"))]
         #[error(transparent)]
         Pkg(#[from] petr_pkg::error::PkgError),
+        #[error("Failed to lower code")]
+        FailedToLower(#[from] SpannedItem<LoweringError>),
     }
 }
 
@@ -153,12 +156,9 @@ pub fn compile(
         interner = new_interner;
         parse_errs.append(&mut new_parse_errs);
         source_map = new_source_map;
-        let name = Identifier {
-            id: interner.insert(Rc::from(item.manifest.name)),
-        };
         dependencies.push(petr_resolve::Dependency {
             key: item.key,
-            name,
+            name: item.manifest.name,
             dependencies: item.depends_on,
             ast,
         });
@@ -193,8 +193,8 @@ pub fn compile(
     // errs.append(&mut type_errs);
 
     timings.start("lowering");
-    let lowerer: Lowerer = Lowerer::new(type_checker);
+    let lowerer = Lowerer::new(type_checker);
     timings.end("lowering");
 
-    Ok(lowerer)
+    Ok(lowerer?)
 }

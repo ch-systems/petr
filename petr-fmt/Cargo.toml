@@ -1,14 +1,20 @@
 [package]
 name = "petr-fmt"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+description = "Formatter for the petr language"
+license.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-petr-parse = { path = "../petr-parse" }
-petr-utils = { path = "../petr-utils" }
-petr-ast = { path = "../petr-ast" }
+petr-parse = { path = "../petr-parse", version = "0.1.0" }
+petr-utils = { path = "../petr-utils", version = "0.1.0" }
+petr-ast = { path = "../petr-ast", version = "0.1.0" }
 structopt = { version = "0.3.26", features = ["color"] }
 
 [dev-dependencies]
