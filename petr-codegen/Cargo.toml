@@ -17,7 +17,7 @@ petr-ir = { path = "../petr-ir", version = "0.1.0" }
 cranelift = "0.108.1"
 cranelift-native = "0.108.1"
 # cranelift-reader = "0.108.1"
-cranelift-object = { version = "0.108.1" }
+cranelift-object = { version = "0.110.1" }
 cranelift-module = "0.108.1"
 
 miette = { version = "5.10", features = ["fancy"] }
