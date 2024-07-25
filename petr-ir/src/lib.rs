@@ -9,7 +9,7 @@
 
 use std::{collections::BTreeMap, rc::Rc};
 
-use petr_typecheck::{FunctionId, TypeChecker, TypeVariable, TypedExpr, TypedExprKind};
+use petr_typecheck::{FunctionSignature, PetrType, TypeChecker, TypeVariable, TypedExpr, TypedExprKind};
 use petr_utils::{idx_map_key, Identifier, IndexMap, SpannedItem, SymbolId};
 
 mod error;
@@ -27,12 +27,6 @@ pub fn lower(checker: TypeChecker) -> Result<(DataSection, Vec<IrOpcode>)> {
 // TODO: fully typed functions
 pub struct Function {
     body: Vec<IrOpcode>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct FunctionSignature {
-    label:          FunctionId,
-    concrete_types: Vec<IrTy>,
 }
 
 idx_map_key!(MonomorphizedFunctionId);
@@ -62,9 +56,7 @@ impl Lowerer {
     pub fn new(type_checker: TypeChecker) -> Result<Self> {
         // if there is an entry point, set that
         // set entry point to func named main
-        let entry_point = type_checker
-            .functions()
-            .find(|(_func_id, func)| &*type_checker.get_symbol(func.name.id) == "main");
+        let entry_point = type_checker.get_main_function();
 
         let mut lowerer = Self {
             data_section: IndexMap::default(),
@@ -79,7 +71,7 @@ impl Lowerer {
         let monomorphized_entry_point_id = match entry_point {
             None => None,
             Some((id, _func)) => {
-                let monomorphized_entry_point_id = lowerer.monomorphize_function(MonomorphizedFunction { id, params: vec![] })?;
+                let monomorphized_entry_point_id = lowerer.monomorphize_function((id, vec![].into_boxed_slice()))?;
                 Some(monomorphized_entry_point_id)
             },
         };
@@ -111,13 +103,17 @@ impl Lowerer {
     /// this lowers a function declaration.
     fn monomorphize_function(
         &mut self,
-        func: MonomorphizedFunction,
+        func: FunctionSignature,
     ) -> Result<MonomorphizedFunctionId> {
-        if let Some(previously_monomorphized_definition) = self.monomorphized_functions.iter().find(|(_id, (sig, _))| *sig == func.signature()) {
+        if let Some(previously_monomorphized_definition) = self.monomorphized_functions.iter().find(|(_id, (sig, _))| *sig == func) {
             return Ok(previously_monomorphized_definition.0);
         }
 
-        let function_definition_body = self.type_checker.get_function(&func.id).body.clone();
+        println!("monomorphizing function {:?}", func);
+        println!("func name is {}", self.type_checker.get_function(&func.0).name.id);
+        let func_def = self.type_checker.get_monomorphized_function(&func).clone();
+
+        let function_definition_body = self.type_checker.get_function(&func.0).body.clone();
 
         let mut buf = vec![];
         self.with_variable_context(|ctx| -> Result<_> {
@@ -126,7 +122,8 @@ impl Lowerer {
             // When we lower a function call, we push them onto the stack from first to last. Since
             // the stack is FILO, we reverse that order here.
 
-            for (param_name, param_ty) in func.params.iter().rev() {
+            for (param_ty, (param_name, _)) in func.1.iter().zip(func_def.params).rev() {
+                let param_ty = ctx.petr_type_to_ir_type(param_ty.clone());
                 // in order, assign parameters to registers
                 if param_ty.fits_in_reg() {
                     // load from stack into register
@@ -138,7 +135,7 @@ impl Lowerer {
                     buf.push(IrOpcode::StackPop(ty_reg));
                     // insert param into mapping
 
-                    ctx.insert_var(param_name, param_reg);
+                    ctx.insert_var(&param_name, param_reg);
                 } else {
                     todo!("make reg a ptr to the value")
                 }
@@ -146,7 +143,12 @@ impl Lowerer {
 
             let return_reg = ctx.fresh_reg();
             let return_dest = ReturnDestination::Reg(return_reg);
-            let mut expr_body = ctx.lower_expr(&function_definition_body, return_dest)?;
+            println!("I have {} errors", ctx.errors.len());
+            let mut expr_body = ctx.lower_expr(&function_definition_body, return_dest).map_err(|e| {
+                println!("error is {:?}", e);
+                e
+            })?;
+            println!("Now I have {} errors", ctx.errors.len());
             buf.append(&mut expr_body);
             // load return value into func return register
 
@@ -155,13 +157,7 @@ impl Lowerer {
             // jump back to caller
             buf.push(IrOpcode::Return());
 
-            Ok(ctx.monomorphized_functions.insert((
-                FunctionSignature {
-                    label:          func.id,
-                    concrete_types: func.params.iter().map(|(_name, ty)| ty.clone()).collect(),
-                },
-                Function { body: buf },
-            )))
+            Ok(ctx.monomorphized_functions.insert((func, Function { body: buf })))
         })
     }
 
@@ -186,32 +182,27 @@ impl Lowerer {
                 })
             },
             FunctionCall { func, args, ty: _ty } => {
-                let mut buf = Vec::with_capacity(args.len());
+                let mut buf = Vec::new();
                 // push all args onto the stack in order
-                for (_arg_name, arg_expr) in args {
+
+                let mut arg_types = Vec::with_capacity(args.len());
+                for (arg_name, arg_expr) in args {
                     let reg = self.fresh_reg();
                     let mut expr = self.lower_expr(arg_expr, ReturnDestination::Reg(reg))?;
                     let arg_ty = self.type_checker.expr_ty(arg_expr);
-                    expr.push(IrOpcode::StackPush(TypedReg {
-                        ty: self.to_ir_type(arg_ty),
-                        reg,
-                    }));
+                    let petr_ty = self.type_checker.look_up_variable(arg_ty);
+                    arg_types.push((*arg_name, petr_ty.clone()));
+                    let ir_ty = self.petr_type_to_ir_type(petr_ty.clone());
+                    expr.push(IrOpcode::StackPush(TypedReg { ty: ir_ty, reg }));
 
                     buf.append(&mut expr);
                 }
                 // push current PC onto the stack
                 buf.push(IrOpcode::PushPc());
 
-                let params_as_ir_types = args
-                    .iter()
-                    .map(|(name, expr)| (*name, self.to_ir_type(self.type_checker.expr_ty(expr))))
-                    .collect::<Vec<_>>();
+                let arg_petr_types = arg_types.iter().map(|(_name, ty)| ty.clone()).collect::<Vec<_>>();
 
-                // TODO deduplicate monomorphized functions
-                let monomorphized_func_id = self.monomorphize_function(MonomorphizedFunction {
-                    id:     *func,
-                    params: params_as_ir_types,
-                })?;
+                let monomorphized_func_id = self.monomorphize_function((*func, arg_petr_types.into_boxed_slice()))?;
 
                 // jump to the function
                 buf.push(IrOpcode::JumpImmediate(monomorphized_func_id));
@@ -297,12 +288,11 @@ impl Lowerer {
         })
     }
 
-    fn to_ir_type(
+    fn petr_type_to_ir_type(
         &mut self,
-        param_ty: TypeVariable,
+        ty: PetrType,
     ) -> IrTy {
         use petr_typecheck::PetrType::*;
-        let ty = self.type_checker.look_up_variable(param_ty).clone();
         match ty {
             Unit => IrTy::Unit,
             Integer => IrTy::Int64,
@@ -330,6 +320,14 @@ impl Lowerer {
                 IrTy::Unit
             },
         }
+    }
+
+    fn to_ir_type(
+        &mut self,
+        param_ty: TypeVariable,
+    ) -> IrTy {
+        let ty = self.type_checker.look_up_variable(param_ty).clone();
+        self.petr_type_to_ir_type(ty)
     }
 
     fn lower_intrinsic(
@@ -476,12 +474,7 @@ impl Lowerer {
     }
 }
 
-#[derive(Debug)]
-struct MonomorphizedFunction {
-    id:     FunctionId,
-    params: Vec<(Identifier, IrTy)>,
-}
-
+/*
 impl MonomorphizedFunction {
     fn signature(&self) -> FunctionSignature {
         FunctionSignature {
@@ -490,6 +483,7 @@ impl MonomorphizedFunction {
         }
     }
 }
+*/
 
 enum ReturnDestination {
     Reg(Reg),

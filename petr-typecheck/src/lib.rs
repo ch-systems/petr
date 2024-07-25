@@ -156,9 +156,12 @@ impl TypeContext {
     }
 }
 
+pub type FunctionSignature = (FunctionId, Box<[PetrType]>);
+
 pub struct TypeChecker {
     ctx: TypeContext,
     type_map: BTreeMap<TypeOrFunctionId, TypeVariable>,
+    monomorphized_functions: BTreeMap<FunctionSignature, Function>,
     typed_functions: BTreeMap<FunctionId, Function>,
     errors: Vec<TypeError>,
     resolved: QueryableResolvedItems,
@@ -288,9 +291,24 @@ impl TypeChecker {
             self.type_map.insert(id.into(), ty);
             self.typed_functions.insert(id, typed_function);
         }
+        // type check the main func with no params
+        let main_func = self.get_main_function();
+        // construct a function call for the main function, if one exists
+        if let Some((id, func)) = main_func {
+            let call = petr_resolve::FunctionCall {
+                function: dbg!(id),
+                args:     vec![],
+                span:     func.name.span,
+            };
+            call.type_check(self);
+        }
 
         // we have now collected our constraints and can solve for them
         self.apply_constraints();
+    }
+
+    pub fn get_main_function(&self) -> Option<(FunctionId, Function)> {
+        self.functions().find(|(_, func)| &*self.get_symbol(func.name.id) == "main")
     }
 
     /// iterate through each constraint and transform the underlying types to satisfy them
@@ -366,7 +384,6 @@ impl TypeChecker {
             (_known, Infer(_, _)) => {
                 self.ctx.update_type(t2, Ref(t1));
             },
-            //            (Infer(_), _) | (_, Infer(_)) => Ok(()),
             (a, b) => {
                 self.push_error(span.with_item(TypeConstraintError::FailedToSatisfy(a.clone(), b.clone())));
             },
@@ -382,6 +399,7 @@ impl TypeChecker {
             typed_functions: Default::default(),
             resolved,
             variable_scope: Default::default(),
+            monomorphized_functions: Default::default(),
         };
 
         type_checker.fully_type_check();
@@ -503,10 +521,26 @@ impl TypeChecker {
     }
 
     pub fn get_function(
-        &self,
+        &mut self,
         id: &FunctionId,
+    ) -> Function {
+        println!("looking for function {:?}", id);
+        if let Some(func) = self.typed_functions.get(id) {
+            return func.clone();
+        }
+
+        // if the function hasn't been type checked yet, type check it
+        let func = self.get_untyped_function(*id).clone();
+        let type_checked = func.type_check(self);
+        self.typed_functions.insert(*id, type_checked.clone());
+        type_checked
+    }
+
+    pub fn get_monomorphized_function(
+        &self,
+        id: &(FunctionId, Box<[PetrType]>),
     ) -> &Function {
-        self.typed_functions.get(id).expect("invariant: should exist")
+        self.monomorphized_functions.get(id).expect("invariant: should exist")
     }
 
     // TODO unideal clone
@@ -739,6 +773,7 @@ impl TypeCheck for Expr {
                     arg_types.push(arg_ty);
                     args.push((*param_name, arg_expr));
                 }
+                (*call).type_check(ctx);
                 TypedExprKind::FunctionCall {
                     func: call.function,
                     args,
@@ -961,7 +996,6 @@ impl TypeCheck for petr_resolve::FunctionCall {
         &self,
         ctx: &mut TypeChecker,
     ) -> Self::Output {
-        //let func_type = *ctx.get_type(self.function);
         let func_decl = ctx.get_function(&self.function).clone();
 
         let args = self.args.iter().map(|arg| arg.type_check(ctx)).collect::<Vec<_>>();
@@ -983,11 +1017,15 @@ impl TypeCheck for petr_resolve::FunctionCall {
             }));
         }
 
-        println!("unifying");
-
+        // unify all of the arg types with the param types
         for ((arg, arg_span), param) in arg_types.iter().zip(params.iter()) {
             ctx.unify(*arg, *param, *arg_span);
         }
+
+        let concrete_arg_types: Vec<PetrType> = arg_types.iter().map(|(arg, _span)| ctx.look_up_variable(*arg).clone()).collect();
+
+        ctx.monomorphized_functions
+            .insert((self.function, concrete_arg_types.into_boxed_slice()), func_decl);
     }
 }
 
