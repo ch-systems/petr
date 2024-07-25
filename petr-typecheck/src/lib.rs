@@ -381,9 +381,11 @@ impl TypeChecker {
             (Ref(a), _) => self.apply_satisfies_constraint(*a, t2, span),
             (_, Ref(b)) => self.apply_satisfies_constraint(t1, *b, span),
             // if t1 is a fully instantiated type, then t2 can be updated to be a reference to t1
-            (_known, Infer(_, _)) => {
+            (Unit | Integer | Boolean | UserDefined { .. } | String | Arrow(..) | List(..), Infer(_, _)) => {
                 self.ctx.update_type(t2, Ref(t1));
             },
+            // if we are trying to satisfy an inferred type with no bounds, this is ok
+            (Infer(..), _) => (),
             (a, b) => {
                 self.push_error(span.with_item(TypeConstraintError::FailedToSatisfy(a.clone(), b.clone())));
             },
