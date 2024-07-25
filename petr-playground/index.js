@@ -14,8 +14,8 @@ monaco.languages.setMonarchTokensProvider("petr", {
   keywords: [ 'fn', 'returns', 'in', 'type', 'export' ],
 	tokenizer: {
 		root: [
-      [/\~([a-zA-Z][a-zA-Z0-9]+)(\.[a-zA-Z]([a-zA-Z0-9])+)*/, "function-call"],
-			[/\@[a-zA-Z]+/, "intrinsic"],
+      [/\~([a-zA-Z_][a-zA-Z0-9_]+)(\.[a-zA-Z_]([a-zA-Z0-9_])+)*/, "function-call"],
+			[/\@[a-zA-Z_]+/, "intrinsic"],
 			[/[0-9]+/, "integer-literal"],
       [/\".*\"/, "string-literal"],
 		],
