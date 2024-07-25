@@ -635,6 +635,51 @@ impl TypedExpr {
     pub fn span(&self) -> Span {
         self.span
     }
+
+    /// for each type variable in the mapping, replace all references to it with the new petrtype
+    fn apply_new_type_mapping(
+        &mut self,
+        ctx: &mut TypeChecker,
+        type_mapping: &BTreeMap<TypeVariable, TypeVariable>,
+    ) {
+        use TypedExprKind::*;
+
+        match self.kind {
+            FunctionCall { ref mut args, .. } => {
+                for (_, ref mut arg) in args {
+                    arg.apply_new_type_mapping(ctx, type_mapping);
+                }
+            },
+            Literal { .. } => (),
+            List { ref mut elements, .. } => {
+                for ref mut elem in elements {
+                    elem.apply_new_type_mapping(ctx, type_mapping);
+                }
+            },
+            Unit => (),
+            Variable { ref mut ty, .. } => {
+                if let Some(new_ty) = type_mapping.get(&ty) {
+                    *ty = *new_ty;
+                }
+            },
+            Intrinsic { .. } => (),
+            ErrorRecovery(..) => (),
+            ExprWithBindings {
+                ref mut bindings,
+                ref mut expression,
+            } => {
+                for (_, ref mut expr) in bindings {
+                    expr.apply_new_type_mapping(ctx, type_mapping);
+                }
+                expression.apply_new_type_mapping(ctx, type_mapping);
+            },
+            TypeConstructor { ref mut args, .. } => {
+                for ref mut arg in args {
+                    arg.apply_new_type_mapping(ctx, type_mapping);
+                }
+            },
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -956,7 +1001,7 @@ impl TypeCheck for petr_resolve::FunctionCall {
         &self,
         ctx: &mut TypeChecker,
     ) -> Self::Output {
-        let func_decl = ctx.get_function(&self.function).clone();
+        let mut func_decl = ctx.get_function(&self.function).clone();
 
         if self.args.len() != func_decl.params.len() {
             // TODO: support partial application
@@ -977,6 +1022,16 @@ impl TypeCheck for petr_resolve::FunctionCall {
             ctx.satisfies(*param_ty, arg_ty, arg.span());
             args.push((*name, arg, arg_ty));
         }
+        // build a mapping to replace all parameter types with their monomorphized concrete types
+        let type_mapping: BTreeMap<TypeVariable, TypeVariable> = func_decl
+            .params
+            .iter()
+            .map(|(_, ty)| *ty)
+            .zip(args.iter().map(|(_, _, ty)| *ty))
+            .collect();
+
+        // update all arg types in the decl with the concrete types
+        func_decl.apply_new_type_mapping(ctx, &type_mapping);
 
         // unify declared return type with body return type
         let declared_return_type = func_decl.return_ty;
@@ -993,6 +1048,26 @@ impl TypeCheck for petr_resolve::FunctionCall {
             args: args.into_iter().map(|(name, expr, _)| (name, expr)).collect(),
             ty:   declared_return_type,
         }
+    }
+}
+
+impl Function {
+    fn apply_new_type_mapping(
+        &mut self,
+        ctx: &mut TypeChecker,
+        type_mapping: &BTreeMap<TypeVariable, TypeVariable>,
+    ) {
+        for (_, ref mut param_ty) in self.params.iter_mut() {
+            let mut petr_ty = ctx.look_up_variable(*param_ty);
+            while let PetrType::Ref(ty) = petr_ty {
+                if let Some(new_ty) = type_mapping.get(ty) {
+                    println!("replacing arg type");
+                    *param_ty = *new_ty
+                }
+                petr_ty = ctx.look_up_variable(*ty);
+            }
+        }
+        self.body.apply_new_type_mapping(ctx, type_mapping);
     }
 }
 
@@ -1054,8 +1129,22 @@ mod tests {
                     s.push('\n');
                 },
             }
-
             s.push('\n');
+        }
+
+        if !type_checker.monomorphized_functions.is_empty() {
+            s.push_str("\n__MONOMORPHIZED FUNCTIONS__");
+        }
+
+        for func in type_checker.monomorphized_functions.values() {
+            let func_name = type_checker.resolved.interner.get(func.name.id);
+            let arg_types = func.params.iter().map(|(_, ty)| pretty_print_ty(ty, &type_checker)).collect::<Vec<_>>();
+            s.push_str(&format!(
+                "\nfn {}({:?}) -> {}",
+                func_name,
+                arg_types,
+                pretty_print_ty(&func.return_ty, &type_checker)
+            ));
         }
 
         if !type_checker.errors.is_empty() {

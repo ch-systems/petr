@@ -109,8 +109,6 @@ impl Lowerer {
             return Ok(previously_monomorphized_definition.0);
         }
 
-        println!("monomorphizing function {:?}", func);
-        println!("func name is {}", self.type_checker.get_function(&func.0).name.id);
         let func_def = self.type_checker.get_monomorphized_function(&func).clone();
 
         let function_definition_body = self.type_checker.get_function(&func.0).body.clone();
@@ -143,12 +141,7 @@ impl Lowerer {
 
             let return_reg = ctx.fresh_reg();
             let return_dest = ReturnDestination::Reg(return_reg);
-            println!("I have {} errors", ctx.errors.len());
-            let mut expr_body = ctx.lower_expr(&function_definition_body, return_dest).map_err(|e| {
-                println!("error is {:?}", e);
-                e
-            })?;
-            println!("Now I have {} errors", ctx.errors.len());
+            let mut expr_body = ctx.lower_expr(&function_definition_body, return_dest).map_err(|e| e)?;
             buf.append(&mut expr_body);
             // load return value into func return register
 
@@ -248,9 +241,7 @@ impl Lowerer {
                 let mut buf = vec![];
                 // the memory model for types is currently not finalized,
                 // but for now, it is just sequential memory that is word-aligned
-                println!("BEFORE1");
                 let ir_ty = self.to_ir_type(*ty);
-                println!("AFTER1");
                 let size_of_aggregate_type = ir_ty.size();
                 let ReturnDestination::Reg(return_destination) = return_destination;
                 buf.push(IrOpcode::MallocImmediate(return_destination, size_of_aggregate_type));
@@ -266,9 +257,7 @@ impl Lowerer {
 
                     let arg_ty = self.type_checker.expr_ty(arg);
 
-                    println!("BEFORE2");
                     current_size_offset += self.to_ir_type(arg_ty).size().num_bytes() as u64;
-                    println!("AFTER2");
                 }
                 Ok(buf)
             },
@@ -316,6 +305,7 @@ impl Lowerer {
             ErrorRecovery => todo!(),
             List(_) => todo!(),
             Infer(_, span) => {
+                println!("Unable to infer ty: {ty:?}");
                 self.errors.push(span.with_item(LoweringError::UnableToInferType));
                 IrTy::Unit
             },
@@ -458,7 +448,6 @@ impl Lowerer {
                 pc += 1;
             }
         }
-        println!("in pretty print, my errors are {:?}", self.errors);
 
         if !self.errors.is_empty() {
             result.push_str("\n____ERRORS____");
