@@ -296,7 +296,7 @@ impl TypeChecker {
         // construct a function call for the main function, if one exists
         if let Some((id, func)) = main_func {
             let call = petr_resolve::FunctionCall {
-                function: dbg!(id),
+                function: id,
                 args:     vec![],
                 span:     func.name.span,
             };
@@ -509,15 +509,6 @@ impl TypeChecker {
         function: FunctionId,
     ) -> &petr_resolve::Function {
         self.resolved.get_function(function)
-    }
-
-    /// Given a symbol ID, look it up in the interner and realize it as a
-    /// string.
-    fn realize_symbol(
-        &self,
-        id: petr_utils::SymbolId,
-    ) -> Rc<str> {
-        self.resolved.interner.get(id)
     }
 
     pub fn get_function(
@@ -747,39 +738,7 @@ impl TypeCheck for Expr {
                     }
                 }
             },
-            ExprKind::FunctionCall(call) => {
-                // unify args with params
-                // return the func return type
-                let func_decl = ctx.get_untyped_function(call.function).clone();
-                if call.args.len() != func_decl.params.len() {
-                    ctx.push_error(call.span().with_item(TypeConstraintError::ArgumentCountMismatch {
-                        expected: func_decl.params.len(),
-                        got:      call.args.len(),
-                        function: ctx.realize_symbol(func_decl.name.id).to_string(),
-                    }));
-                    return TypedExpr {
-                        kind: TypedExprKind::ErrorRecovery(self.span),
-                        span: self.span,
-                    };
-                }
-                let mut args = Vec::with_capacity(call.args.len());
-                let mut arg_types = Vec::with_capacity(call.args.len());
-
-                for (arg, (param_name, param)) in call.args.iter().zip(func_decl.params.iter()) {
-                    let arg_expr = arg.type_check(ctx);
-                    let param_ty = ctx.to_type_var(param);
-                    let arg_ty = ctx.expr_ty(&arg_expr);
-                    ctx.satisfies(arg_ty, param_ty, arg_expr.span());
-                    arg_types.push(arg_ty);
-                    args.push((*param_name, arg_expr));
-                }
-                (*call).type_check(ctx);
-                TypedExprKind::FunctionCall {
-                    func: call.function,
-                    args,
-                    ty: ctx.to_type_var(&func_decl.return_type),
-                }
-            },
+            ExprKind::FunctionCall(call) => (*call).type_check(ctx),
             ExprKind::Unit => TypedExprKind::Unit,
             ExprKind::ErrorRecovery => TypedExprKind::ErrorRecovery(self.span),
             ExprKind::Variable { name, ty } => {
@@ -932,7 +891,6 @@ impl TypeCheck for SpannedItem<ResolvedIntrinsic> {
 
                 let arg = self.item().args[0].type_check(ctx);
 
-                dbg!(&arg);
                 TypedExprKind::Intrinsic {
                     intrinsic: Intrinsic::SizeOf(Box::new(arg)),
                     ty:        ctx.int(),
@@ -990,7 +948,7 @@ impl TypeCheck for petr_resolve::Function {
 }
 
 impl TypeCheck for petr_resolve::FunctionCall {
-    type Output = ();
+    type Output = TypedExprKind;
 
     fn type_check(
         &self,
@@ -998,34 +956,41 @@ impl TypeCheck for petr_resolve::FunctionCall {
     ) -> Self::Output {
         let func_decl = ctx.get_function(&self.function).clone();
 
-        let args = self.args.iter().map(|arg| arg.type_check(ctx)).collect::<Vec<_>>();
-
-        let mut arg_types = Vec::with_capacity(args.len());
-
-        for arg in args.iter() {
-            arg_types.push((ctx.expr_ty(arg), arg.span()));
-        }
-
-        let params = func_decl.params.iter().map(|(_, ty)| *ty).collect::<Vec<_>>();
-
-        if arg_types.len() != params.len() {
+        if self.args.len() != func_decl.params.len() {
             // TODO: support partial application
             ctx.push_error(self.span().with_item(TypeConstraintError::ArgumentCountMismatch {
-                expected: params.len(),
-                got:      arg_types.len(),
+                expected: func_decl.params.len(),
+                got:      self.args.len(),
                 function: ctx.get_symbol(func_decl.name.id).to_string(),
             }));
+            return TypedExprKind::ErrorRecovery(self.span());
         }
+
+        let mut args: Vec<(Identifier, TypedExpr, TypeVariable)> = Vec::with_capacity(self.args.len());
 
         // unify all of the arg types with the param types
-        for ((arg, arg_span), param) in arg_types.iter().zip(params.iter()) {
-            ctx.unify(*arg, *param, *arg_span);
+        for (arg, (name, param_ty)) in self.args.iter().zip(func_decl.params.iter()) {
+            let arg = arg.type_check(ctx);
+            let arg_ty = ctx.expr_ty(&arg);
+            ctx.satisfies(*param_ty, arg_ty, arg.span());
+            args.push((*name, arg, arg_ty));
         }
 
-        let concrete_arg_types: Vec<PetrType> = arg_types.iter().map(|(arg, _span)| ctx.look_up_variable(*arg).clone()).collect();
+        // unify declared return type with body return type
+        let declared_return_type = func_decl.return_ty;
+
+        ctx.unify_expr_return(declared_return_type, &func_decl.body);
+
+        let concrete_arg_types: Vec<PetrType> = args.iter().map(|(_, _, ty)| ctx.look_up_variable(*ty).clone()).collect();
 
         ctx.monomorphized_functions
             .insert((self.function, concrete_arg_types.into_boxed_slice()), func_decl);
+
+        TypedExprKind::FunctionCall {
+            func: self.function,
+            args: args.into_iter().map(|(name, expr, _)| (name, expr)).collect(),
+            ty:   declared_return_type,
+        }
     }
 }
 
