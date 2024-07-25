@@ -2,7 +2,10 @@
 alias t := test
 
 test:
-  cargo test
+  cargo test 
+
+dtest:
+  cargo test --features=debug
 
 u-exp:
   UPDATE_EXPECT=1 cargo test

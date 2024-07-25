@@ -343,6 +343,7 @@ impl Parse for IntrinsicCall {
                 "multiply" => Intrinsic::Multiply,
                 "divide" => Intrinsic::Divide,
                 "malloc" => Intrinsic::Malloc,
+                "size_of" => Intrinsic::SizeOf,
                 a => todo!("unrecognized intrinsic error: {a:?}"),
             };
             p.token(Token::Intrinsic)?;

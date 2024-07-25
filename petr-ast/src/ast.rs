@@ -167,6 +167,7 @@ impl std::fmt::Display for Intrinsic {
             Intrinsic::Multiply => write!(f, "multiply"),
             Intrinsic::Divide => write!(f, "divide"),
             Intrinsic::Malloc => write!(f, "malloc"),
+            Intrinsic::SizeOf => write!(f, "size_of"),
         }
     }
 }
@@ -180,6 +181,7 @@ pub enum Intrinsic {
     Multiply,
     Divide,
     Malloc,
+    SizeOf,
 }
 
 #[derive(Clone)]

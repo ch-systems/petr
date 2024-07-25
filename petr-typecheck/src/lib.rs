@@ -137,10 +137,13 @@ impl TypeContext {
         self.constraints.push(TypeConstraint::satisfies(ty1, ty2, span));
     }
 
-    fn new_variable(&mut self) -> TypeVariable {
+    fn new_variable(
+        &mut self,
+        span: Span,
+    ) -> TypeVariable {
         // infer is special -- it knows its own id, mostly for printing
         let infer_id = self.types.len();
-        self.types.insert(PetrType::Infer(infer_id))
+        self.types.insert(PetrType::Infer(infer_id, span))
     }
 
     /// Update a type variable with a new PetrType
@@ -153,9 +156,12 @@ impl TypeContext {
     }
 }
 
+pub type FunctionSignature = (FunctionId, Box<[PetrType]>);
+
 pub struct TypeChecker {
     ctx: TypeContext,
     type_map: BTreeMap<TypeOrFunctionId, TypeVariable>,
+    monomorphized_functions: BTreeMap<FunctionSignature, Function>,
     typed_functions: BTreeMap<FunctionId, Function>,
     errors: Vec<TypeError>,
     resolved: QueryableResolvedItems,
@@ -180,7 +186,9 @@ pub enum PetrType {
     ErrorRecovery,
     List(TypeVariable),
     /// the usize is just an identifier for use in rendering the type
-    Infer(usize),
+    /// the span is the location of the inference, for error reporting if the inference is never
+    /// resolved
+    Infer(usize, Span),
 }
 
 #[derive(Clone, PartialEq, Debug, Eq, PartialOrd, Ord)]
@@ -230,7 +238,7 @@ impl TypeChecker {
                 return *ty;
             }
         }
-        let fresh_ty = self.fresh_ty_var();
+        let fresh_ty = self.fresh_ty_var(id.span);
         match self.variable_scope.last_mut() {
             Some(entry) => {
                 entry.insert(*id, fresh_ty);
@@ -259,7 +267,7 @@ impl TypeChecker {
 
     fn fully_type_check(&mut self) {
         for (id, decl) in self.resolved.types() {
-            let ty = self.fresh_ty_var();
+            let ty = self.fresh_ty_var(decl.name.span);
             let variants = decl
                 .variants
                 .iter()
@@ -283,9 +291,24 @@ impl TypeChecker {
             self.type_map.insert(id.into(), ty);
             self.typed_functions.insert(id, typed_function);
         }
+        // type check the main func with no params
+        let main_func = self.get_main_function();
+        // construct a function call for the main function, if one exists
+        if let Some((id, func)) = main_func {
+            let call = petr_resolve::FunctionCall {
+                function: id,
+                args:     vec![],
+                span:     func.name.span,
+            };
+            call.type_check(self);
+        }
 
         // we have now collected our constraints and can solve for them
         self.apply_constraints();
+    }
+
+    pub fn get_main_function(&self) -> Option<(FunctionId, Function)> {
+        self.functions().find(|(_, func)| &*self.get_symbol(func.name.id) == "main")
     }
 
     /// iterate through each constraint and transform the underlying types to satisfy them
@@ -322,16 +345,16 @@ impl TypeChecker {
             (ErrorRecovery, _) | (_, ErrorRecovery) => (),
             (Ref(a), _) => self.apply_unify_constraint(a, t2, span),
             (_, Ref(b)) => self.apply_unify_constraint(t1, b, span),
-            (Infer(id), Infer(id2)) if id != id2 => {
+            (Infer(id, _), Infer(id2, _)) if id != id2 => {
                 // if two different inferred types are unified, replace the second with a reference
                 // to the first
                 self.ctx.update_type(t2, Ref(t1));
             },
             // instantiate the infer type with the known type
-            (Infer(_), known) => {
+            (Infer(_, _), known) => {
                 self.ctx.update_type(t1, known);
             },
-            (known, Infer(_)) => {
+            (known, Infer(_, _)) => {
                 self.ctx.update_type(t2, known);
             },
             // lastly, if no unification rule exists for these two types, it is a mismatch
@@ -358,10 +381,11 @@ impl TypeChecker {
             (Ref(a), _) => self.apply_satisfies_constraint(*a, t2, span),
             (_, Ref(b)) => self.apply_satisfies_constraint(t1, *b, span),
             // if t1 is a fully instantiated type, then t2 can be updated to be a reference to t1
-            (_known, Infer(_)) => {
+            (Unit | Integer | Boolean | UserDefined { .. } | String | Arrow(..) | List(..), Infer(_, _)) => {
                 self.ctx.update_type(t2, Ref(t1));
             },
-            //            (Infer(_), _) | (_, Infer(_)) => Ok(()),
+            // if we are trying to satisfy an inferred type with no bounds, this is ok
+            (Infer(..), _) => (),
             (a, b) => {
                 self.push_error(span.with_item(TypeConstraintError::FailedToSatisfy(a.clone(), b.clone())));
             },
@@ -377,6 +401,7 @@ impl TypeChecker {
             typed_functions: Default::default(),
             resolved,
             variable_scope: Default::default(),
+            monomorphized_functions: Default::default(),
         };
 
         type_checker.fully_type_check();
@@ -394,8 +419,11 @@ impl TypeChecker {
             .insert(id, ty);
     }
 
-    pub fn fresh_ty_var(&mut self) -> TypeVariable {
-        self.ctx.new_variable()
+    pub fn fresh_ty_var(
+        &mut self,
+        span: Span,
+    ) -> TypeVariable {
+        self.ctx.new_variable(span)
     }
 
     fn arrow_type(
@@ -421,9 +449,9 @@ impl TypeChecker {
             petr_resolve::Type::Bool => PetrType::Boolean,
             petr_resolve::Type::Unit => PetrType::Unit,
             petr_resolve::Type::String => PetrType::String,
-            petr_resolve::Type::ErrorRecovery => {
+            petr_resolve::Type::ErrorRecovery(span) => {
                 // unifies to anything, fresh var
-                return self.fresh_ty_var();
+                return self.fresh_ty_var(*span);
             },
             petr_resolve::Type::Named(ty_id) => PetrType::Ref(*self.type_map.get(&ty_id.into()).expect("type did not exist in type map")),
             petr_resolve::Type::Generic(generic_name) => {
@@ -485,20 +513,26 @@ impl TypeChecker {
         self.resolved.get_function(function)
     }
 
-    /// Given a symbol ID, look it up in the interner and realize it as a
-    /// string.
-    fn realize_symbol(
-        &self,
-        id: petr_utils::SymbolId,
-    ) -> Rc<str> {
-        self.resolved.interner.get(id)
+    pub fn get_function(
+        &mut self,
+        id: &FunctionId,
+    ) -> Function {
+        if let Some(func) = self.typed_functions.get(id) {
+            return func.clone();
+        }
+
+        // if the function hasn't been type checked yet, type check it
+        let func = self.get_untyped_function(*id).clone();
+        let type_checked = func.type_check(self);
+        self.typed_functions.insert(*id, type_checked.clone());
+        type_checked
     }
 
-    pub fn get_function(
+    pub fn get_monomorphized_function(
         &self,
-        id: &FunctionId,
+        id: &(FunctionId, Box<[PetrType]>),
     ) -> &Function {
-        self.typed_functions.get(id).expect("invariant: should exist")
+        self.monomorphized_functions.get(id).expect("invariant: should exist")
     }
 
     // TODO unideal clone
@@ -570,6 +604,7 @@ pub enum Intrinsic {
     Divide(Box<TypedExpr>, Box<TypedExpr>),
     Subtract(Box<TypedExpr>, Box<TypedExpr>),
     Malloc(Box<TypedExpr>),
+    SizeOf(Box<TypedExpr>),
 }
 
 impl std::fmt::Debug for Intrinsic {
@@ -584,6 +619,7 @@ impl std::fmt::Debug for Intrinsic {
             Intrinsic::Divide(lhs, rhs) => write!(f, "@divide({:?}, {:?})", lhs, rhs),
             Intrinsic::Subtract(lhs, rhs) => write!(f, "@subtract({:?}, {:?})", lhs, rhs),
             Intrinsic::Malloc(size) => write!(f, "@malloc({:?})", size),
+            Intrinsic::SizeOf(expr) => write!(f, "@sizeof({:?})", expr),
         }
     }
 }
@@ -703,38 +739,7 @@ impl TypeCheck for Expr {
                     }
                 }
             },
-            ExprKind::FunctionCall(call) => {
-                // unify args with params
-                // return the func return type
-                let func_decl = ctx.get_untyped_function(call.function).clone();
-                if call.args.len() != func_decl.params.len() {
-                    ctx.push_error(call.span().with_item(TypeConstraintError::ArgumentCountMismatch {
-                        expected: func_decl.params.len(),
-                        got:      call.args.len(),
-                        function: ctx.realize_symbol(func_decl.name.id).to_string(),
-                    }));
-                    return TypedExpr {
-                        kind: TypedExprKind::ErrorRecovery(self.span),
-                        span: self.span,
-                    };
-                }
-                let mut args = Vec::with_capacity(call.args.len());
-                let mut arg_types = Vec::with_capacity(call.args.len());
-
-                for (arg, (param_name, param)) in call.args.iter().zip(func_decl.params.iter()) {
-                    let arg_expr = arg.type_check(ctx);
-                    let param_ty = ctx.to_type_var(param);
-                    let arg_ty = ctx.expr_ty(&arg_expr);
-                    ctx.satisfies(arg_ty, param_ty, arg_expr.span());
-                    arg_types.push(arg_ty);
-                    args.push((*param_name, arg_expr));
-                }
-                TypedExprKind::FunctionCall {
-                    func: call.function,
-                    args,
-                    ty: ctx.to_type_var(&func_decl.return_type),
-                }
-            },
+            ExprKind::FunctionCall(call) => (*call).type_check(ctx),
             ExprKind::Unit => TypedExprKind::Unit,
             ExprKind::ErrorRecovery => TypedExprKind::ErrorRecovery(self.span),
             ExprKind::Variable { name, ty } => {
@@ -805,7 +810,6 @@ impl TypeCheck for SpannedItem<ResolvedIntrinsic> {
         ctx: &mut TypeChecker,
     ) -> Self::Output {
         use petr_resolve::IntrinsicName::*;
-        let string_ty = ctx.string();
         let kind = match self.item().intrinsic {
             Puts => {
                 if self.item().args.len() != 1 {
@@ -813,7 +817,7 @@ impl TypeCheck for SpannedItem<ResolvedIntrinsic> {
                 }
                 // puts takes a single string and returns unit
                 let arg = self.item().args[0].type_check(ctx);
-                ctx.unify_expr_return(string_ty, &arg);
+                ctx.unify_expr_return(ctx.string(), &arg);
                 TypedExprKind::Intrinsic {
                     intrinsic: Intrinsic::Puts(Box::new(arg)),
                     ty:        ctx.unit(),
@@ -834,6 +838,7 @@ impl TypeCheck for SpannedItem<ResolvedIntrinsic> {
                     todo!("sub arg len check");
                 }
                 let (lhs, rhs) = unify_basic_math_op(&self.item().args[0], &self.item().args[1], ctx);
+
                 TypedExprKind::Intrinsic {
                     intrinsic: Intrinsic::Subtract(Box::new(lhs), Box::new(rhs)),
                     ty:        ctx.int(),
@@ -878,6 +883,18 @@ impl TypeCheck for SpannedItem<ResolvedIntrinsic> {
                 TypedExprKind::Intrinsic {
                     intrinsic: Intrinsic::Malloc(Box::new(arg)),
                     ty:        int_ty,
+                }
+            },
+            SizeOf => {
+                if self.item().args.len() != 1 {
+                    todo!("size_of arg len check");
+                }
+
+                let arg = self.item().args[0].type_check(ctx);
+
+                TypedExprKind::Intrinsic {
+                    intrinsic: Intrinsic::SizeOf(Box::new(arg)),
+                    ty:        ctx.int(),
                 }
             },
         };
@@ -928,30 +945,122 @@ impl TypeCheck for petr_resolve::Function {
                 body,
             }
         })
-        // in a scope that contains the above names to type variables, check the body
-        // TODO: introduce scopes here, like in the binder, except with type variables
     }
 }
 
 impl TypeCheck for petr_resolve::FunctionCall {
-    type Output = ();
+    type Output = TypedExprKind;
 
     fn type_check(
         &self,
         ctx: &mut TypeChecker,
     ) -> Self::Output {
-        let func_type = *ctx.get_type(self.function);
-        let args = self.args.iter().map(|arg| arg.type_check(ctx)).collect::<Vec<_>>();
+        let func_decl = ctx.get_function(&self.function).clone();
 
-        let mut arg_types = Vec::with_capacity(args.len());
-
-        for arg in args.iter() {
-            arg_types.push(ctx.expr_ty(arg));
+        if self.args.len() != func_decl.params.len() {
+            // TODO: support partial application
+            ctx.push_error(self.span().with_item(TypeConstraintError::ArgumentCountMismatch {
+                expected: func_decl.params.len(),
+                got:      self.args.len(),
+                function: ctx.get_symbol(func_decl.name.id).to_string(),
+            }));
+            return TypedExprKind::ErrorRecovery(self.span());
         }
 
-        let arg_type = ctx.arrow_type(arg_types);
+        let mut args: Vec<(Identifier, TypedExpr, TypeVariable)> = Vec::with_capacity(self.args.len());
 
-        ctx.unify(func_type, arg_type, self.span());
+        // unify all of the arg types with the param types
+        for (arg, (name, param_ty)) in self.args.iter().zip(func_decl.params.iter()) {
+            let arg = arg.type_check(ctx);
+            let arg_ty = ctx.expr_ty(&arg);
+            ctx.satisfies(*param_ty, arg_ty, arg.span());
+            args.push((*name, arg, arg_ty));
+        }
+
+        let concrete_arg_types: Vec<PetrType> = args.iter().map(|(_, _, ty)| ctx.look_up_variable(*ty).clone()).collect();
+
+        let signature = (self.function, concrete_arg_types.clone().into_boxed_slice());
+        // now that we know the argument types, check if this signature has been monomorphized
+        // already
+        if ctx.monomorphized_functions.contains_key(&signature) {
+            return TypedExprKind::FunctionCall {
+                func: self.function,
+                args: args.into_iter().map(|(name, expr, _)| (name, expr)).collect(),
+                ty:   func_decl.return_ty,
+            };
+        }
+
+        // unify declared return type with body return type
+        let declared_return_type = func_decl.return_ty;
+
+        ctx.unify_expr_return(declared_return_type, &func_decl.body);
+
+        // to create a monomorphized func decl, we don't actually have to update all of the types
+        // throughout the entire definition. We only need to update the parameter types.
+        let mut monomorphized_func_decl = Function {
+            name:      func_decl.name,
+            params:    func_decl.params.clone(),
+            return_ty: declared_return_type,
+            body:      func_decl.body.clone(),
+        };
+
+        // update the parameter types to be the concrete types
+        for (param, concrete_ty) in monomorphized_func_decl.params.iter_mut().zip(concrete_arg_types.iter()) {
+            let param_ty = ctx.insert_type(concrete_ty.clone());
+            param.1 = param_ty;
+        }
+
+        // if there are any variable exprs in the body, update those ref types
+        let mut num_replacements = 0;
+        replace_var_reference_types(
+            &mut monomorphized_func_decl.body.kind,
+            &monomorphized_func_decl.params,
+            &mut num_replacements,
+        );
+
+        ctx.monomorphized_functions.insert(signature, monomorphized_func_decl);
+
+        TypedExprKind::FunctionCall {
+            func: self.function,
+            args: args.into_iter().map(|(name, expr, _)| (name, expr)).collect(),
+            ty:   declared_return_type,
+        }
+    }
+}
+
+fn replace_var_reference_types(
+    expr: &mut TypedExprKind,
+    params: &Vec<(Identifier, TypeVariable)>,
+    num_replacements: &mut usize,
+) {
+    match expr {
+        TypedExprKind::Variable { ref mut ty, name } => {
+            if let Some((_param_name, ty_var)) = params.iter().find(|(param_name, _)| param_name.id == name.id) {
+                *num_replacements += 1;
+                *ty = *ty_var;
+            }
+        },
+        TypedExprKind::FunctionCall { args, .. } => {
+            for (_, arg) in args {
+                replace_var_reference_types(&mut arg.kind, params, num_replacements);
+            }
+        },
+        TypedExprKind::Intrinsic { intrinsic, .. } => {
+            use Intrinsic::*;
+            match intrinsic {
+                // intrinsics which take one arg, grouped for convenience
+                Puts(a) | Malloc(a) | SizeOf(a) => {
+                    replace_var_reference_types(&mut a.kind, params, num_replacements);
+                },
+                // intrinsics which take two args, grouped for convenience
+                Add(a, b) | Subtract(a, b) | Multiply(a, b) | Divide(a, b) => {
+                    replace_var_reference_types(&mut a.kind, params, num_replacements);
+                    replace_var_reference_types(&mut b.kind, params, num_replacements);
+                },
+            }
+        },
+        // TODO other expr kinds like bindings
+        _ => (),
     }
 }
 
@@ -1013,8 +1122,22 @@ mod tests {
                     s.push('\n');
                 },
             }
-
             s.push('\n');
+        }
+
+        if !type_checker.monomorphized_functions.is_empty() {
+            s.push_str("\n__MONOMORPHIZED FUNCTIONS__");
+        }
+
+        for func in type_checker.monomorphized_functions.values() {
+            let func_name = type_checker.resolved.interner.get(func.name.id);
+            let arg_types = func.params.iter().map(|(_, ty)| pretty_print_ty(ty, &type_checker)).collect::<Vec<_>>();
+            s.push_str(&format!(
+                "\nfn {}({:?}) -> {}",
+                func_name,
+                arg_types,
+                pretty_print_ty(&func.return_ty, &type_checker)
+            ));
         }
 
         if !type_checker.errors.is_empty() {
@@ -1060,7 +1183,7 @@ mod tests {
             },
             PetrType::ErrorRecovery => "error recovery".to_string(),
             PetrType::List(ty) => format!("[{}]", pretty_print_ty(ty, type_checker)),
-            PetrType::Infer(id) => format!("t{id}"),
+            PetrType::Infer(id, _) => format!("t{id}"),
         }
     }
 
@@ -1186,7 +1309,9 @@ mod tests {
                 fn foo: (MyType → MyComposedType)
                 function call to functionid2 with args: someField: MyType, returns MyComposedType
 
-            "#]],
+
+                __MONOMORPHIZED FUNCTIONS__
+                fn firstVariant(["MyType"]) -> MyComposedType"#]],
         );
     }
 
@@ -1242,7 +1367,9 @@ mod tests {
                 fn my_func: unit
                 intrinsic: @puts(function call to functionid0 with args: )
 
-            "#]],
+
+                __MONOMORPHIZED FUNCTIONS__
+                fn string_literal([]) -> string"#]],
         );
     }
 
@@ -1308,6 +1435,8 @@ mod tests {
                 intrinsic: @puts(function call to functionid0 with args: )
 
 
+                __MONOMORPHIZED FUNCTIONS__
+                fn bool_literal([]) -> bool
                 Errors:
                 SpannedItem UnificationFailure(String, Boolean) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(110), length: 14 } }]
             "#]],
@@ -1338,7 +1467,10 @@ mod tests {
                 fn my_second_func: bool
                 function call to functionid0 with args: a: bool, b: bool, returns bool
 
-            "#]],
+
+                __MONOMORPHIZED FUNCTIONS__
+                fn bool_literal(["int", "int"]) -> bool
+                fn bool_literal(["bool", "bool"]) -> bool"#]],
         );
     }
     #[test]
@@ -1404,7 +1536,10 @@ fn main() returns 'int ~hi(1, 2)"#,
                 fn main: int
                 function call to functionid0 with args: x: int, y: int, returns int
 
-            "#]],
+
+                __MONOMORPHIZED FUNCTIONS__
+                fn hi(["int", "int"]) -> int
+                fn main([]) -> int"#]],
         )
     }
 }
