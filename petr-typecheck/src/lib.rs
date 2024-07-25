@@ -635,51 +635,6 @@ impl TypedExpr {
     pub fn span(&self) -> Span {
         self.span
     }
-
-    /// for each type variable in the mapping, replace all references to it with the new petrtype
-    fn apply_new_type_mapping(
-        &mut self,
-        ctx: &mut TypeChecker,
-        type_mapping: &BTreeMap<TypeVariable, TypeVariable>,
-    ) {
-        use TypedExprKind::*;
-
-        match self.kind {
-            FunctionCall { ref mut args, .. } => {
-                for (_, ref mut arg) in args {
-                    arg.apply_new_type_mapping(ctx, type_mapping);
-                }
-            },
-            Literal { .. } => (),
-            List { ref mut elements, .. } => {
-                for ref mut elem in elements {
-                    elem.apply_new_type_mapping(ctx, type_mapping);
-                }
-            },
-            Unit => (),
-            Variable { ref mut ty, .. } => {
-                if let Some(new_ty) = type_mapping.get(&ty) {
-                    *ty = *new_ty;
-                }
-            },
-            Intrinsic { .. } => (),
-            ErrorRecovery(..) => (),
-            ExprWithBindings {
-                ref mut bindings,
-                ref mut expression,
-            } => {
-                for (_, ref mut expr) in bindings {
-                    expr.apply_new_type_mapping(ctx, type_mapping);
-                }
-                expression.apply_new_type_mapping(ctx, type_mapping);
-            },
-            TypeConstructor { ref mut args, .. } => {
-                for ref mut arg in args {
-                    arg.apply_new_type_mapping(ctx, type_mapping);
-                }
-            },
-        }
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -1001,7 +956,7 @@ impl TypeCheck for petr_resolve::FunctionCall {
         &self,
         ctx: &mut TypeChecker,
     ) -> Self::Output {
-        let mut func_decl = ctx.get_function(&self.function).clone();
+        let func_decl = ctx.get_function(&self.function).clone();
 
         if self.args.len() != func_decl.params.len() {
             // TODO: support partial application
@@ -1022,52 +977,47 @@ impl TypeCheck for petr_resolve::FunctionCall {
             ctx.satisfies(*param_ty, arg_ty, arg.span());
             args.push((*name, arg, arg_ty));
         }
-        // build a mapping to replace all parameter types with their monomorphized concrete types
-        let type_mapping: BTreeMap<TypeVariable, TypeVariable> = func_decl
-            .params
-            .iter()
-            .map(|(_, ty)| *ty)
-            .zip(args.iter().map(|(_, _, ty)| *ty))
-            .collect();
 
-        // update all arg types in the decl with the concrete types
-        func_decl.apply_new_type_mapping(ctx, &type_mapping);
+        let concrete_arg_types: Vec<PetrType> = args.iter().map(|(_, _, ty)| ctx.look_up_variable(*ty).clone()).collect();
+
+        let signature = (self.function, concrete_arg_types.clone().into_boxed_slice());
+        // now that we know the argument types, check if this signature has been monomorphized
+        // already
+        if ctx.monomorphized_functions.contains_key(&signature) {
+            return TypedExprKind::FunctionCall {
+                func: self.function,
+                args: args.into_iter().map(|(name, expr, _)| (name, expr)).collect(),
+                ty:   func_decl.return_ty,
+            };
+        }
 
         // unify declared return type with body return type
         let declared_return_type = func_decl.return_ty;
 
         ctx.unify_expr_return(declared_return_type, &func_decl.body);
 
-        let concrete_arg_types: Vec<PetrType> = args.iter().map(|(_, _, ty)| ctx.look_up_variable(*ty).clone()).collect();
+        // to create a monomorphized func decl, we don't actually have to update all of the types
+        // throughout the entire definition. We only need to update the parameter types.
+        let mut monomorphized_func_decl = Function {
+            name:      func_decl.name,
+            params:    func_decl.params.clone(),
+            return_ty: declared_return_type,
+            body:      func_decl.body.clone(),
+        };
 
-        ctx.monomorphized_functions
-            .insert((self.function, concrete_arg_types.into_boxed_slice()), func_decl);
+        // update the parameter types to be the concrete types
+        for (param, concrete_ty) in monomorphized_func_decl.params.iter_mut().zip(concrete_arg_types.iter()) {
+            let param_ty = ctx.insert_type(concrete_ty.clone());
+            param.1 = param_ty;
+        }
+
+        ctx.monomorphized_functions.insert(signature, monomorphized_func_decl);
 
         TypedExprKind::FunctionCall {
             func: self.function,
             args: args.into_iter().map(|(name, expr, _)| (name, expr)).collect(),
             ty:   declared_return_type,
         }
-    }
-}
-
-impl Function {
-    fn apply_new_type_mapping(
-        &mut self,
-        ctx: &mut TypeChecker,
-        type_mapping: &BTreeMap<TypeVariable, TypeVariable>,
-    ) {
-        for (_, ref mut param_ty) in self.params.iter_mut() {
-            let mut petr_ty = ctx.look_up_variable(*param_ty);
-            while let PetrType::Ref(ty) = petr_ty {
-                if let Some(new_ty) = type_mapping.get(ty) {
-                    println!("replacing arg type");
-                    *param_ty = *new_ty
-                }
-                petr_ty = ctx.look_up_variable(*ty);
-            }
-        }
-        self.body.apply_new_type_mapping(ctx, type_mapping);
     }
 }
 
@@ -1316,7 +1266,9 @@ mod tests {
                 fn foo: (MyType → MyComposedType)
                 function call to functionid2 with args: someField: MyType, returns MyComposedType
 
-            "#]],
+
+                __MONOMORPHIZED FUNCTIONS__
+                fn firstVariant(["MyType"]) -> MyComposedType"#]],
         );
     }
 
@@ -1372,7 +1324,9 @@ mod tests {
                 fn my_func: unit
                 intrinsic: @puts(function call to functionid0 with args: )
 
-            "#]],
+
+                __MONOMORPHIZED FUNCTIONS__
+                fn string_literal([]) -> string"#]],
         );
     }
 
@@ -1438,6 +1392,8 @@ mod tests {
                 intrinsic: @puts(function call to functionid0 with args: )
 
 
+                __MONOMORPHIZED FUNCTIONS__
+                fn bool_literal([]) -> bool
                 Errors:
                 SpannedItem UnificationFailure(String, Boolean) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(110), length: 14 } }]
             "#]],
@@ -1468,7 +1424,10 @@ mod tests {
                 fn my_second_func: bool
                 function call to functionid0 with args: a: bool, b: bool, returns bool
 
-            "#]],
+
+                __MONOMORPHIZED FUNCTIONS__
+                fn bool_literal(["int", "int"]) -> bool
+                fn bool_literal(["bool", "bool"]) -> bool"#]],
         );
     }
     #[test]
@@ -1534,7 +1493,10 @@ fn main() returns 'int ~hi(1, 2)"#,
                 fn main: int
                 function call to functionid0 with args: x: int, y: int, returns int
 
-            "#]],
+
+                __MONOMORPHIZED FUNCTIONS__
+                fn hi(["int", "int"]) -> int
+                fn main([]) -> int"#]],
         )
     }
 }
