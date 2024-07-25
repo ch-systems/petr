@@ -517,7 +517,6 @@ impl TypeChecker {
         &mut self,
         id: &FunctionId,
     ) -> Function {
-        println!("looking for function {:?}", id);
         if let Some(func) = self.typed_functions.get(id) {
             return func.clone();
         }
@@ -1011,6 +1010,14 @@ impl TypeCheck for petr_resolve::FunctionCall {
             param.1 = param_ty;
         }
 
+        // if there are any variable exprs in the body, update those ref types
+        let mut num_replacements = 0;
+        replace_var_reference_types(
+            &mut monomorphized_func_decl.body.kind,
+            &monomorphized_func_decl.params,
+            &mut num_replacements,
+        );
+
         ctx.monomorphized_functions.insert(signature, monomorphized_func_decl);
 
         TypedExprKind::FunctionCall {
@@ -1018,6 +1025,42 @@ impl TypeCheck for petr_resolve::FunctionCall {
             args: args.into_iter().map(|(name, expr, _)| (name, expr)).collect(),
             ty:   declared_return_type,
         }
+    }
+}
+
+fn replace_var_reference_types(
+    expr: &mut TypedExprKind,
+    params: &Vec<(Identifier, TypeVariable)>,
+    num_replacements: &mut usize,
+) {
+    match expr {
+        TypedExprKind::Variable { ref mut ty, name } => {
+            if let Some((_param_name, ty_var)) = params.iter().find(|(param_name, _)| param_name.id == name.id) {
+                *num_replacements += 1;
+                *ty = *ty_var;
+            }
+        },
+        TypedExprKind::FunctionCall { args, .. } => {
+            for (_, arg) in args {
+                replace_var_reference_types(&mut arg.kind, params, num_replacements);
+            }
+        },
+        TypedExprKind::Intrinsic { intrinsic, .. } => {
+            use Intrinsic::*;
+            match intrinsic {
+                // intrinsics which take one arg, grouped for convenience
+                Puts(a) | Malloc(a) | SizeOf(a) => {
+                    replace_var_reference_types(&mut a.kind, params, num_replacements);
+                },
+                // intrinsics which take two args, grouped for convenience
+                Add(a, b) | Subtract(a, b) | Multiply(a, b) | Divide(a, b) => {
+                    replace_var_reference_types(&mut a.kind, params, num_replacements);
+                    replace_var_reference_types(&mut b.kind, params, num_replacements);
+                },
+            }
+        },
+        // TODO other expr kinds like bindings
+        _ => (),
     }
 }
 

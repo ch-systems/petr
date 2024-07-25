@@ -111,8 +111,6 @@ impl Lowerer {
 
         let func_def = self.type_checker.get_monomorphized_function(&func).clone();
 
-        let function_definition_body = self.type_checker.get_function(&func.0).body.clone();
-
         let mut buf = vec![];
         self.with_variable_context(|ctx| -> Result<_> {
             // Pop parameters off the stack in reverse order -- the last parameter for the function
@@ -141,7 +139,7 @@ impl Lowerer {
 
             let return_reg = ctx.fresh_reg();
             let return_dest = ReturnDestination::Reg(return_reg);
-            let mut expr_body = ctx.lower_expr(&function_definition_body, return_dest).map_err(|e| e)?;
+            let mut expr_body = ctx.lower_expr(&func_def.body, return_dest).map_err(|e| e)?;
             buf.append(&mut expr_body);
             // load return value into func return register
 
