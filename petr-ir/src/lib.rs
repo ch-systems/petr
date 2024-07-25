@@ -139,7 +139,7 @@ impl Lowerer {
 
             let return_reg = ctx.fresh_reg();
             let return_dest = ReturnDestination::Reg(return_reg);
-            let mut expr_body = ctx.lower_expr(&func_def.body, return_dest).map_err(|e| e)?;
+            let mut expr_body = ctx.lower_expr(&func_def.body, return_dest)?;
             buf.append(&mut expr_body);
             // load return value into func return register
 
@@ -310,6 +310,7 @@ impl Lowerer {
         }
     }
 
+    #[allow(clippy::wrong_self_convention)]
     fn to_ir_type(
         &mut self,
         param_ty: TypeVariable,
