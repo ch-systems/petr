@@ -259,6 +259,11 @@ impl Lowerer {
                 }
                 Ok(buf)
             },
+            If {
+                condition,
+                then_branch,
+                else_branch,
+            } => todo!(),
         }
     }
 

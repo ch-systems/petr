@@ -95,6 +95,7 @@ pub struct TypeContext {
     unit_ty:        TypeVariable,
     string_ty:      TypeVariable,
     int_ty:         TypeVariable,
+    bool_ty:        TypeVariable,
     error_recovery: TypeVariable,
 }
 
@@ -104,12 +105,14 @@ impl Default for TypeContext {
         // instantiate basic primitive types
         let unit_ty = types.insert(PetrType::Unit);
         let string_ty = types.insert(PetrType::String);
-        let int_ty = types.insert(PetrType::Integer);
+        let bool_ty = types.insert(PetrType::Integer);
+        let int_ty = types.insert(PetrType::Boolean);
         let error_recovery = types.insert(PetrType::ErrorRecovery);
         // insert primitive types
         TypeContext {
             types,
             constraints: Default::default(),
+            bool_ty,
             unit_ty,
             string_ty,
             int_ty,
@@ -555,6 +558,11 @@ impl TypeChecker {
             ErrorRecovery(..) => self.ctx.error_recovery,
             ExprWithBindings { expression, .. } => self.expr_ty(expression),
             TypeConstructor { ty, .. } => *ty,
+            If {
+                condition,
+                then_branch,
+                else_branch,
+            } => todo!(),
         }
     }
 
@@ -578,6 +586,10 @@ impl TypeChecker {
 
     pub fn int(&self) -> TypeVariable {
         self.ctx.int_ty
+    }
+
+    pub fn bool(&self) -> TypeVariable {
+        self.ctx.bool_ty
     }
 
     /// To reference an error recovery type, you must provide an error.
@@ -669,6 +681,11 @@ pub enum TypedExprKind {
         ty:   TypeVariable,
         args: Box<[TypedExpr]>,
     },
+    If {
+        condition:   Box<TypedExpr>,
+        then_branch: Box<TypedExpr>,
+        else_branch: Box<TypedExpr>,
+    },
 }
 
 impl std::fmt::Debug for TypedExpr {
@@ -705,6 +722,11 @@ impl std::fmt::Debug for TypedExpr {
                 write!(f, "expression: {:?}", expression)
             },
             TypeConstructor { ty, .. } => write!(f, "type constructor: {:?}", ty),
+            If {
+                condition,
+                then_branch,
+                else_branch,
+            } => todo!(),
         }
     }
 }
@@ -780,6 +802,29 @@ impl TypeCheck for Expr {
                         expression: Box::new(expression.type_check(ctx)),
                     }
                 })
+            },
+            ExprKind::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                let condition = condition.type_check(ctx);
+                let condition_ty = ctx.expr_ty(&condition);
+                ctx.unify(condition_ty, ctx.bool(), condition.span());
+
+                let then_branch = then_branch.type_check(ctx);
+                let then_ty = ctx.expr_ty(&then_branch);
+
+                let else_branch = else_branch.type_check(ctx);
+                let else_ty = ctx.expr_ty(&else_branch);
+
+                ctx.unify(then_ty, else_ty, self.span);
+
+                TypedExprKind::If {
+                    condition:   Box::new(condition),
+                    then_branch: Box::new(then_branch),
+                    else_branch: Box::new(else_branch),
+                }
             },
         };
 

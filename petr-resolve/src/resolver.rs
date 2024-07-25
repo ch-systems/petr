@@ -135,13 +135,24 @@ pub enum ExprKind {
     Literal(petr_ast::Literal),
     List(Box<[Expr]>),
     FunctionCall(FunctionCall),
-    Variable { name: Identifier, ty: Type },
+    Variable {
+        name: Identifier,
+        ty:   Type,
+    },
     Intrinsic(Intrinsic),
     Unit,
     // the `id` is the id of the type declaration that defined this constructor
     TypeConstructor(TypeId, Box<[Expr]>),
     ErrorRecovery,
-    ExpressionWithBindings { bindings: Vec<Binding>, expression: Box<Expr> },
+    ExpressionWithBindings {
+        bindings:   Vec<Binding>,
+        expression: Box<Expr>,
+    },
+    If {
+        condition:   Box<Expr>,
+        then_branch: Box<Expr>,
+        else_branch: Box<Expr>,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -510,6 +521,27 @@ impl Resolve for SpannedItem<Expression> {
                     self.span(),
                 )
             },
+            Expression::If(petr_ast::If {
+                condition,
+                then_branch,
+                else_branch,
+            }) => {
+                let condition = (**condition).resolve(resolver, binder, scope_id)?;
+                let then_branch = (**then_branch).resolve(resolver, binder, scope_id)?;
+                let else_branch = else_branch
+                    .as_ref()
+                    .map(|x| (*x).resolve(resolver, binder, scope_id))?
+                    .unwrap_or_else(|| Expr::new(ExprKind::Unit, self.span()));
+
+                Expr::new(
+                    ExprKind::If {
+                        condition:   Box::new(condition),
+                        then_branch: Box::new(then_branch),
+                        else_branch: Box::new(else_branch),
+                    },
+                    self.span(),
+                )
+            },
         })
     }
 }
@@ -768,6 +800,11 @@ mod tests {
                     ),
                     ExprKind::TypeConstructor(..) => "Type constructor".into(),
                     ExprKind::ExpressionWithBindings { .. } => todo!(),
+                    ExprKind::If {
+                        condition,
+                        then_branch,
+                        else_branch,
+                    } => todo!(),
                 }
             }
         }
