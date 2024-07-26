@@ -176,6 +176,7 @@ impl std::fmt::Display for Intrinsic {
             Intrinsic::Divide => write!(f, "divide"),
             Intrinsic::Malloc => write!(f, "malloc"),
             Intrinsic::SizeOf => write!(f, "size_of"),
+            Intrinsic::Equals => write!(f, "eq"),
         }
     }
 }
@@ -190,6 +191,7 @@ pub enum Intrinsic {
     Divide,
     Malloc,
     SizeOf,
+    Equals,
 }
 
 #[derive(Clone)]
@@ -257,6 +259,7 @@ pub enum Operator {
     Minus,
     Star,
     Slash,
+    Eq,
 }
 
 impl Operator {
@@ -266,6 +269,7 @@ impl Operator {
             Operator::Minus => "-",
             Operator::Star => "*",
             Operator::Slash => "/",
+            Operator::Eq => "=",
         }
     }
 }

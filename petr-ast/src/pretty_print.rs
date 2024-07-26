@@ -294,6 +294,7 @@ impl PrettyPrint for OperatorExpression {
             Operator::Minus => "-",
             Operator::Star => "*",
             Operator::Slash => "/",
+            Operator::Eq => "=",
         };
         format!("{}({} {})", op, lhs, rhs)
     }

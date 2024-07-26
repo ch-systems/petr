@@ -559,11 +559,7 @@ impl TypeChecker {
             ErrorRecovery(..) => self.ctx.error_recovery,
             ExprWithBindings { expression, .. } => self.expr_ty(expression),
             TypeConstructor { ty, .. } => *ty,
-            If {
-                condition,
-                then_branch,
-                else_branch,
-            } => todo!(),
+            If { then_branch, .. } => self.expr_ty(then_branch),
         }
     }
 
@@ -618,6 +614,7 @@ pub enum Intrinsic {
     Subtract(Box<TypedExpr>, Box<TypedExpr>),
     Malloc(Box<TypedExpr>),
     SizeOf(Box<TypedExpr>),
+    Equals(Box<TypedExpr>, Box<TypedExpr>),
 }
 
 impl std::fmt::Debug for Intrinsic {
@@ -633,6 +630,7 @@ impl std::fmt::Debug for Intrinsic {
             Intrinsic::Subtract(lhs, rhs) => write!(f, "@subtract({:?}, {:?})", lhs, rhs),
             Intrinsic::Malloc(size) => write!(f, "@malloc({:?})", size),
             Intrinsic::SizeOf(expr) => write!(f, "@sizeof({:?})", expr),
+            Intrinsic::Equals(lhs, rhs) => write!(f, "@equal({:?}, {:?})", lhs, rhs),
         }
     }
 }
@@ -727,7 +725,9 @@ impl std::fmt::Debug for TypedExpr {
                 condition,
                 then_branch,
                 else_branch,
-            } => todo!(),
+            } => {
+                write!(f, "if {:?} then {:?} else {:?}", condition, then_branch, else_branch)
+            },
         }
     }
 }
@@ -943,6 +943,19 @@ impl TypeCheck for SpannedItem<ResolvedIntrinsic> {
                     ty:        ctx.int(),
                 }
             },
+            Equals => {
+                if self.item().args.len() != 2 {
+                    todo!("equal arg len check");
+                }
+
+                let lhs = self.item().args[0].type_check(ctx);
+                let rhs = self.item().args[1].type_check(ctx);
+                ctx.unify(ctx.expr_ty(&lhs), ctx.expr_ty(&rhs), self.span());
+                TypedExprKind::Intrinsic {
+                    intrinsic: Intrinsic::Equals(Box::new(lhs), Box::new(rhs)),
+                    ty:        ctx.bool(),
+                }
+            },
         };
 
         TypedExpr { kind, span: self.span() }
@@ -1099,7 +1112,7 @@ fn replace_var_reference_types(
                     replace_var_reference_types(&mut a.kind, params, num_replacements);
                 },
                 // intrinsics which take two args, grouped for convenience
-                Add(a, b) | Subtract(a, b) | Multiply(a, b) | Divide(a, b) => {
+                Add(a, b) | Subtract(a, b) | Multiply(a, b) | Divide(a, b) | Equals(a, b) => {
                     replace_var_reference_types(&mut a.kind, params, num_replacements);
                     replace_var_reference_types(&mut b.kind, params, num_replacements);
                 },

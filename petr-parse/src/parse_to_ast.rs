@@ -219,6 +219,7 @@ impl Parse for Operator {
             Token::Minus => Some(Operator::Minus),
             Token::Star => Some(Operator::Star),
             Token::Slash => Some(Operator::Slash),
+            Token::Equals => Some(Operator::Eq),
             _ => {
                 p.push_error(p.span().with_item(ParseErrorKind::ExpectedOneOf(
                     vec![Token::Plus, Token::Minus, Token::Star, Token::Slash],
@@ -363,6 +364,7 @@ impl Parse for IntrinsicCall {
                 "divide" => Intrinsic::Divide,
                 "malloc" => Intrinsic::Malloc,
                 "size_of" => Intrinsic::SizeOf,
+                "equals" => Intrinsic::Equals,
                 a => todo!("unrecognized intrinsic error: {a:?}"),
             };
             p.token(Token::Intrinsic)?;

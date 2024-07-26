@@ -274,3 +274,21 @@ fn if_exp_basic() {
         "#]],
     )
 }
+
+#[test]
+fn nested_if_exp() {
+    check(
+        vec![
+            "fn if_exp() returns 'int
+                if true then if false then 1 else 0 else 0
+            ",
+        ],
+        expect![[r#"
+            AST
+            ____
+            module test =
+            Func if_exp() -> 'int if true then if false then 1 else 0 else 0
+
+        "#]],
+    )
+}

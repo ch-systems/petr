@@ -412,6 +412,7 @@ impl Resolve for SpannedItem<Expression> {
                     Minus => "sub",
                     Star => "mul",
                     Slash => "div",
+                    Eq => "eq",
                 };
                 let path = ["std", "ops", func];
 

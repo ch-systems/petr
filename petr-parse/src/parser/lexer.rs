@@ -91,7 +91,7 @@ pub enum Token {
 impl Token {
     pub(crate) fn is_operator(&self) -> bool {
         use Token::*;
-        matches!(self, Plus | Minus | Slash | Star)
+        matches!(self, Plus | Minus | Slash | Star | Equals)
     }
 }
 

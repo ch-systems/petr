@@ -17,7 +17,7 @@ mod opcodes;
 
 pub use error::LoweringError;
 use opcodes::*;
-pub use opcodes::{DataLabel, Intrinsic, IrOpcode, Reg, ReservedRegister};
+pub use opcodes::{DataLabel, Intrinsic, IrOpcode, LabelId, Reg, ReservedRegister};
 
 pub fn lower(checker: TypeChecker) -> Result<(DataSection, Vec<IrOpcode>)> {
     let lowerer = Lowerer::new(checker)?;
@@ -43,6 +43,7 @@ pub struct Lowerer {
     variables_in_scope: Vec<BTreeMap<SymbolId, Reg>>,
     monomorphized_functions: IndexMap<MonomorphizedFunctionId, (FunctionSignature, Function)>,
     errors: Vec<SpannedItem<LoweringError>>,
+    label_assigner: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -65,6 +66,7 @@ impl Lowerer {
             type_checker,
             variables_in_scope: Default::default(),
             monomorphized_functions: Default::default(),
+            label_assigner: 0,
             errors: Default::default(),
         };
 
@@ -85,7 +87,7 @@ impl Lowerer {
 
         // insert jump to entry point as first instr
         if let Some(entry_point) = self.entry_point {
-            program_section.push(IrOpcode::JumpImmediate(entry_point));
+            program_section.push(IrOpcode::JumpImmediateFunction(entry_point));
         } else {
             // TODO use diagnostics here
             eprintln!("Warning: Generating IR for program with no entry point");
@@ -196,7 +198,7 @@ impl Lowerer {
                 let monomorphized_func_id = self.monomorphize_function((*func, arg_petr_types.into_boxed_slice()))?;
 
                 // jump to the function
-                buf.push(IrOpcode::JumpImmediate(monomorphized_func_id));
+                buf.push(IrOpcode::JumpImmediateFunction(monomorphized_func_id));
 
                 // after returning to this function, return the register
                 match return_destination {
@@ -263,8 +265,27 @@ impl Lowerer {
                 condition,
                 then_branch,
                 else_branch,
-            } => todo!(),
+            } => {
+                let mut buf = vec![];
+                let condition_reg = self.fresh_reg();
+                buf.append(&mut self.lower_expr(condition, ReturnDestination::Reg(condition_reg))?);
+                let else_label = self.new_label();
+                let end_label = self.new_label();
+                buf.push(IrOpcode::JumpIfFalseImmediate(condition_reg, else_label));
+                buf.append(&mut self.lower_expr(then_branch, return_destination.clone())?);
+                buf.push(IrOpcode::JumpImmediate(end_label));
+                buf.push(IrOpcode::Label(else_label));
+                buf.append(&mut self.lower_expr(else_branch, return_destination)?);
+                buf.push(IrOpcode::Label(end_label));
+                Ok(buf)
+            },
         }
+    }
+
+    fn new_label(&mut self) -> LabelId {
+        let label: LabelId = self.label_assigner.into();
+        self.label_assigner += 1;
+        label
     }
 
     fn insert_literal_data(
@@ -373,6 +394,17 @@ impl Lowerer {
                 }
                 Ok(buf)
             },
+            Equals(lhs, rhs) => {
+                let lhs_reg = self.fresh_reg();
+                let rhs_reg = self.fresh_reg();
+                buf.append(&mut self.lower_expr(lhs, ReturnDestination::Reg(lhs_reg))?);
+                buf.append(&mut self.lower_expr(rhs, ReturnDestination::Reg(rhs_reg))?);
+                let return_reg = match return_destination {
+                    ReturnDestination::Reg(reg) => reg,
+                };
+                buf.push(IrOpcode::Equal(return_reg, lhs_reg, rhs_reg));
+                Ok(buf)
+            },
         }
     }
 
@@ -467,17 +499,7 @@ impl Lowerer {
     }
 }
 
-/*
-impl MonomorphizedFunction {
-    fn signature(&self) -> FunctionSignature {
-        FunctionSignature {
-            label:          self.id,
-            concrete_types: self.params.iter().map(|(_name, ty)| ty.clone()).collect(),
-        }
-    }
-}
-*/
-
+#[derive(Clone)]
 enum ReturnDestination {
     Reg(Reg),
 }

@@ -5,3 +5,5 @@ export fn sub(lhs in 'int, rhs in 'int) returns 'int @subtract lhs, rhs
 export fn mult(lhs in 'int, rhs in 'int) returns 'int @multiply lhs, rhs
 
 export fn div(lhs in 'int, rhs in 'int) returns 'int @divide lhs, rhs
+
+export fn eq(lhs in 'A, rhs in 'A) returns 'bool @equals lhs, rhs
