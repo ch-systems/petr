@@ -368,7 +368,7 @@ impl Resolve for SpannedItem<FunctionDeclaration> {
             // resolved function map.
             // If we were to return `None` and not resolve the function, then calls to this
             // function would hold a reference `FunctionId(x)` which would not exist anymore.
-            None => Expr::error_recovery(self.span()),
+            None => dbg!(Expr::error_recovery(self.span())),
         };
 
         Some(Function {
@@ -529,16 +529,18 @@ impl Resolve for SpannedItem<Expression> {
             }) => {
                 let condition = (**condition).resolve(resolver, binder, scope_id)?;
                 let then_branch = (**then_branch).resolve(resolver, binder, scope_id)?;
-                let else_branch = else_branch
-                    .as_ref()
-                    .map(|x| (*x).resolve(resolver, binder, scope_id))?
-                    .unwrap_or_else(|| Expr::new(ExprKind::Unit, self.span()));
-
+                let else_branch = match else_branch {
+                    Some(branch) => {
+                        let branch = (**branch).resolve(resolver, binder, scope_id)?;
+                        Box::new(branch)
+                    },
+                    None => Box::new(Expr::new(ExprKind::Unit, self.span())),
+                };
                 Expr::new(
                     ExprKind::If {
-                        condition:   Box::new(condition),
+                        condition: Box::new(condition),
                         then_branch: Box::new(then_branch),
-                        else_branch: Box::new(else_branch),
+                        else_branch,
                     },
                     self.span(),
                 )
@@ -561,7 +563,7 @@ impl Resolve for petr_ast::IntrinsicCall {
             .iter()
             .map(|x| match x.resolve(resolver, binder, scope_id) {
                 Some(x) => x,
-                None => Expr::error_recovery(x.span()),
+                None => dbg!(Expr::error_recovery(x.span())),
             })
             .collect();
         Some(Intrinsic {
@@ -801,7 +803,18 @@ mod tests {
                     ),
                     ExprKind::TypeConstructor(..) => "Type constructor".into(),
                     ExprKind::ExpressionWithBindings { .. } => todo!(),
-                    ExprKind::If { .. } => todo!(),
+                    ExprKind::If {
+                        condition,
+                        then_branch,
+                        else_branch,
+                    } => {
+                        format!(
+                            "if {} then {} else {}",
+                            (*condition).to_string(resolver),
+                            (*then_branch).to_string(resolver),
+                            (*else_branch).to_string(resolver)
+                        )
+                    },
                 }
             }
         }
@@ -1022,6 +1035,21 @@ mod tests {
                 _____FUNCTIONS_____
                 #0 exported_func(  a: int, ) -> int   "a: int"
                 #1 foo() -> int   "FunctionCall(functionid0)"
+                _____TYPES_____
+            "#]],
+        )
+    }
+
+    #[test]
+    fn if_without_else() {
+        check(
+            "
+            fn hi(x in 'int) returns 'int
+                if x then 1
+                ",
+            expect![[r#"
+                _____FUNCTIONS_____
+                #0 hi(  x: int, ) -> int   "if x: int then Literal(Integer(1)) else Unit"
                 _____TYPES_____
             "#]],
         )

@@ -28,6 +28,12 @@ pub enum Token {
     Star,
     #[regex("[0-9]+")]
     Integer,
+    #[token("if")]
+    If,
+    #[token("then")]
+    Then,
+    #[token("else")]
+    Else,
     #[regex("[_a-zA-Z][_a-zA-Z0-9]{0,30}")]
     Identifier,
     #[regex(r#""([^"\\]|\\["\\bnfrt]|u[a-fA-F0-9]{4})*""#)]
@@ -78,12 +84,6 @@ pub enum Token {
     Intrinsic,
     #[token(";")]
     Semicolon,
-    #[token("if")]
-    If,
-    #[token("then")]
-    Then,
-    #[token("else")]
-    Else,
     NewFile(SourceId),
     Eof,
 }

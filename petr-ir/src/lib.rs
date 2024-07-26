@@ -649,7 +649,7 @@ mod tests {
                  4	ld v1 datalabel0
                  5	push v1
                  6	ppc
-                 7	jumpi monomorphizedfunctionid0
+                 7	fjumpi monomorphizedfunctionid0
                  8	cp v0 rr(func return value)
                  9	cp rr(func return value) v0
                  10	ret
@@ -686,7 +686,7 @@ mod tests {
                  11	cp v7 v3
                  12	push v7
                  13	ppc
-                 14	jumpi monomorphizedfunctionid0
+                 14	fjumpi monomorphizedfunctionid0
                  15	cp v5 rr(func return value)
                  16	cp rr(func return value) v5
                  17	ret
@@ -696,7 +696,7 @@ mod tests {
                  20	ld v2 datalabel1
                  21	push v2
                  22	ppc
-                 23	jumpi monomorphizedfunctionid1
+                 23	fjumpi monomorphizedfunctionid1
                  24	cp v0 rr(func return value)
                  25	cp rr(func return value) v0
                  26	ret
@@ -730,7 +730,7 @@ mod tests {
                  7	ld v2 datalabel1
                  8	push v2
                  9	ppc
-                 10	jumpi monomorphizedfunctionid0
+                 10	fjumpi monomorphizedfunctionid0
                  11	cp v0 rr(func return value)
                  12	cp rr(func return value) v0
                  13	ret
@@ -779,15 +779,15 @@ mod tests {
                  17	cp v13 v3
                  18	push v13
                  19	ppc
-                 20	jumpi monomorphizedfunctionid0
+                 20	fjumpi monomorphizedfunctionid0
                  21	cp v11 rr(func return value)
                  22	push v11
                  23	ppc
-                 24	jumpi monomorphizedfunctionid0
+                 24	fjumpi monomorphizedfunctionid0
                  25	cp v9 rr(func return value)
                  26	push v9
                  27	ppc
-                 28	jumpi monomorphizedfunctionid0
+                 28	fjumpi monomorphizedfunctionid0
                  29	cp v5 rr(func return value)
                  30	cp rr(func return value) v5
                  31	ret
@@ -797,7 +797,7 @@ mod tests {
                  34	ld v2 datalabel1
                  35	push v2
                  36	ppc
-                 37	jumpi monomorphizedfunctionid1
+                 37	fjumpi monomorphizedfunctionid1
                  38	cp v0 rr(func return value)
                  39	cp rr(func return value) v0
                  40	ret
@@ -854,19 +854,19 @@ mod tests {
                  22	cp v18 v10
                  23	push v18
                  24	ppc
-                 25	jumpi monomorphizedfunctionid0
+                 25	fjumpi monomorphizedfunctionid0
                  26	cp v16 rr(func return value)
                  27	push v16
                  28	ppc
-                 29	jumpi monomorphizedfunctionid0
+                 29	fjumpi monomorphizedfunctionid0
                  30	cp v14 rr(func return value)
                  31	push v14
                  32	ppc
-                 33	jumpi monomorphizedfunctionid0
+                 33	fjumpi monomorphizedfunctionid0
                  34	cp v12 rr(func return value)
                  35	push v12
                  36	ppc
-                 37	jumpi monomorphizedfunctionid0
+                 37	fjumpi monomorphizedfunctionid0
                  38	cp v5 rr(func return value)
                  39	cp rr(func return value) v5
                  40	ret
@@ -876,7 +876,7 @@ mod tests {
                  43	ld v2 datalabel1
                  44	push v2
                  45	ppc
-                 46	jumpi monomorphizedfunctionid1
+                 46	fjumpi monomorphizedfunctionid1
                  47	cp v0 rr(func return value)
                  48	cp rr(func return value) v0
                  49	ret

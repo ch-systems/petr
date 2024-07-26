@@ -712,7 +712,9 @@ impl std::fmt::Debug for TypedExpr {
             Unit => write!(f, "unit"),
             Variable { name, .. } => write!(f, "variable: {}", name.id),
             Intrinsic { intrinsic, .. } => write!(f, "intrinsic: {:?}", intrinsic),
-            ErrorRecovery(..) => write!(f, "error recovery"),
+            ErrorRecovery(span) => {
+                write!(f, "error recovery {span:?}")
+            },
             ExprWithBindings { bindings, expression } => {
                 write!(f, "bindings: ")?;
                 for (name, expr) in bindings {
@@ -819,7 +821,7 @@ impl TypeCheck for Expr {
                 let else_branch = else_branch.type_check(ctx);
                 let else_ty = ctx.expr_ty(&else_branch);
 
-                ctx.unify(then_ty, else_ty, self.span);
+                ctx.unify(then_ty, else_ty, else_branch.span());
 
                 TypedExprKind::If {
                     condition:   Box::new(condition),
@@ -1142,7 +1144,10 @@ mod tests {
             panic!("test failed: code didn't parse");
         }
         let (errs, resolved) = resolve_symbols(ast, interner, Default::default());
-        assert!(errs.is_empty(), "can't typecheck: unresolved symbols");
+        if !errs.is_empty() {
+            errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
+            panic!("unresolved symbols in test");
+        }
         let type_checker = TypeChecker::new(resolved);
         let res = pretty_print_type_checker(type_checker);
 
@@ -1185,7 +1190,7 @@ mod tests {
         }
 
         if !type_checker.monomorphized_functions.is_empty() {
-            s.push_str("\n__MONOMORPHIZED FUNCTIONS__");
+            s.push_str("__MONOMORPHIZED FUNCTIONS__");
         }
 
         for func in type_checker.monomorphized_functions.values() {
@@ -1310,8 +1315,8 @@ mod tests {
             fn foo(x in 'A) returns 'A x
             "#,
             expect![[r#"
-                fn foo: (t4 → t4)
-                variable x: t4
+                fn foo: (t5 → t5)
+                variable x: t5
 
             "#]],
         );
@@ -1362,12 +1367,11 @@ mod tests {
                 fn firstVariant: (MyType → MyComposedType)
                 type constructor: MyComposedType
 
-                fn secondVariant: (int → MyType → t18 → MyComposedType)
+                fn secondVariant: (int → MyType → t19 → MyComposedType)
                 type constructor: MyComposedType
 
                 fn foo: (MyType → MyComposedType)
                 function call to functionid2 with args: someField: MyType, returns MyComposedType
-
 
                 __MONOMORPHIZED FUNCTIONS__
                 fn firstVariant(["MyType"]) -> MyComposedType"#]],
@@ -1426,7 +1430,6 @@ mod tests {
                 fn my_func: unit
                 intrinsic: @puts(function call to functionid0 with args: )
 
-
                 __MONOMORPHIZED FUNCTIONS__
                 fn string_literal([]) -> string"#]],
         );
@@ -1457,7 +1460,7 @@ mod tests {
                 intrinsic: @puts(literal: true)
 
 
-                Errors:
+                __ERRORS__
                 SpannedItem UnificationFailure(String, Boolean) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(52), length: 4 } }]
             "#]],
         );
@@ -1493,10 +1496,9 @@ mod tests {
                 fn my_func: unit
                 intrinsic: @puts(function call to functionid0 with args: )
 
-
                 __MONOMORPHIZED FUNCTIONS__
                 fn bool_literal([]) -> bool
-                Errors:
+                __ERRORS__
                 SpannedItem UnificationFailure(String, Boolean) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(110), length: 14 } }]
             "#]],
         );
@@ -1517,7 +1519,7 @@ mod tests {
             ~bool_literal(true, false)
         "#,
             expect![[r#"
-                fn bool_literal: (t4 → t5 → bool)
+                fn bool_literal: (t5 → t6 → bool)
                 literal: true
 
                 fn my_func: bool
@@ -1525,7 +1527,6 @@ mod tests {
 
                 fn my_second_func: bool
                 function call to functionid0 with args: a: bool, b: bool, returns bool
-
 
                 __MONOMORPHIZED FUNCTIONS__
                 fn bool_literal(["int", "int"]) -> bool
@@ -1539,11 +1540,11 @@ mod tests {
                 fn my_list() returns 'list [ 1, true ]
             "#,
             expect![[r#"
-                fn my_list: t7
+                fn my_list: t8
                 list: [literal: 1, literal: true, ]
 
 
-                Errors:
+                __ERRORS__
                 SpannedItem UnificationFailure(Integer, Boolean) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(48), length: 5 } }]
             "#]],
         );
@@ -1562,10 +1563,10 @@ mod tests {
                 variable a: int
 
                 fn add_five: (int → int)
-                error recovery
+                error recovery Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(113), length: 8 } }
 
 
-                Errors:
+                __ERRORS__
                 SpannedItem ArgumentCountMismatch { function: "add", expected: 2, got: 1 } [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(113), length: 8 } }]
             "#]],
         );
@@ -1595,7 +1596,6 @@ fn main() returns 'int ~hi(1, 2)"#,
                 fn main: int
                 function call to functionid0 with args: x: int, y: int, returns int
 
-
                 __MONOMORPHIZED FUNCTIONS__
                 fn hi(["int", "int"]) -> int
                 fn main([]) -> int"#]],
@@ -1611,11 +1611,17 @@ fn main() returns 'int ~hi(1, 2)"#,
             fn main() returns 'int ~hi(1)"#,
             expect![[r#"
                 fn hi: (int → int)
-                if int then 1 else 2
+                if variable: symbolid2 then literal: 1 else literal: 2
 
                 fn main: int
                 function call to functionid0 with args: x: int, returns int
-                "#]],
+
+                __MONOMORPHIZED FUNCTIONS__
+                fn hi(["int"]) -> int
+                fn main([]) -> int
+                __ERRORS__
+                SpannedItem UnificationFailure(Integer, Boolean) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(61), length: 2 } }]
+            "#]],
         )
     }
 
@@ -1623,16 +1629,22 @@ fn main() returns 'int ~hi(1, 2)"#,
     fn if_rejects_non_unit_missing_else() {
         check(
             r#"
-            fn hi(x in 'int) returns 'int
-                if x then 1
-            fn main() returns 'int ~hi(1)"#,
+            fn hi() returns 'int
+                if true then 1
+            fn main() returns 'int ~hi()"#,
             expect![[r#"
-                fn hi: (int → int)
-                if int then 1
+                fn hi: int
+                if literal: true then literal: 1 else unit
 
                 fn main: int
-                function call to functionid0 with args: x: int, returns int
-                "#]],
+                function call to functionid0 with args: returns int
+
+                __MONOMORPHIZED FUNCTIONS__
+                fn hi([]) -> int
+                fn main([]) -> int
+                __ERRORS__
+                SpannedItem UnificationFailure(Integer, Unit) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(33), length: 46 } }]
+            "#]],
         )
     }
 
@@ -1640,16 +1652,20 @@ fn main() returns 'int ~hi(1, 2)"#,
     fn if_allows_unit_missing_else() {
         check(
             r#"
-            fn hi(x in 'int) returns 'unit
-                if = x 1 then @puts "hi"
-            fn main() returns 'int ~hi(1)"#,
-            expect![[r#"
-                fn hi: (int → int)
-                if int then 1 else unit
+            fn hi() returns 'unit
+                if true then @puts "hi"
 
-                fn main: int
-                function call to functionid0 with args: x: int, returns int
-                "#]],
+            fn main() returns 'unit ~hi()"#,
+            expect![[r#"
+                fn hi: unit
+                if literal: true then intrinsic: @puts(literal: "hi") else unit
+
+                fn main: unit
+                function call to functionid0 with args: returns unit
+
+                __MONOMORPHIZED FUNCTIONS__
+                fn hi([]) -> unit
+                fn main([]) -> unit"#]],
         )
     }
 }

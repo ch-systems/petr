@@ -292,3 +292,24 @@ fn nested_if_exp() {
         "#]],
     )
 }
+
+#[test]
+fn if_without_else() {
+    check(
+        vec![
+            "
+            fn hi(x in 'int) returns 'int
+                if x then 1
+                ",
+        ],
+        expect![[r#"
+            AST
+            ____
+            module test =
+            Func hi(
+              x ∈ 'int
+            ) -> 'int if var(x) then 1
+
+        "#]],
+    )
+}
