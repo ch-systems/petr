@@ -1200,7 +1200,7 @@ mod tests {
         }
 
         if !type_checker.errors.is_empty() {
-            s.push_str("\nErrors:\n");
+            s.push_str("\n__ERRORS__\n");
             for error in type_checker.errors {
                 s.push_str(&format!("{:?}\n", error));
             }
@@ -1599,6 +1599,57 @@ fn main() returns 'int ~hi(1, 2)"#,
                 __MONOMORPHIZED FUNCTIONS__
                 fn hi(["int", "int"]) -> int
                 fn main([]) -> int"#]],
+        )
+    }
+
+    #[test]
+    fn if_rejects_non_bool_condition() {
+        check(
+            r#"
+            fn hi(x in 'int) returns 'int
+                if x then 1 else 2
+            fn main() returns 'int ~hi(1)"#,
+            expect![[r#"
+                fn hi: (int → int)
+                if int then 1 else 2
+
+                fn main: int
+                function call to functionid0 with args: x: int, returns int
+                "#]],
+        )
+    }
+
+    #[test]
+    fn if_rejects_non_unit_missing_else() {
+        check(
+            r#"
+            fn hi(x in 'int) returns 'int
+                if x then 1
+            fn main() returns 'int ~hi(1)"#,
+            expect![[r#"
+                fn hi: (int → int)
+                if int then 1
+
+                fn main: int
+                function call to functionid0 with args: x: int, returns int
+                "#]],
+        )
+    }
+
+    #[test]
+    fn if_allows_unit_missing_else() {
+        check(
+            r#"
+            fn hi(x in 'int) returns 'unit
+                if = x 1 then @puts "hi"
+            fn main() returns 'int ~hi(1)"#,
+            expect![[r#"
+                fn hi: (int → int)
+                if int then 1 else unit
+
+                fn main: int
+                function call to functionid0 with args: x: int, returns int
+                "#]],
         )
     }
 }

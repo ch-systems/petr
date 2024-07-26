@@ -801,11 +801,7 @@ mod tests {
                     ),
                     ExprKind::TypeConstructor(..) => "Type constructor".into(),
                     ExprKind::ExpressionWithBindings { .. } => todo!(),
-                    ExprKind::If {
-                        condition,
-                        then_branch,
-                        else_branch,
-                    } => todo!(),
+                    ExprKind::If { .. } => todo!(),
                 }
             }
         }

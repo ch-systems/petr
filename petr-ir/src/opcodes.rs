@@ -106,6 +106,7 @@ pub enum IrTy {
     String,
     Boolean,
     UserDefinedType { variants: Vec<IrUserDefinedTypeVariant> },
+    List(Box<IrTy>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -136,6 +137,11 @@ impl IrTy {
                     .map(|v| v.size())
                     .max()
                     .expect("user defined type should have at least one variant")
+            },
+            IrTy::List(ty) => {
+                // the size of a list is the size of a pointer
+                // to the first element
+                return IrTy::Ptr(ty.clone()).size();
             },
         }
         .into()

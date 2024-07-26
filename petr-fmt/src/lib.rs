@@ -207,7 +207,7 @@ impl Formattable for Expression {
             Expression::FunctionCall(f) => f.format(ctx),
             Expression::IntrinsicCall(i) => i.format(ctx),
             Expression::Binding(binding) => binding.format(ctx),
-            Expression::If(if_expr) => todo!(),
+            Expression::If(_) => todo!(),
         }
     }
 }

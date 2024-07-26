@@ -213,7 +213,33 @@ impl Lowerer {
                 //
                 Ok(buf)
             },
-            List { .. } => todo!(),
+            List { elements, .. } => {
+                let size_of_each_elements = elements
+                    .iter()
+                    .map(|el| self.to_ir_type(self.type_checker.expr_ty(el)).size().num_bytes() as u64)
+                    .sum::<u64>();
+                let size_of_list = size_of_each_elements * elements.len() as u64;
+                let size_of_list_reg = self.fresh_reg();
+
+                let mut buf = vec![];
+                buf.push(IrOpcode::LoadImmediate(size_of_list_reg, size_of_list));
+                let ReturnDestination::Reg(return_reg) = return_destination;
+                buf.push(IrOpcode::Malloc(return_reg, size_of_list_reg));
+
+                let mut current_offset = 0;
+                let current_offset_reg = self.fresh_reg();
+                for el in elements {
+                    // currently this only works for types that fit in a single register,
+                    // will need work for larger types
+                    let reg = self.fresh_reg();
+                    buf.append(&mut self.lower_expr(el, ReturnDestination::Reg(reg))?);
+                    buf.push(IrOpcode::LoadImmediate(current_offset_reg, current_offset));
+                    buf.push(IrOpcode::Add(current_offset_reg, current_offset_reg, return_reg));
+                    buf.push(IrOpcode::WriteRegisterToMemory(reg, current_offset_reg));
+                    current_offset += self.to_ir_type(self.type_checker.expr_ty(el)).size().num_bytes() as u64;
+                }
+                Ok(buf)
+            },
             Unit => todo!(),
             Variable { name, ty: _ } => {
                 let var_reg = self
@@ -327,7 +353,7 @@ impl Lowerer {
             },
             Arrow(_) => todo!(),
             ErrorRecovery => todo!(),
-            List(_) => todo!(),
+            List(ty) => IrTy::List(Box::new(self.to_ir_type(ty))),
             Infer(_, span) => {
                 println!("Unable to infer ty: {ty:?}");
                 self.errors.push(span.with_item(LoweringError::UnableToInferType));
@@ -399,9 +425,7 @@ impl Lowerer {
                 let rhs_reg = self.fresh_reg();
                 buf.append(&mut self.lower_expr(lhs, ReturnDestination::Reg(lhs_reg))?);
                 buf.append(&mut self.lower_expr(rhs, ReturnDestination::Reg(rhs_reg))?);
-                let return_reg = match return_destination {
-                    ReturnDestination::Reg(reg) => reg,
-                };
+                let ReturnDestination::Reg(return_reg) = return_destination;
                 buf.push(IrOpcode::Equal(return_reg, lhs_reg, rhs_reg));
                 Ok(buf)
             },
