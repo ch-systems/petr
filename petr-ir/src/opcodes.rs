@@ -41,7 +41,7 @@ macro_rules! ir_ops {
 }
 
 ir_ops! {
-    JumpImmediate "jumpi" MonomorphizedFunctionId: imm;
+    JumpImmediateFunction "fjumpi" MonomorphizedFunctionId: imm;
     Jump "jump" Reg:  dest;
     Add "add" Reg: dest, Reg: lhs, Reg: rhs;
     Multiply "mult" Reg: dest, Reg: lhs, Reg: rhs;
@@ -63,7 +63,10 @@ ir_ops! {
     MallocImmediate "malloci" Reg: ptr_dest, Size<Bytes>: imm;
     /// Register `src` will itself have its value written to the memory pointed to by `dest_ptr`
     WriteRegisterToMemory "sri" Reg: src, Reg: dest_ptr;
-    Comment "comment" String: comment
+    Comment "comment" String: comment;
+    JumpIfFalseImmediate "cjump" Reg: cond, LabelId: dest;
+    JumpImmediate "jumpi" LabelId: dest;
+    Equal "eq" Reg: dest, Reg: lhs, Reg: rhs
 }
 
 idx_map_key!(LabelId);
@@ -103,6 +106,7 @@ pub enum IrTy {
     String,
     Boolean,
     UserDefinedType { variants: Vec<IrUserDefinedTypeVariant> },
+    List(Box<IrTy>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -133,6 +137,11 @@ impl IrTy {
                     .map(|v| v.size())
                     .max()
                     .expect("user defined type should have at least one variant")
+            },
+            IrTy::List(ty) => {
+                // the size of a list is the size of a pointer
+                // to the first element
+                return IrTy::Ptr(ty.clone()).size();
             },
         }
         .into()

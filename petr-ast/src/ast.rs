@@ -131,6 +131,7 @@ pub enum Expression {
     IntrinsicCall(IntrinsicCall),
     Binding(ExpressionWithBindings),
     TypeConstructor(petr_utils::TypeId, Box<[SpannedItem<Expression>]>),
+    If(If),
 }
 
 #[derive(Clone)]
@@ -147,6 +148,13 @@ pub struct ExprId(pub usize);
 pub struct Binding {
     pub name: Identifier,
     pub val:  SpannedItem<Expression>,
+}
+
+#[derive(Clone)]
+pub struct If {
+    pub condition:   Box<SpannedItem<Expression>>,
+    pub then_branch: Box<SpannedItem<Expression>>,
+    pub else_branch: Option<Box<SpannedItem<Expression>>>,
 }
 
 #[derive(Clone)]
@@ -168,6 +176,7 @@ impl std::fmt::Display for Intrinsic {
             Intrinsic::Divide => write!(f, "divide"),
             Intrinsic::Malloc => write!(f, "malloc"),
             Intrinsic::SizeOf => write!(f, "size_of"),
+            Intrinsic::Equals => write!(f, "eq"),
         }
     }
 }
@@ -182,6 +191,7 @@ pub enum Intrinsic {
     Divide,
     Malloc,
     SizeOf,
+    Equals,
 }
 
 #[derive(Clone)]
@@ -249,6 +259,7 @@ pub enum Operator {
     Minus,
     Star,
     Slash,
+    Eq,
 }
 
 impl Operator {
@@ -258,6 +269,7 @@ impl Operator {
             Operator::Minus => "-",
             Operator::Star => "*",
             Operator::Slash => "/",
+            Operator::Eq => "=",
         }
     }
 }

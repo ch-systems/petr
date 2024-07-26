@@ -256,3 +256,60 @@ fn imports_and_exports() {
         "#]],
     )
 }
+
+#[test]
+fn if_exp_basic() {
+    check(
+        vec![
+            "fn if_exp() returns 'int
+                if true then 1 else 0
+            ",
+        ],
+        expect![[r#"
+            AST
+            ____
+            module test =
+            Func if_exp() -> 'int if true then 1 else 0
+
+        "#]],
+    )
+}
+
+#[test]
+fn nested_if_exp() {
+    check(
+        vec![
+            "fn if_exp() returns 'int
+                if true then if false then 1 else 0 else 0
+            ",
+        ],
+        expect![[r#"
+            AST
+            ____
+            module test =
+            Func if_exp() -> 'int if true then if false then 1 else 0 else 0
+
+        "#]],
+    )
+}
+
+#[test]
+fn if_without_else() {
+    check(
+        vec![
+            "
+            fn hi(x in 'int) returns 'int
+                if x then 1
+                ",
+        ],
+        expect![[r#"
+            AST
+            ____
+            module test =
+            Func hi(
+              x ∈ 'int
+            ) -> 'int if var(x) then 1
+
+        "#]],
+    )
+}

@@ -28,6 +28,12 @@ pub enum Token {
     Star,
     #[regex("[0-9]+")]
     Integer,
+    #[token("if")]
+    If,
+    #[token("then")]
+    Then,
+    #[token("else")]
+    Else,
     #[regex("[_a-zA-Z][_a-zA-Z0-9]{0,30}")]
     Identifier,
     #[regex(r#""([^"\\]|\\["\\bnfrt]|u[a-fA-F0-9]{4})*""#)]
@@ -85,7 +91,7 @@ pub enum Token {
 impl Token {
     pub(crate) fn is_operator(&self) -> bool {
         use Token::*;
-        matches!(self, Plus | Minus | Slash | Star)
+        matches!(self, Plus | Minus | Slash | Star | Equals)
     }
 }
 
@@ -132,6 +138,9 @@ impl std::fmt::Display for Token {
             Dot => write!(f, "."),
             As => write!(f, "as"),
             Semicolon => write!(f, ";"),
+            If => write!(f, "if"),
+            Then => write!(f, "then"),
+            Else => write!(f, "else"),
         }
     }
 }

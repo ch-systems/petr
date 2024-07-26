@@ -219,6 +219,7 @@ impl Parse for Operator {
             Token::Minus => Some(Operator::Minus),
             Token::Star => Some(Operator::Star),
             Token::Slash => Some(Operator::Slash),
+            Token::Equals => Some(Operator::Eq),
             _ => {
                 p.push_error(p.span().with_item(ParseErrorKind::ExpectedOneOf(
                     vec![Token::Plus, Token::Minus, Token::Star, Token::Slash],
@@ -278,6 +279,7 @@ impl Parse for Expression {
                     Some(Expression::Operator(Box::new(OperatorExpression { lhs, rhs, op })))
                 },
                 Token::Identifier => Some(Expression::Variable(p.parse()?)),
+                Token::If => Some(Expression::If(p.parse()?)),
                 Token::OpenBracket => Some(Expression::List(p.parse()?)),
                 Token::Tilde => Some(Expression::FunctionCall(p.parse()?)),
                 Token::True | Token::False | Token::String | Token::Integer => Some(Expression::Literal(p.parse()?)),
@@ -301,6 +303,24 @@ impl Parse for Expression {
                     None
                 },
             }
+        })
+    }
+}
+
+impl Parse for If {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        p.with_help("if expression", |p| -> Option<Self> {
+            p.token(Token::If)?;
+            let condition = p.parse()?;
+            p.token(Token::Then)?;
+            let then_branch = p.parse()?;
+            let else_tok = p.try_token(Token::Else);
+            let else_branch = if else_tok.is_some() { Some(Box::new(p.parse()?)) } else { None };
+            Some(If {
+                condition: Box::new(condition),
+                then_branch: Box::new(then_branch),
+                else_branch,
+            })
         })
     }
 }
@@ -344,6 +364,7 @@ impl Parse for IntrinsicCall {
                 "divide" => Intrinsic::Divide,
                 "malloc" => Intrinsic::Malloc,
                 "size_of" => Intrinsic::SizeOf,
+                "equals" => Intrinsic::Equals,
                 a => todo!("unrecognized intrinsic error: {a:?}"),
             };
             p.token(Token::Intrinsic)?;

@@ -164,7 +164,33 @@ impl PrettyPrint for Expression {
             Expression::Variable(v) => format!("var({})", interner.get(v.id)),
             Expression::IntrinsicCall(call) => call.pretty_print(interner, indentation),
             Expression::Binding(binding) => binding.pretty_print(interner, indentation + 1),
+            Expression::If(if_expr) => if_expr.pretty_print(interner, indentation),
         }
+    }
+}
+
+impl PrettyPrint for If {
+    fn pretty_print(
+        &self,
+        interner: &SymbolInterner,
+        indentation: usize,
+    ) -> String {
+        let If {
+            condition,
+            then_branch,
+            else_branch,
+        } = self;
+        format!(
+            "{}if {} then {}{}",
+            "  ".repeat(indentation),
+            condition.pretty_print(interner, indentation),
+            then_branch.pretty_print(interner, indentation),
+            if let Some(else_branch) = else_branch {
+                format!(" else {}", else_branch.pretty_print(interner, indentation))
+            } else {
+                Default::default()
+            }
+        )
     }
 }
 
@@ -268,6 +294,7 @@ impl PrettyPrint for OperatorExpression {
             Operator::Minus => "-",
             Operator::Star => "*",
             Operator::Slash => "/",
+            Operator::Eq => "=",
         };
         format!("{}({} {})", op, lhs, rhs)
     }

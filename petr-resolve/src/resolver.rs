@@ -135,13 +135,24 @@ pub enum ExprKind {
     Literal(petr_ast::Literal),
     List(Box<[Expr]>),
     FunctionCall(FunctionCall),
-    Variable { name: Identifier, ty: Type },
+    Variable {
+        name: Identifier,
+        ty:   Type,
+    },
     Intrinsic(Intrinsic),
     Unit,
     // the `id` is the id of the type declaration that defined this constructor
     TypeConstructor(TypeId, Box<[Expr]>),
     ErrorRecovery,
-    ExpressionWithBindings { bindings: Vec<Binding>, expression: Box<Expr> },
+    ExpressionWithBindings {
+        bindings:   Vec<Binding>,
+        expression: Box<Expr>,
+    },
+    If {
+        condition:   Box<Expr>,
+        then_branch: Box<Expr>,
+        else_branch: Box<Expr>,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -357,7 +368,7 @@ impl Resolve for SpannedItem<FunctionDeclaration> {
             // resolved function map.
             // If we were to return `None` and not resolve the function, then calls to this
             // function would hold a reference `FunctionId(x)` which would not exist anymore.
-            None => Expr::error_recovery(self.span()),
+            None => dbg!(Expr::error_recovery(self.span())),
         };
 
         Some(Function {
@@ -401,6 +412,7 @@ impl Resolve for SpannedItem<Expression> {
                     Minus => "sub",
                     Star => "mul",
                     Slash => "div",
+                    Eq => "eq",
                 };
                 let path = ["std", "ops", func];
 
@@ -510,6 +522,29 @@ impl Resolve for SpannedItem<Expression> {
                     self.span(),
                 )
             },
+            Expression::If(petr_ast::If {
+                condition,
+                then_branch,
+                else_branch,
+            }) => {
+                let condition = (**condition).resolve(resolver, binder, scope_id)?;
+                let then_branch = (**then_branch).resolve(resolver, binder, scope_id)?;
+                let else_branch = match else_branch {
+                    Some(branch) => {
+                        let branch = (**branch).resolve(resolver, binder, scope_id)?;
+                        Box::new(branch)
+                    },
+                    None => Box::new(Expr::new(ExprKind::Unit, self.span())),
+                };
+                Expr::new(
+                    ExprKind::If {
+                        condition: Box::new(condition),
+                        then_branch: Box::new(then_branch),
+                        else_branch,
+                    },
+                    self.span(),
+                )
+            },
         })
     }
 }
@@ -528,7 +563,7 @@ impl Resolve for petr_ast::IntrinsicCall {
             .iter()
             .map(|x| match x.resolve(resolver, binder, scope_id) {
                 Some(x) => x,
-                None => Expr::error_recovery(x.span()),
+                None => dbg!(Expr::error_recovery(x.span())),
             })
             .collect();
         Some(Intrinsic {
@@ -768,6 +803,18 @@ mod tests {
                     ),
                     ExprKind::TypeConstructor(..) => "Type constructor".into(),
                     ExprKind::ExpressionWithBindings { .. } => todo!(),
+                    ExprKind::If {
+                        condition,
+                        then_branch,
+                        else_branch,
+                    } => {
+                        format!(
+                            "if {} then {} else {}",
+                            (*condition).to_string(resolver),
+                            (*then_branch).to_string(resolver),
+                            (*else_branch).to_string(resolver)
+                        )
+                    },
                 }
             }
         }
@@ -988,6 +1035,21 @@ mod tests {
                 _____FUNCTIONS_____
                 #0 exported_func(  a: int, ) -> int   "a: int"
                 #1 foo() -> int   "FunctionCall(functionid0)"
+                _____TYPES_____
+            "#]],
+        )
+    }
+
+    #[test]
+    fn if_without_else() {
+        check(
+            "
+            fn hi(x in 'int) returns 'int
+                if x then 1
+                ",
+            expect![[r#"
+                _____FUNCTIONS_____
+                #0 hi(  x: int, ) -> int   "if x: int then Literal(Integer(1)) else Unit"
                 _____TYPES_____
             "#]],
         )

@@ -95,6 +95,7 @@ pub struct TypeContext {
     unit_ty:        TypeVariable,
     string_ty:      TypeVariable,
     int_ty:         TypeVariable,
+    bool_ty:        TypeVariable,
     error_recovery: TypeVariable,
 }
 
@@ -104,12 +105,14 @@ impl Default for TypeContext {
         // instantiate basic primitive types
         let unit_ty = types.insert(PetrType::Unit);
         let string_ty = types.insert(PetrType::String);
+        let bool_ty = types.insert(PetrType::Boolean);
         let int_ty = types.insert(PetrType::Integer);
         let error_recovery = types.insert(PetrType::ErrorRecovery);
         // insert primitive types
         TypeContext {
             types,
             constraints: Default::default(),
+            bool_ty,
             unit_ty,
             string_ty,
             int_ty,
@@ -142,6 +145,7 @@ impl TypeContext {
         span: Span,
     ) -> TypeVariable {
         // infer is special -- it knows its own id, mostly for printing
+        // and disambiguating
         let infer_id = self.types.len();
         self.types.insert(PetrType::Infer(infer_id, span))
     }
@@ -555,6 +559,7 @@ impl TypeChecker {
             ErrorRecovery(..) => self.ctx.error_recovery,
             ExprWithBindings { expression, .. } => self.expr_ty(expression),
             TypeConstructor { ty, .. } => *ty,
+            If { then_branch, .. } => self.expr_ty(then_branch),
         }
     }
 
@@ -578,6 +583,10 @@ impl TypeChecker {
 
     pub fn int(&self) -> TypeVariable {
         self.ctx.int_ty
+    }
+
+    pub fn bool(&self) -> TypeVariable {
+        self.ctx.bool_ty
     }
 
     /// To reference an error recovery type, you must provide an error.
@@ -605,6 +614,7 @@ pub enum Intrinsic {
     Subtract(Box<TypedExpr>, Box<TypedExpr>),
     Malloc(Box<TypedExpr>),
     SizeOf(Box<TypedExpr>),
+    Equals(Box<TypedExpr>, Box<TypedExpr>),
 }
 
 impl std::fmt::Debug for Intrinsic {
@@ -620,6 +630,7 @@ impl std::fmt::Debug for Intrinsic {
             Intrinsic::Subtract(lhs, rhs) => write!(f, "@subtract({:?}, {:?})", lhs, rhs),
             Intrinsic::Malloc(size) => write!(f, "@malloc({:?})", size),
             Intrinsic::SizeOf(expr) => write!(f, "@sizeof({:?})", expr),
+            Intrinsic::Equals(lhs, rhs) => write!(f, "@equal({:?}, {:?})", lhs, rhs),
         }
     }
 }
@@ -669,6 +680,11 @@ pub enum TypedExprKind {
         ty:   TypeVariable,
         args: Box<[TypedExpr]>,
     },
+    If {
+        condition:   Box<TypedExpr>,
+        then_branch: Box<TypedExpr>,
+        else_branch: Box<TypedExpr>,
+    },
 }
 
 impl std::fmt::Debug for TypedExpr {
@@ -696,7 +712,9 @@ impl std::fmt::Debug for TypedExpr {
             Unit => write!(f, "unit"),
             Variable { name, .. } => write!(f, "variable: {}", name.id),
             Intrinsic { intrinsic, .. } => write!(f, "intrinsic: {:?}", intrinsic),
-            ErrorRecovery(..) => write!(f, "error recovery"),
+            ErrorRecovery(span) => {
+                write!(f, "error recovery {span:?}")
+            },
             ExprWithBindings { bindings, expression } => {
                 write!(f, "bindings: ")?;
                 for (name, expr) in bindings {
@@ -705,6 +723,13 @@ impl std::fmt::Debug for TypedExpr {
                 write!(f, "expression: {:?}", expression)
             },
             TypeConstructor { ty, .. } => write!(f, "type constructor: {:?}", ty),
+            If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                write!(f, "if {:?} then {:?} else {:?}", condition, then_branch, else_branch)
+            },
         }
     }
 }
@@ -780,6 +805,29 @@ impl TypeCheck for Expr {
                         expression: Box::new(expression.type_check(ctx)),
                     }
                 })
+            },
+            ExprKind::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                let condition = condition.type_check(ctx);
+                let condition_ty = ctx.expr_ty(&condition);
+                ctx.unify(condition_ty, ctx.bool(), condition.span());
+
+                let then_branch = then_branch.type_check(ctx);
+                let then_ty = ctx.expr_ty(&then_branch);
+
+                let else_branch = else_branch.type_check(ctx);
+                let else_ty = ctx.expr_ty(&else_branch);
+
+                ctx.unify(then_ty, else_ty, else_branch.span());
+
+                TypedExprKind::If {
+                    condition:   Box::new(condition),
+                    then_branch: Box::new(then_branch),
+                    else_branch: Box::new(else_branch),
+                }
             },
         };
 
@@ -895,6 +943,19 @@ impl TypeCheck for SpannedItem<ResolvedIntrinsic> {
                 TypedExprKind::Intrinsic {
                     intrinsic: Intrinsic::SizeOf(Box::new(arg)),
                     ty:        ctx.int(),
+                }
+            },
+            Equals => {
+                if self.item().args.len() != 2 {
+                    todo!("equal arg len check");
+                }
+
+                let lhs = self.item().args[0].type_check(ctx);
+                let rhs = self.item().args[1].type_check(ctx);
+                ctx.unify(ctx.expr_ty(&lhs), ctx.expr_ty(&rhs), self.span());
+                TypedExprKind::Intrinsic {
+                    intrinsic: Intrinsic::Equals(Box::new(lhs), Box::new(rhs)),
+                    ty:        ctx.bool(),
                 }
             },
         };
@@ -1053,7 +1114,7 @@ fn replace_var_reference_types(
                     replace_var_reference_types(&mut a.kind, params, num_replacements);
                 },
                 // intrinsics which take two args, grouped for convenience
-                Add(a, b) | Subtract(a, b) | Multiply(a, b) | Divide(a, b) => {
+                Add(a, b) | Subtract(a, b) | Multiply(a, b) | Divide(a, b) | Equals(a, b) => {
                     replace_var_reference_types(&mut a.kind, params, num_replacements);
                     replace_var_reference_types(&mut b.kind, params, num_replacements);
                 },
@@ -1083,7 +1144,10 @@ mod tests {
             panic!("test failed: code didn't parse");
         }
         let (errs, resolved) = resolve_symbols(ast, interner, Default::default());
-        assert!(errs.is_empty(), "can't typecheck: unresolved symbols");
+        if !errs.is_empty() {
+            errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
+            panic!("unresolved symbols in test");
+        }
         let type_checker = TypeChecker::new(resolved);
         let res = pretty_print_type_checker(type_checker);
 
@@ -1126,7 +1190,7 @@ mod tests {
         }
 
         if !type_checker.monomorphized_functions.is_empty() {
-            s.push_str("\n__MONOMORPHIZED FUNCTIONS__");
+            s.push_str("__MONOMORPHIZED FUNCTIONS__");
         }
 
         for func in type_checker.monomorphized_functions.values() {
@@ -1141,7 +1205,7 @@ mod tests {
         }
 
         if !type_checker.errors.is_empty() {
-            s.push_str("\nErrors:\n");
+            s.push_str("\n__ERRORS__\n");
             for error in type_checker.errors {
                 s.push_str(&format!("{:?}\n", error));
             }
@@ -1251,8 +1315,8 @@ mod tests {
             fn foo(x in 'A) returns 'A x
             "#,
             expect![[r#"
-                fn foo: (t4 → t4)
-                variable x: t4
+                fn foo: (t5 → t5)
+                variable x: t5
 
             "#]],
         );
@@ -1303,12 +1367,11 @@ mod tests {
                 fn firstVariant: (MyType → MyComposedType)
                 type constructor: MyComposedType
 
-                fn secondVariant: (int → MyType → t18 → MyComposedType)
+                fn secondVariant: (int → MyType → t19 → MyComposedType)
                 type constructor: MyComposedType
 
                 fn foo: (MyType → MyComposedType)
                 function call to functionid2 with args: someField: MyType, returns MyComposedType
-
 
                 __MONOMORPHIZED FUNCTIONS__
                 fn firstVariant(["MyType"]) -> MyComposedType"#]],
@@ -1367,7 +1430,6 @@ mod tests {
                 fn my_func: unit
                 intrinsic: @puts(function call to functionid0 with args: )
 
-
                 __MONOMORPHIZED FUNCTIONS__
                 fn string_literal([]) -> string"#]],
         );
@@ -1398,7 +1460,7 @@ mod tests {
                 intrinsic: @puts(literal: true)
 
 
-                Errors:
+                __ERRORS__
                 SpannedItem UnificationFailure(String, Boolean) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(52), length: 4 } }]
             "#]],
         );
@@ -1434,10 +1496,9 @@ mod tests {
                 fn my_func: unit
                 intrinsic: @puts(function call to functionid0 with args: )
 
-
                 __MONOMORPHIZED FUNCTIONS__
                 fn bool_literal([]) -> bool
-                Errors:
+                __ERRORS__
                 SpannedItem UnificationFailure(String, Boolean) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(110), length: 14 } }]
             "#]],
         );
@@ -1458,7 +1519,7 @@ mod tests {
             ~bool_literal(true, false)
         "#,
             expect![[r#"
-                fn bool_literal: (t4 → t5 → bool)
+                fn bool_literal: (t5 → t6 → bool)
                 literal: true
 
                 fn my_func: bool
@@ -1466,7 +1527,6 @@ mod tests {
 
                 fn my_second_func: bool
                 function call to functionid0 with args: a: bool, b: bool, returns bool
-
 
                 __MONOMORPHIZED FUNCTIONS__
                 fn bool_literal(["int", "int"]) -> bool
@@ -1480,11 +1540,11 @@ mod tests {
                 fn my_list() returns 'list [ 1, true ]
             "#,
             expect![[r#"
-                fn my_list: t7
+                fn my_list: t8
                 list: [literal: 1, literal: true, ]
 
 
-                Errors:
+                __ERRORS__
                 SpannedItem UnificationFailure(Integer, Boolean) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(48), length: 5 } }]
             "#]],
         );
@@ -1503,10 +1563,10 @@ mod tests {
                 variable a: int
 
                 fn add_five: (int → int)
-                error recovery
+                error recovery Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(113), length: 8 } }
 
 
-                Errors:
+                __ERRORS__
                 SpannedItem ArgumentCountMismatch { function: "add", expected: 2, got: 1 } [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(113), length: 8 } }]
             "#]],
         );
@@ -1536,10 +1596,76 @@ fn main() returns 'int ~hi(1, 2)"#,
                 fn main: int
                 function call to functionid0 with args: x: int, y: int, returns int
 
-
                 __MONOMORPHIZED FUNCTIONS__
                 fn hi(["int", "int"]) -> int
                 fn main([]) -> int"#]],
+        )
+    }
+
+    #[test]
+    fn if_rejects_non_bool_condition() {
+        check(
+            r#"
+            fn hi(x in 'int) returns 'int
+                if x then 1 else 2
+            fn main() returns 'int ~hi(1)"#,
+            expect![[r#"
+                fn hi: (int → int)
+                if variable: symbolid2 then literal: 1 else literal: 2
+
+                fn main: int
+                function call to functionid0 with args: x: int, returns int
+
+                __MONOMORPHIZED FUNCTIONS__
+                fn hi(["int"]) -> int
+                fn main([]) -> int
+                __ERRORS__
+                SpannedItem UnificationFailure(Integer, Boolean) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(61), length: 2 } }]
+            "#]],
+        )
+    }
+
+    #[test]
+    fn if_rejects_non_unit_missing_else() {
+        check(
+            r#"
+            fn hi() returns 'int
+                if true then 1
+            fn main() returns 'int ~hi()"#,
+            expect![[r#"
+                fn hi: int
+                if literal: true then literal: 1 else unit
+
+                fn main: int
+                function call to functionid0 with args: returns int
+
+                __MONOMORPHIZED FUNCTIONS__
+                fn hi([]) -> int
+                fn main([]) -> int
+                __ERRORS__
+                SpannedItem UnificationFailure(Integer, Unit) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(33), length: 46 } }]
+            "#]],
+        )
+    }
+
+    #[test]
+    fn if_allows_unit_missing_else() {
+        check(
+            r#"
+            fn hi() returns 'unit
+                if true then @puts "hi"
+
+            fn main() returns 'unit ~hi()"#,
+            expect![[r#"
+                fn hi: unit
+                if literal: true then intrinsic: @puts(literal: "hi") else unit
+
+                fn main: unit
+                function call to functionid0 with args: returns unit
+
+                __MONOMORPHIZED FUNCTIONS__
+                fn hi([]) -> unit
+                fn main([]) -> unit"#]],
         )
     }
 }

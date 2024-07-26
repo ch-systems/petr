@@ -218,6 +218,7 @@ impl Parser {
         }
     }
 
+    // TODO: document [ExprId] system
     pub fn new_expr_id(&mut self) -> ExprId {
         let id = self.expr_id_assigner;
         self.expr_id_assigner += 1;
