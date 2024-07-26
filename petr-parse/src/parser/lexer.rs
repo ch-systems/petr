@@ -78,6 +78,12 @@ pub enum Token {
     Intrinsic,
     #[token(";")]
     Semicolon,
+    #[token("if")]
+    If,
+    #[token("then")]
+    Then,
+    #[token("else")]
+    Else,
     NewFile(SourceId),
     Eof,
 }
@@ -132,6 +138,9 @@ impl std::fmt::Display for Token {
             Dot => write!(f, "."),
             As => write!(f, "as"),
             Semicolon => write!(f, ";"),
+            If => write!(f, "if"),
+            Then => write!(f, "then"),
+            Else => write!(f, "else"),
         }
     }
 }

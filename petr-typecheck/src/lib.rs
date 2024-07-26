@@ -105,8 +105,8 @@ impl Default for TypeContext {
         // instantiate basic primitive types
         let unit_ty = types.insert(PetrType::Unit);
         let string_ty = types.insert(PetrType::String);
-        let bool_ty = types.insert(PetrType::Integer);
-        let int_ty = types.insert(PetrType::Boolean);
+        let bool_ty = types.insert(PetrType::Boolean);
+        let int_ty = types.insert(PetrType::Integer);
         let error_recovery = types.insert(PetrType::ErrorRecovery);
         // insert primitive types
         TypeContext {
@@ -145,6 +145,7 @@ impl TypeContext {
         span: Span,
     ) -> TypeVariable {
         // infer is special -- it knows its own id, mostly for printing
+        // and disambiguating
         let infer_id = self.types.len();
         self.types.insert(PetrType::Infer(infer_id, span))
     }
