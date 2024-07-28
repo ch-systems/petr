@@ -35,9 +35,9 @@ idx_map_key!(
    ModuleId
 );
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum Item {
-    Binding(BindingId),
+    Binding(Binding),
     // the `ScopeId` is the scope of the function body
     Function(FunctionId, ScopeId),
     Type(petr_utils::TypeId),
@@ -263,6 +263,79 @@ impl Binder {
         if let Some(parent_id) = scope.parent() {
             return self.find_type_in_scope(name, parent_id);
         }
+        None
+    }
+
+    pub fn find_function_parameter_in_scope(
+        &self,
+        name: SymbolId,
+        scope_id: ScopeId,
+    ) -> Option<Ty> {
+        let scope = self.scopes.get(scope_id);
+        if let Some(id) = scope.function_params.get(&name) {
+            return Some(id.clone());
+        }
+
+        if let Some(parent_id) = scope.parent() {
+            return self.find_function_parameter_in_scope(name, parent_id);
+        }
+        None
+    }
+
+    pub fn find_binding_in_scope(
+        &self,
+        name: SymbolId,
+        scope_id: ScopeId,
+    ) -> Option<Binding> {
+        let scope = self.scopes.get(scope_id);
+        if let Some(id) = scope.bindings.get(&name) {
+            return Some(id.clone());
+        }
+
+        if let Some(parent_id) = scope.parent() {
+            return self.find_binding_in_scope(name, parent_id);
+        }
+        None
+    }
+
+    pub fn find_function_in_scope(
+        &self,
+        name: SymbolId,
+        scope_id: ScopeId,
+    ) -> Option<(FunctionId, ScopeId)> {
+        let scope = self.scopes.get(scope_id);
+        if let Some(entry) = scope.functions.get(&name) {
+            return Some(*entry);
+        }
+
+        if let Some(parent_id) = scope.parent() {
+            return self.find_function_in_scope(name, parent_id);
+        }
+        None
+    }
+
+    /// Given a name, tries to figure out what it is by calling all of the find_ methods
+    pub fn find_symbol_in_scope(
+        &self,
+        name: SymbolId,
+        scope_id: ScopeId,
+    ) -> Option<Item> {
+        if let Some((id, scope)) = self.find_function_in_scope(name, scope_id) {
+            return Some(Item::Function(id, scope));
+        }
+
+        if let Some(id) = self.find_type_in_scope(name, scope_id) {
+            return Some(Item::Type(id));
+        }
+
+        if let Some(id) = self.find_binding_in_scope(name, scope_id) {
+            return Some(Item::Binding(id));
+        }
+
+        if let Some(id) = self.find_module_in_scope(name, scope_id) {
+            return Some(Item::Module(id));
+        }
+
         None
     }
 
@@ -503,13 +576,6 @@ impl Binder {
         }
     }
 
-    pub(crate) fn insert_binding(
-        &mut self,
-        binding: Binding,
-    ) -> BindingId {
-        self.bindings.insert(binding)
-    }
-
     // TODO add optional prefix here:
     // if Some(p) then this is a dependency, and p should be prepended to the path of each module
     // If None then this is user code, and no prefix is needed
@@ -728,14 +794,23 @@ impl Binder {
         res
     }
 
-    /*
     pub fn iter_scope(
         &self,
         scope: ScopeId,
-    ) -> impl Iterator<Item = (&SymbolId, &SpannedItem<Item>)> {
-        self.scopes.get(scope).items.iter()
+    ) -> impl Iterator<Item = (&SymbolId, SpannedItem<Item>)> {
+        let scope: &Scope = self.scopes.get(scope);
+        let func_items = scope
+            .functions
+            .iter()
+            .map(|(k, v)| (k, scope.spans.get(k).unwrap().with_item(Item::Function(v.0, v.1))));
+
+        let type_items = scope
+            .types
+            .iter()
+            .map(|(k, v)| (k, scope.spans.get(k).unwrap().with_item(Item::Type(*v))));
+
+        func_items.into_iter().chain(type_items)
     }
-    */
 
     pub fn insert_expression(
         &mut self,

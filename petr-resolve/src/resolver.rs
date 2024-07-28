@@ -198,7 +198,7 @@ impl Resolver {
         // Iterate over the binder's scopes and resolve all symbols
         let scopes_and_ids = binder.scope_iter().collect::<Vec<_>>();
         for (scope_id, scope) in scopes_and_ids {
-            for (_name, item) in scope.iter() {
+            for (_name, item) in binder.iter_scope(scope_id) {
                 self.resolve_item(item.item(), binder, scope_id)
             }
         }
@@ -217,8 +217,7 @@ impl Resolver {
             FunctionParameter(_ty) => {
                 // I don't think we have to do anything here but not sure
             },
-            Binding(a) => {
-                let binding = binder.get_binding(*a);
+            Binding(binding) => {
                 let resolved_expr = match binding.val.resolve(self, binder, scope_id) {
                     Some(o) => o,
                     None => {
@@ -228,7 +227,7 @@ impl Resolver {
                     },
                 };
                 self.resolved.bindings.insert(
-                    *a,
+                    todo!(),
                     crate::resolver::Binding {
                         name:       binding.name,
                         expression: resolved_expr,
@@ -441,41 +440,32 @@ impl Resolve for SpannedItem<Expression> {
                 Expr::new(ExprKind::FunctionCall(resolved_call), self.span())
             },
             Expression::Variable(var) => {
-                let item = match binder.find_symbol_in_scope(var.id, scope_id) {
-                    Some(item @ Item::FunctionParameter(_) | item @ Item::Binding(_)) => item,
-                    _otherwise => {
-                        let var_name = resolver.interner.get(var.id);
-                        resolver.errs.push(var.span.with_item(ResolutionError::NotFound(var_name.to_string())));
-                        return None;
-                    },
-                };
+                let item = binder.find_binding_in_scope(var.id, scope_id);
                 match item {
-                    Item::Binding(binding_id) => {
-                        let binding = binder.get_binding(*binding_id);
+                    Some(binding) => Expr::new(
+                        ExprKind::Variable {
+                            name: *var,
+                            // I think this works for inference -- instantiating a new generic
+                            // type. Should revisit for soundness.
+                            ty:   Type::Generic(binding.name),
+                        },
+                        self.span(),
+                    ),
+                    None => {
+                        let Some(ty) = binder.find_function_parameter_in_scope(var.id, scope_id) else {
+                            todo!("not found err");
+                        };
 
-                        Expr::new(
-                            ExprKind::Variable {
-                                name: *var,
-                                // I think this works for inference -- instantiating a new generic
-                                // type. Should revisit for soundness.
-                                ty:   Type::Generic(binding.name),
-                            },
-                            self.span(),
-                        )
-                    },
-                    Item::FunctionParameter(ty) => {
                         let ty = match ty.resolve(resolver, binder, scope_id) {
                             Some(ty) => ty,
 
                             None => {
                                 todo!("not found err");
-                                // Type::ErrorRecovery
                             },
                         };
 
                         Expr::new(ExprKind::Variable { name: *var, ty }, self.span())
                     },
-                    _ => unreachable!(),
                 }
             },
             Expression::TypeConstructor(parent_type_id, args) => {
@@ -651,7 +641,7 @@ impl Resolve for petr_utils::Path {
         let mut path_iter = self.identifiers.iter();
         let Some(first_item) = ({
             let item = path_iter.next().expect("import with no items was parsed -- should be an invariant");
-            binder.find_symbol_in_scope(item.id, scope_id)
+            binder.find_module_in_scope(item.id, scope_id)
         }) else {
             let name = self.identifiers.iter().map(|x| resolver.interner.get(x.id)).collect::<Vec<_>>().join(".");
             resolver.errs.push(
@@ -664,6 +654,7 @@ impl Resolve for petr_utils::Path {
             return None;
         };
 
+        /*
         let first_item = match first_item {
             Item::Module(id) if self.identifiers.len() > 1 => id,
             Item::Function(f, _) if self.identifiers.len() == 1 => return Some(either::Either::Left(*f)),
@@ -671,8 +662,9 @@ impl Resolve for petr_utils::Path {
             Item::Import { path, alias: _ } if self.identifiers.len() == 1 => return path.resolve(resolver, binder, scope_id),
             a => todo!("push error -- import path is not a module {a:?}"),
         };
+        */
 
-        let mut rover = binder.get_module(*first_item);
+        let mut rover = binder.get_module(first_item);
         // iterate over the rest of the path to find the path item
         for (ix, item) in path_iter.enumerate() {
             let is_last = ix == self.identifiers.len() - 2; // -2 because we advanced the iter by one already
@@ -683,15 +675,15 @@ impl Resolve for petr_utils::Path {
             };
 
             match next_symbol {
-                Item::Module(id) => rover = binder.get_module(*id),
-                Item::Function(func, _scope) if is_last => return Some(either::Either::Left(*func)),
-                Item::Type(ty) if is_last => return Some(either::Either::Right(*ty)),
+                Item::Module(id) => rover = binder.get_module(id),
+                Item::Function(func, _scope) if is_last => return Some(either::Either::Left(func)),
+                Item::Type(ty) if is_last => return Some(either::Either::Right(ty)),
                 Item::Import { path, alias: _ } => match path.resolve(resolver, binder, scope_id) {
                     Some(either::Left(func)) => return Some(either::Left(func)),
                     Some(either::Right(ty)) => return Some(either::Right(ty)),
                     None => todo!("push error -- import not found"),
                 },
-                a => todo!("push error -- import path item is not a module, it is a {a:?}"),
+                a => todo!("push error -- import path item is not a module"),
             }
         }
 
