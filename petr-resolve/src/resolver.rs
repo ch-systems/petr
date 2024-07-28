@@ -77,7 +77,7 @@ impl Resolve for petr_ast::Ty {
                     // this makes sense, the type constructor is getting resolved instead of the ty
                     // find_symbol_in_scope could take in what it is looking for as a parameter,
                     // _or_ we could have a special case when a function body is just a type
-                    // constructorjkkj
+                    // constructor
                     todo!("push error -- symbol {name} is not type, it is a {something:?}");
                     // return None;
                 },
@@ -370,7 +370,7 @@ impl Resolve for SpannedItem<FunctionDeclaration> {
             // resolved function map.
             // If we were to return `None` and not resolve the function, then calls to this
             // function would hold a reference `FunctionId(x)` which would not exist anymore.
-            None => dbg!(Expr::error_recovery(self.span())),
+            None => Expr::error_recovery(self.span()),
         };
 
         Some(Function {
@@ -1057,6 +1057,16 @@ mod tests {
                 #0 hi(  x: int, ) -> int   "if x: int then Literal(Integer(1)) else Unit"
                 _____TYPES_____
             "#]],
+        )
+    }
+
+    #[test]
+    fn constant_literal_types_generate_type_constructor() {
+        check(
+            "
+            type IntBelowFive = 1 | 2 | 3 | 4
+            ",
+            expect![[r#""#]],
         )
     }
 }
