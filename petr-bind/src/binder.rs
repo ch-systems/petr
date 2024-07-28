@@ -246,9 +246,13 @@ impl Binder {
         let type_item = Item::Type(type_id);
         self.insert_into_current_scope(ty_decl.item().name.id, ty_decl.span().with_item(type_item.clone()));
 
-        ty_decl.item().variants.iter().for_each(|variant| {
+        for variant in &ty_decl.item().variants {
             let span = variant.span();
-            let variant = variant.item();
+            let variant = match variant.item() {
+                petr_ast::TypeVariantOrLiteral::Variant(v) => v,
+                // we don't need to create type constructor functions for constant literal types
+                petr_ast::TypeVariantOrLiteral::Literal(_) => continue,
+            };
             let (fields_as_parameters, _func_scope) = self.with_scope(ScopeKind::TypeConstructor, |_, scope| {
                 (
                     variant
@@ -256,7 +260,7 @@ impl Binder {
                         .iter()
                         .map(|field| petr_ast::FunctionParameter {
                             name: field.item().name,
-                            ty:   field.item().ty,
+                            ty:   field.item().ty.clone(),
                         })
                         .collect::<Vec<_>>(),
                     scope,
@@ -278,7 +282,53 @@ impl Binder {
             };
 
             self.insert_function(&ty_decl.span().with_item(&function));
-        });
+        }
+
+        // if there is a constant literal variant, then we introduce a type constructor that is
+        // just for constant literal variants
+        let constant_literals = ty_decl
+            .item()
+            .variants
+            .iter()
+            .filter_map(|variant| match variant.item() {
+                petr_ast::TypeVariantOrLiteral::Literal(lit) => Some(lit),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        if !constant_literals.is_empty() {
+            let constants_as_sum_type = Ty::Sum(
+                constant_literals
+                    .into_iter()
+                    .map(|lit| Ty::Literal(lit.clone()))
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice(),
+            );
+
+            let param_name = Identifier {
+                id:   ty_decl.item().name.id,
+                span: ty_decl.span(),
+            };
+
+            let type_constructor_expr = ty_decl.span().with_item(Expression::Variable(param_name));
+
+            let function = FunctionDeclaration {
+                name:        ty_decl.item().name,
+                parameters:  vec![petr_ast::FunctionParameter {
+                    name: param_name,
+                    ty:   constants_as_sum_type,
+                }]
+                .into_boxed_slice(),
+                return_type: Ty::Named(ty_decl.item().name),
+                body:        ty_decl
+                    .span()
+                    .with_item(Expression::TypeConstructor(type_id, vec![type_constructor_expr].into_boxed_slice())),
+                visibility:  ty_decl.item().visibility,
+            };
+
+            self.insert_function(&ty_decl.span().with_item(&function));
+        }
+
         if ty_decl.item().is_exported() {
             Some((ty_decl.item().name, type_item))
         } else {
@@ -295,7 +345,7 @@ impl Binder {
         let function_id = self.functions.insert(span.with_item((*func).clone()));
         let func_body_scope = self.with_scope(ScopeKind::Function, |binder, function_body_scope| {
             for param in func.parameters.iter() {
-                binder.insert_into_current_scope(param.name.id, param.name.span().with_item(Item::FunctionParameter(param.ty)));
+                binder.insert_into_current_scope(param.name.id, param.name.span().with_item(Item::FunctionParameter(param.ty.clone())));
             }
 
             func.body.bind(binder);

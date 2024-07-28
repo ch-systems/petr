@@ -313,3 +313,25 @@ fn if_without_else() {
         "#]],
     )
 }
+
+#[test]
+fn constant_literal_types() {
+    check(
+        vec![
+            r#"
+            type MyType = 1 | 2 | 3 | "hi" | Constructed number 'int boolean 'bool
+                "#,
+        ],
+        expect![[r#"
+            AST
+            ____
+            module test =
+            type MyType =
+            1 |
+            2 |
+            3 |
+            "hi" |
+              Constructed(number: 'int boolean: 'bool)
+        "#]],
+    )
+}

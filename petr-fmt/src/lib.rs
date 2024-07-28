@@ -411,6 +411,18 @@ impl Formattable for AstNode {
     }
 }
 
+impl Formattable for TypeVariantOrLiteral {
+    fn format(
+        &self,
+        ctx: &mut FormatterContext,
+    ) -> FormattedLines {
+        match self {
+            TypeVariantOrLiteral::Variant(variant) => variant.format(ctx),
+            TypeVariantOrLiteral::Literal(lit) => FormattedLines::new(vec![ctx.new_line(lit.to_string())]),
+        }
+    }
+}
+
 impl Formattable for TypeDeclaration {
     fn format(
         &self,
@@ -509,6 +521,8 @@ impl Formattable for Ty {
             Ty::String => "string".to_string(),
             Ty::Unit => "unit".to_string(),
             Ty::Named(name) => ctx.interner.get(name.id).to_string(),
+            Ty::Literal(_) => todo!(),
+            Ty::Sum(_) => todo!(),
         };
         FormattedLines::new(vec![ctx.new_line(format!("'{name}"))])
     }

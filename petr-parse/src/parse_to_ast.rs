@@ -70,6 +70,18 @@ impl Parse for TypeDeclaration {
     }
 }
 
+impl Parse for TypeVariantOrLiteral {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        p.with_help("type variant or literal", |p| -> Option<Self> {
+            if *p.peek().item() == Token::Identifier {
+                Some(Self::Variant(p.parse()?))
+            } else {
+                Some(Self::Literal(p.parse()?))
+            }
+        })
+    }
+}
+
 impl Parse for TypeVariant {
     fn parse(p: &mut Parser) -> Option<Self> {
         p.with_help("type variant", |p| -> Option<Self> {
@@ -170,12 +182,15 @@ impl Parse for Literal {
     fn parse(p: &mut Parser) -> Option<Self> {
         let tok = p.advance();
         match tok.item() {
-            Token::Integer => Some(Literal::Integer(p.slice().parse().expect("lexer should have verified this"))),
-            Token::String => Some(Literal::String(Rc::from(&p.slice()[1..p.slice().len() - 1]))),
             Token::True => Some(Literal::Boolean(true)),
             Token::False => Some(Literal::Boolean(false)),
+            Token::Integer => Some(Literal::Integer(p.slice().parse().expect("lexer should have verified this"))),
+            Token::String => Some(Literal::String(Rc::from(&p.slice()[1..p.slice().len() - 1]))),
             _ => {
-                p.push_error(p.span().with_item(ParseErrorKind::ExpectedToken(Token::Integer, *tok.item())));
+                p.push_error(p.span().with_item(ParseErrorKind::ExpectedOneOf(
+                    vec![Token::Integer, Token::True, Token::False, Token::String],
+                    *tok.item(),
+                )));
                 None
             },
         }

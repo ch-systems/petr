@@ -83,6 +83,8 @@ impl Resolve for petr_ast::Ty {
                 },
                 None => Type::Generic(*name),
             },
+            petr_ast::Ty::Literal(_) => todo!(),
+            petr_ast::Ty::Sum(_) => todo!(),
         })
     }
 }
@@ -722,9 +724,12 @@ impl Resolve for petr_ast::TypeDeclaration {
         // for field in variant's fields
         // resolve the field type
         let mut variants = Vec::with_capacity(self.variants.len());
-        for variant in self.variants.iter() {
-            let mut field_types = Vec::with_capacity(variant.item().fields.len());
-            for field in variant.item().fields.iter() {
+        for variant in self.variants.iter().filter_map(|variant| match variant.item() {
+            petr_ast::TypeVariantOrLiteral::Variant(variant) => Some(variant),
+            _ => None,
+        }) {
+            let mut field_types = Vec::with_capacity(variant.fields.len());
+            for field in variant.fields.iter() {
                 if let Some(field_type) = field.item().ty.resolve(resolver, binder, scope_id) {
                     field_types.push(TypeField {
                         name: field.item().name,
@@ -736,7 +741,7 @@ impl Resolve for petr_ast::TypeDeclaration {
                 }
             }
             variants.push(TypeVariant {
-                name:   variant.item().name,
+                name:   variant.name,
                 fields: field_types.into_boxed_slice(),
             });
         }
