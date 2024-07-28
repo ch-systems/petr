@@ -61,8 +61,9 @@ pub struct Binder {
 
 #[derive(Debug)]
 pub struct Module {
-    pub root_scope: ScopeId,
-    pub exports:    BTreeMap<Identifier, Item>,
+    pub root_scope:         ScopeId,
+    pub exported_functions: BTreeMap<SymbolId, (FunctionId, ScopeId)>,
+    pub exported_types:     BTreeMap<SymbolId, petr_utils::TypeId>,
 }
 
 #[derive(Default)]
@@ -84,9 +85,10 @@ pub struct Scope {
     kind: ScopeKind,
 }
 
+#[derive(Clone)]
 pub struct ImportStatement {
-    path:  Path,
-    alias: Option<Identifier>,
+    pub path:  Path,
+    pub alias: Option<Identifier>,
 }
 
 /// Not used in the compiler heavily yet, but extremely useful for understanding what kind of scope
@@ -244,6 +246,22 @@ impl Binder {
         let scope = self.scopes.get(scope_id);
         if let Some(module_id) = scope.modules.get(&name) {
             return Some(*module_id);
+        }
+        None
+    }
+
+    pub fn find_type_in_scope(
+        &self,
+        name: SymbolId,
+        scope_id: ScopeId,
+    ) -> Option<petr_utils::TypeId> {
+        let scope = self.scopes.get(scope_id);
+        if let Some(id) = scope.types.get(&name) {
+            return Some(*id);
+        }
+
+        if let Some(parent_id) = scope.parent() {
+            return self.find_type_in_scope(name, parent_id);
         }
         None
     }
@@ -500,19 +518,35 @@ impl Binder {
 
         ast.modules.iter().for_each(|module| {
             let module_scope = binder.create_scope_from_path(&module.name);
+            let mut exported_functions = BTreeMap::default();
+            let mut exported_types = BTreeMap::default();
             binder.with_specified_scope(module_scope, |binder, scope_id| {
-                let exports = module.nodes.iter().filter_map(|node| match node.item() {
-                    petr_ast::AstNode::FunctionDeclaration(decl) => node.span().with_item(decl.item()).bind(binder),
-                    petr_ast::AstNode::TypeDeclaration(decl) => node.span().with_item(decl.item()).bind(binder),
-                    petr_ast::AstNode::ImportStatement(stmt) => stmt.bind(binder),
-                });
-                let exports = BTreeMap::from_iter(exports);
+                for item in module.nodes.iter() {
+                    match item.item() {
+                        petr_ast::AstNode::FunctionDeclaration(decl) => {
+                            if let Some((k, v)) = item.span().with_item(decl.item()).bind(binder) {
+                                exported_functions.insert(k.id, v);
+                            }
+                        },
+                        petr_ast::AstNode::TypeDeclaration(decl) => {
+                            if let Some((k, v)) = item.span().with_item(decl.item()).bind(binder) {
+                                exported_types.insert(k.id, v);
+                            }
+                        },
+                        petr_ast::AstNode::ImportStatement(stmt) => {
+                            if let Some(_item) = stmt.bind(binder) {
+                                todo!()
+                            }
+                        },
+                    }
+                }
                 // we don't need to track this module ID -- it just needs to exist,
                 // and all modules are iterated over in later stages of the compiler.
                 // So we can safely ignore the return value here.
                 let _module_id = binder.modules.insert(Module {
                     root_scope: scope_id,
-                    exports,
+                    exported_functions,
+                    exported_types,
                 });
             });
         });
@@ -539,41 +573,78 @@ impl Binder {
             let name = Identifier { id, span };
             let dep_scope = binder.create_scope_from_path(&Path::new(vec![name]));
             binder.with_specified_scope(dep_scope, |binder, _scope_id| {
-                for module in dep_ast.modules {
+                // TODO deduplicate module export logic with above func
+                for module in &dep_ast.modules {
+                    let mut exported_functions = BTreeMap::default();
+                    let mut exported_types = BTreeMap::default();
                     let module_scope = binder.create_scope_from_path(&module.name);
                     binder.with_specified_scope(module_scope, |binder, scope_id| {
-                        let exports = module.nodes.iter().filter_map(|node| match node.item() {
-                            petr_ast::AstNode::FunctionDeclaration(decl) => node.span().with_item(decl.item()).bind(binder),
-                            petr_ast::AstNode::TypeDeclaration(decl) => node.span().with_item(decl.item()).bind(binder),
-                            petr_ast::AstNode::ImportStatement(stmt) => stmt.bind(binder),
-                        });
-                        let exports = BTreeMap::from_iter(exports);
-                        // TODO do I need to track this module id?
+                        for item in module.nodes.iter() {
+                            match item.item() {
+                                petr_ast::AstNode::FunctionDeclaration(decl) => {
+                                    if let Some((k, v)) = item.span().with_item(decl.item()).bind(binder) {
+                                        exported_functions.insert(k.id, v);
+                                    }
+                                },
+                                petr_ast::AstNode::TypeDeclaration(decl) => {
+                                    if let Some((k, v)) = item.span().with_item(decl.item()).bind(binder) {
+                                        exported_types.insert(k.id, v);
+                                    }
+                                },
+                                petr_ast::AstNode::ImportStatement(stmt) => {
+                                    if let Some(_item) = stmt.bind(binder) {
+                                        todo!()
+                                    }
+                                },
+                            }
+                        }
+                        // we don't need to track this module ID -- it just needs to exist,
+                        // and all modules are iterated over in later stages of the compiler.
+                        // So we can safely ignore the return value here.
                         let _module_id = binder.modules.insert(Module {
                             root_scope: scope_id,
-                            exports,
+                            exported_functions,
+                            exported_types,
                         });
                     });
                 }
             })
         }
 
-        for module in &ast.modules {
+        ast.modules.iter().for_each(|module| {
             let module_scope = binder.create_scope_from_path(&module.name);
+            let mut exported_functions = BTreeMap::default();
+            let mut exported_types = BTreeMap::default();
             binder.with_specified_scope(module_scope, |binder, scope_id| {
-                let exports = module.nodes.iter().filter_map(|node| match node.item() {
-                    petr_ast::AstNode::FunctionDeclaration(decl) => node.span().with_item(decl.item()).bind(binder),
-                    petr_ast::AstNode::TypeDeclaration(decl) => node.span().with_item(decl.item()).bind(binder),
-                    petr_ast::AstNode::ImportStatement(stmt) => stmt.bind(binder),
-                });
-                let exports = BTreeMap::from_iter(exports);
-                // TODO do I need to track this module id?
+                for item in module.nodes.iter() {
+                    match item.item() {
+                        petr_ast::AstNode::FunctionDeclaration(decl) => {
+                            if let Some((k, v)) = item.span().with_item(decl.item()).bind(binder) {
+                                exported_functions.insert(k.id, v);
+                            }
+                        },
+                        petr_ast::AstNode::TypeDeclaration(decl) => {
+                            if let Some((k, v)) = item.span().with_item(decl.item()).bind(binder) {
+                                exported_types.insert(k.id, v);
+                            }
+                        },
+                        petr_ast::AstNode::ImportStatement(stmt) => {
+                            if let Some(_item) = stmt.bind(binder) {
+                                todo!()
+                            }
+                        },
+                    }
+                }
+                // we don't need to track this module ID -- it just needs to exist,
+                // and all modules are iterated over in later stages of the compiler.
+                // So we can safely ignore the return value here.
                 let _module_id = binder.modules.insert(Module {
                     root_scope: scope_id,
-                    exports,
+                    exported_functions,
+                    exported_types,
                 });
             });
-        }
+        });
 
         binder
     }
@@ -595,8 +666,9 @@ impl Binder {
 
             let next_scope = self.create_scope(ScopeKind::Module(*segment));
             let module = Module {
-                root_scope: next_scope,
-                exports:    BTreeMap::new(),
+                root_scope:         next_scope,
+                exported_functions: BTreeMap::default(),
+                exported_types:     BTreeMap::default(),
             };
             let module_id = self.modules.insert(module);
             self.insert_module_into_specified_scope(current_scope_id, *segment, module_id);

@@ -38,28 +38,28 @@ fn pretty_print_bindings(
             scope.parent.map(|x| x.to_string()).unwrap_or_else(|| "none".into())
         ));
 
-        for (func, (func_id, _scope)) in scope.functions {
-            let func_name = interner.get(func);
+        for (func, (func_id, _scope)) in &scope.functions {
+            let func_name = interner.get(*func);
             result.push_str(&format!("  {}: Function {}\n", func_name, func_id));
         }
 
-        for (ty, t) in scope.types {
-            let ty_name = interner.get(ty);
+        for (ty, t) in &scope.types {
+            let ty_name = interner.get(*ty);
             result.push_str(&format!("  {}: Type {:?}\n", ty_name, t));
         }
 
-        for (id, module) in scope.modules {
-            let module_name = interner.get(id);
+        for (id, module) in &scope.modules {
+            let module_name = interner.get(*id);
             result.push_str(&format!("  {}: Module {:?}\n", module_name, module));
         }
 
-        for (id, binding) in scope.bindings {
-            let binding_name = interner.get(id);
+        for (id, binding) in &scope.bindings {
+            let binding_name = interner.get(*id);
             result.push_str(&format!("  {}: Binding\n", binding_name));
         }
 
         for (id, param) in &scope.function_params {
-            let param_name = interner.get(id);
+            let param_name = interner.get(*id);
             result.push_str(&format!("  {}: FunctionParameter {:?}\n", param_name, param));
         }
     }

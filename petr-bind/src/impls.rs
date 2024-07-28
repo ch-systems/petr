@@ -112,24 +112,24 @@ impl Bind for SpannedItem<&FunctionDeclaration> {
 }
 
 impl Bind for ImportStatement {
-    type Output = Option<(Identifier, Item)>;
+    type Output = Option<(Identifier, crate::binder::ImportStatement)>;
 
     fn bind(
         &self,
         binder: &mut Binder,
     ) -> Self::Output {
-        let item = Item::Import {
+        // the alias, if any, or the last path element if there is no alias
+        let name = self.alias.unwrap_or_else(|| *self.path.iter().last().expect("should never be empty"));
+
+        let import = crate::binder::ImportStatement {
             path:  self.path.clone(),
             alias: self.alias,
         };
 
-        // the alias, if any, or the last path element if there is no alias
-        let name = self.alias.unwrap_or_else(|| *self.path.iter().last().expect("should never be empty"));
-
-        binder.insert_import_into_current_scope(name.id, name.span.with_item(item.clone()));
+        binder.insert_import_into_current_scope(name.id, name.span.with_item(import.clone()));
 
         if self.is_exported() {
-            Some((name, item))
+            Some((name, import))
         } else {
             None
         }

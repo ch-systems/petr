@@ -70,17 +70,8 @@ impl Resolve for petr_ast::Ty {
             petr_ast::Ty::Bool => Type::Bool,
             petr_ast::Ty::String => Type::String,
             petr_ast::Ty::Unit => Type::Unit,
-            petr_ast::Ty::Named(name) => match binder.find_symbol_in_scope(name.id, scope_id) {
-                Some(Item::Type(id)) => Type::Named(*id),
-                Some(something) => {
-                    let name = _resolver.interner.get(name.id);
-                    // this makes sense, the type constructor is getting resolved instead of the ty
-                    // find_symbol_in_scope could take in what it is looking for as a parameter,
-                    // _or_ we could have a special case when a function body is just a type
-                    // constructor
-                    todo!("push error -- symbol {name} is not type, it is a {something:?}");
-                    // return None;
-                },
+            petr_ast::Ty::Named(name) => match binder.find_type_in_scope(name.id, scope_id) {
+                Some(id) => Type::Named(id),
                 None => Type::Generic(*name),
             },
             petr_ast::Ty::Literal(_) => todo!(),
