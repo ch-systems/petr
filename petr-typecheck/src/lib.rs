@@ -461,6 +461,7 @@ impl TypeChecker {
             petr_resolve::Type::Generic(generic_name) => {
                 return self.generic_type(generic_name);
             },
+            petr_resolve::Type::Sum(_) => todo!(),
         };
         self.ctx.types.insert(ty)
     }

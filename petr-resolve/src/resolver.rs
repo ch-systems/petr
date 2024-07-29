@@ -44,7 +44,7 @@ pub struct TypeField {
     pub ty:   Type,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum Type {
     Integer,
     Bool,
@@ -54,6 +54,7 @@ pub enum Type {
     ErrorRecovery(Span),
     Named(TypeId),
     Generic(Identifier),
+    Sum(Box<[Type]>),
 }
 
 impl Resolve for petr_ast::Ty {
@@ -75,7 +76,13 @@ impl Resolve for petr_ast::Ty {
                 None => Type::Generic(*name),
             },
             petr_ast::Ty::Literal(_) => todo!(),
-            petr_ast::Ty::Sum(_) => todo!(),
+            petr_ast::Ty::Sum(tys) => {
+                let tys = tys
+                    .iter()
+                    .map(|x| x.resolve(_resolver, binder, scope_id).unwrap_or(Type::Unit))
+                    .collect::<Vec<_>>();
+                Type::Sum(tys.into_boxed_slice())
+            },
         })
     }
 }
@@ -197,7 +204,7 @@ impl Resolver {
     ) {
         // Iterate over the binder's scopes and resolve all symbols
         let scopes_and_ids = binder.scope_iter().collect::<Vec<_>>();
-        for (scope_id, scope) in scopes_and_ids {
+        for (scope_id, _scope) in scopes_and_ids {
             for (_name, item) in binder.iter_scope(scope_id) {
                 self.resolve_item(item.item(), binder, scope_id)
             }
@@ -767,6 +774,9 @@ mod tests {
                         format!("named type {}", resolver.interner.get(resolver.get_type(*id).name.id))
                     },
                     Type::Generic(a) => format!("generic type {}", resolver.interner.get(a.id)),
+                    Type::Sum(tys) => {
+                        format!("sum type [{}]", tys.iter().map(|x| x.to_string(resolver)).collect::<Vec<_>>().join(" | "))
+                    },
                 }
             }
         }
