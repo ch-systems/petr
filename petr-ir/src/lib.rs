@@ -562,7 +562,10 @@ mod tests {
         }
         let (errs, resolved) = resolve_symbols(ast, interner, Default::default());
         if !errs.is_empty() {
-            dbg!(&errs);
+            for err in errs {
+                eprintln!("{:?}", render_error(&source_map, err));
+            }
+            panic!("resolving names failed");
         }
         let type_checker = TypeChecker::new(resolved);
 

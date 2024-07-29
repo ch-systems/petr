@@ -120,6 +120,7 @@ impl Bind for ImportStatement {
     ) -> Self::Output {
         // the alias, if any, or the last path element if there is no alias
         let name = self.alias.unwrap_or_else(|| *self.path.iter().last().expect("should never be empty"));
+        println!("handling import");
 
         let import = crate::binder::ImportStatement {
             path:  self.path.clone(),

@@ -237,7 +237,19 @@ impl Binder {
         self.types.get(type_id)
     }
 
-    /// does  not check parent scopes, like for functions.
+    /// does not check parent scopes
+    pub fn find_module_in_single_scope(
+        &self,
+        name: SymbolId,
+        scope_id: ScopeId,
+    ) -> Option<ModuleId> {
+        let scope = self.scopes.get(scope_id);
+        if let Some(module_id) = scope.modules.get(&name) {
+            return Some(*module_id);
+        }
+        None
+    }
+
     pub fn find_module_in_scope(
         &self,
         name: SymbolId,
@@ -246,6 +258,9 @@ impl Binder {
         let scope = self.scopes.get(scope_id);
         if let Some(module_id) = scope.modules.get(&name) {
             return Some(*module_id);
+        }
+        if let Some(parent_id) = scope.parent() {
+            return self.find_module_in_scope(name, parent_id);
         }
         None
     }
@@ -314,6 +329,22 @@ impl Binder {
         None
     }
 
+    pub fn find_import_in_scope(
+        &self,
+        name: SymbolId,
+        scope_id: ScopeId,
+    ) -> Option<ImportStatement> {
+        let scope = self.scopes.get(scope_id);
+        if let Some(entry) = scope.imports.get(&name) {
+            return Some(entry.clone());
+        }
+
+        if let Some(parent_id) = scope.parent() {
+            return self.find_import_in_scope(name, parent_id);
+        }
+        None
+    }
+
     /// Given a name, tries to figure out what it is by calling all of the find_ methods
     pub fn find_symbol_in_scope(
         &self,
@@ -334,6 +365,13 @@ impl Binder {
 
         if let Some(id) = self.find_module_in_scope(name, scope_id) {
             return Some(Item::Module(id));
+        }
+
+        if let Some(item) = self.find_import_in_scope(name, scope_id) {
+            return Some(Item::Import {
+                path:  item.path,
+                alias: item.alias,
+            });
         }
 
         None
@@ -387,6 +425,7 @@ impl Binder {
         item: SpannedItem<ImportStatement>,
     ) {
         let scope_id = self.current_scope_id();
+        println!("inserting import {name} into current scope {scope_id}");
         self.scopes.get_mut(scope_id).insert_import(name, item.span(), item.into_item());
     }
 
@@ -600,6 +639,7 @@ impl Binder {
                             }
                         },
                         petr_ast::AstNode::ImportStatement(stmt) => {
+                            println!("got an import");
                             if let Some(_item) = stmt.bind(binder) {
                                 todo!()
                             }
@@ -725,7 +765,7 @@ impl Binder {
         for segment in path.iter() {
             // if this scope already exists,
             // just use that pre-existing ID
-            if let Some(module_id) = self.find_module_in_scope(segment.id, current_scope_id) {
+            if let Some(module_id) = self.find_module_in_single_scope(segment.id, current_scope_id) {
                 current_scope_id = self.modules.get(module_id).root_scope;
                 continue;
             }

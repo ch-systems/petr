@@ -591,7 +591,8 @@ impl Resolve for SpannedItem<&petr_ast::FunctionCall> {
         binder: &Binder,
         scope_id: ScopeId,
     ) -> Option<Self::Resolved> {
-        let resolved_id = match self.item().func_name.resolve(resolver, binder, scope_id) {
+        println!("resolving function {}", self.item().func_name.identifiers.last().unwrap().id);
+        let resolved_id = match dbg!(self.item().func_name.resolve(resolver, binder, scope_id)) {
             Some(either::Either::Left(func)) => func,
             Some(either::Either::Right(_ty)) => {
                 todo!("push error -- tried to call ty as func");
@@ -641,8 +642,9 @@ impl Resolve for petr_utils::Path {
         let mut path_iter = self.identifiers.iter();
         let Some(first_item) = ({
             let item = path_iter.next().expect("import with no items was parsed -- should be an invariant");
-            binder.find_module_in_scope(item.id, scope_id)
+            binder.find_symbol_in_scope(item.id, scope_id)
         }) else {
+            println!("didn't even find first item");
             let name = self.identifiers.iter().map(|x| resolver.interner.get(x.id)).collect::<Vec<_>>().join(".");
             resolver.errs.push(
                 self.identifiers
@@ -654,17 +656,16 @@ impl Resolve for petr_utils::Path {
             return None;
         };
 
-        /*
         let first_item = match first_item {
             Item::Module(id) if self.identifiers.len() > 1 => id,
-            Item::Function(f, _) if self.identifiers.len() == 1 => return Some(either::Either::Left(*f)),
-            Item::Type(t) if self.identifiers.len() == 1 => return Some(either::Either::Right(*t)),
+            Item::Function(f, _) if self.identifiers.len() == 1 => return Some(either::Either::Left(f)),
+            Item::Type(t) if self.identifiers.len() == 1 => return Some(either::Either::Right(t)),
             Item::Import { path, alias: _ } if self.identifiers.len() == 1 => return path.resolve(resolver, binder, scope_id),
-            a => todo!("push error -- import path is not a module {a:?}"),
+            a => todo!("push error -- import path is not a module"),
         };
-        */
 
         let mut rover = binder.get_module(first_item);
+
         // iterate over the rest of the path to find the path item
         for (ix, item) in path_iter.enumerate() {
             let is_last = ix == self.identifiers.len() - 2; // -2 because we advanced the iter by one already
@@ -847,7 +848,7 @@ mod tests {
         }
         let resolver = Resolver::new_from_single_ast(ast, interner);
         let (errs, queryable) = resolver.into_queryable();
-        assert!(errs.is_empty());
+        assert!(errs.is_empty(), "{errs:#?}");
         let result = pretty_print_resolution(&queryable);
         expect.assert_eq(&result);
     }
