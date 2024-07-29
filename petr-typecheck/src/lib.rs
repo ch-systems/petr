@@ -193,6 +193,8 @@ pub enum PetrType {
     /// the span is the location of the inference, for error reporting if the inference is never
     /// resolved
     Infer(usize, Span),
+    Sum(Box<[TypeVariable]>),
+    Literal(Literal),
 }
 
 #[derive(Clone, PartialEq, Debug, Eq, PartialOrd, Ord)]
@@ -461,7 +463,8 @@ impl TypeChecker {
             petr_resolve::Type::Generic(generic_name) => {
                 return self.generic_type(generic_name);
             },
-            petr_resolve::Type::Sum(_) => todo!(),
+            petr_resolve::Type::Sum(tys) => PetrType::Sum(tys.iter().map(|ty| self.to_type_var(ty)).collect()),
+            petr_resolve::Type::Literal(l) => PetrType::Literal(l.clone()),
         };
         self.ctx.types.insert(ty)
     }
@@ -1249,6 +1252,20 @@ mod tests {
             PetrType::ErrorRecovery => "error recovery".to_string(),
             PetrType::List(ty) => format!("[{}]", pretty_print_ty(ty, type_checker)),
             PetrType::Infer(id, _) => format!("t{id}"),
+            PetrType::Sum(ty) => {
+                let mut s = String::new();
+                s.push_str("(");
+                for (ix, ty) in ty.iter().enumerate() {
+                    let is_last = ix == s.len() - 1;
+                    s.push_str(&pretty_print_ty(ty, type_checker));
+                    if !is_last {
+                        s.push_str(" | ");
+                    }
+                }
+                s.push_str(")");
+                s
+            },
+            PetrType::Literal(l) => format!("{:?}", l),
         }
     }
 

@@ -185,7 +185,7 @@ impl Parse for Literal {
             Token::True => Some(Literal::Boolean(true)),
             Token::False => Some(Literal::Boolean(false)),
             Token::Integer => Some(Literal::Integer(p.slice().parse().expect("lexer should have verified this"))),
-            Token::String => Some(Literal::String(Rc::from(&p.slice()[1..p.slice().len() - 1]))),
+            Token::String => Some(Literal::String(p.slice()[1..p.slice().len() - 1].to_string())),
             _ => {
                 p.push_error(p.span().with_item(ParseErrorKind::ExpectedOneOf(
                     vec![Token::Integer, Token::True, Token::False, Token::String],
@@ -226,6 +226,7 @@ impl Parse for Ty {
         })
     }
 }
+
 impl Parse for Operator {
     fn parse(p: &mut Parser) -> Option<Self> {
         let tok = p.advance();
@@ -245,6 +246,7 @@ impl Parse for Operator {
         }
     }
 }
+
 impl Parse for Identifier {
     fn parse(p: &mut Parser) -> Option<Self> {
         let identifier = p.advance();

@@ -226,11 +226,12 @@ pub struct List {
     pub elements: Box<[Commented<SpannedItem<Expression>>]>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Literal {
     Integer(i64),
     Boolean(bool),
-    String(Rc<str>),
+    // TODO intern these strings and use an ID
+    String(String),
 }
 
 impl std::fmt::Display for Literal {

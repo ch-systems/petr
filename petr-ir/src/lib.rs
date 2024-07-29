@@ -323,7 +323,7 @@ impl Lowerer {
         self.data_section.insert(match lit {
             Integer(val) => DataSectionEntry::Int64(*val),
             Boolean(val) => DataSectionEntry::Bool(*val),
-            String(val) => DataSectionEntry::String(val.clone()),
+            String(val) => DataSectionEntry::String(Rc::from(val.as_str())),
         })
     }
 
@@ -359,6 +359,8 @@ impl Lowerer {
                 self.errors.push(span.with_item(LoweringError::UnableToInferType));
                 IrTy::Unit
             },
+            Sum(_) => todo!(),
+            Literal(_) => todo!(),
         }
     }
 

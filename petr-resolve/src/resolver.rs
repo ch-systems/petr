@@ -55,6 +55,7 @@ pub enum Type {
     Named(TypeId),
     Generic(Identifier),
     Sum(Box<[Type]>),
+    Literal(petr_ast::Literal),
 }
 
 impl Resolve for petr_ast::Ty {
@@ -75,7 +76,7 @@ impl Resolve for petr_ast::Ty {
                 Some(id) => Type::Named(id),
                 None => Type::Generic(*name),
             },
-            petr_ast::Ty::Literal(_) => todo!(),
+            petr_ast::Ty::Literal(l) => Type::Literal(l.clone()),
             petr_ast::Ty::Sum(tys) => {
                 let tys = tys
                     .iter()
@@ -777,6 +778,7 @@ mod tests {
                     Type::Sum(tys) => {
                         format!("sum type [{}]", tys.iter().map(|x| x.to_string(resolver)).collect::<Vec<_>>().join(" | "))
                     },
+                    Type::Literal(l) => format!("{:?}", l),
                 }
             }
         }
@@ -1060,7 +1062,13 @@ mod tests {
             "
             type IntBelowFive = 1 | 2 | 3 | 4
             ",
-            expect![[r#""#]],
+            expect![[r#"
+                _____FUNCTIONS_____
+                #0 IntBelowFive(  IntBelowFive: sum type [Integer(1) | Integer(2) | Integer(3) | Integer(4)], ) -> named type IntBelowFive   "Type constructor"
+                _____TYPES_____
+                #0 IntBelowFive
+
+            "#]],
         )
     }
 }
