@@ -360,7 +360,11 @@ impl Lowerer {
                 IrTy::Unit
             },
             Sum(_) => todo!(),
-            Literal(_) => todo!(),
+            Literal(a) => match a {
+                petr_typecheck::Literal::Integer(_) => IrTy::Int64,
+                petr_typecheck::Literal::Boolean(_) => IrTy::Boolean,
+                petr_typecheck::Literal::String(_) => IrTy::String,
+            },
         }
     }
 

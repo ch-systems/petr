@@ -737,6 +737,7 @@ impl Resolve for petr_ast::TypeDeclaration {
                 fields: field_types.into_boxed_slice(),
             });
         }
+        todo!("update later versions of type decl to include constant literal types");
 
         Some(TypeDeclaration {
             name:     self.name,

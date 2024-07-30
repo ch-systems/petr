@@ -196,43 +196,27 @@ pub enum PetrType {
     Sum(Box<[PetrType]>),
     Literal(Literal),
 }
-
-/*
-impl std::fmt::Display for PetrType {
-    fn fmt(
+impl PetrType {
+    /// If `self` is a generalized form of `sum_tys`, return true
+    /// A generalized form is a type that is a superset of the sum types.
+    /// For example, `String` is a generalized form of `Sum(Literal("a") | Literal("B"))`
+    fn is_generalized_of(
         &self,
-        f: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
+        sum_tys: &[PetrType],
+        ctx: &TypeContext,
+    ) -> bool {
+        use petr_resolve::Literal;
         use PetrType::*;
         match self {
-            Unit => write!(f, "unit"),
-            Integer => write!(f, "int"),
-            Boolean => write!(f, "bool"),
-            String => write!(f, "string"),
-            Ref(ty) => write!(f, "&{}", ty),
-            UserDefined { name, .. } => write!(f, "{}", name.id),
-            Arrow(tys) => {
-                let mut buf = vec![];
-                for ty in tys.iter() {
-                    buf.push(format!("{}", ty));
-                }
-                write!(f, "{}", buf.join(" → "))
-            },
-            ErrorRecovery => write!(f, "error"),
-            List(ty) => write!(f, "[t{}]", Into::<usize>::into(*ty)),
-            Infer(id, _) => write!(f, "t{}", id),
-            Sum(tys) => {
-                let mut buf = vec![];
-                for ty in tys.iter() {
-                    buf.push(format!("{}", ty));
-                }
-                write!(f, "{}", buf.join(" | "))
-            },
-            Literal(l) => write!(f, "{}", l),
+            String => sum_tys.iter().all(|ty| matches!(ty, Literal(Literal::String(_)))),
+            Integer => sum_tys.iter().all(|ty| matches!(ty, Literal(Literal::Integer(_)))),
+            Boolean => sum_tys.iter().all(|ty| matches!(ty, Literal(Literal::Boolean(_)))),
+            Ref(ty) => ctx.types.get(*ty).is_generalized_of(sum_tys, ctx),
+            Sum(tys) => tys.iter().all(|ty| sum_tys.contains(ty)),
+            _ => false,
         }
     }
 }
-*/
 
 #[derive(Clone, PartialEq, Debug, Eq, PartialOrd, Ord)]
 pub struct TypeVariant {
@@ -490,8 +474,15 @@ impl TypeChecker {
                 self.ctx.update_type(t2, Sum(intersection.into_boxed_slice()));
             },
             (Sum(sum_tys), other) | (other, Sum(sum_tys)) => {
+                // if `other` is a generalized version of the sum type,
+                // then it satisfies the sum type
+                if other.is_generalized_of(sum_tys, &self.ctx) {
+                    ()
+                } else if
                 // `other` must be a member of the Sum type
-                if !sum_tys.contains(other) {
+                sum_tys.contains(other) {
+                    ()
+                } else {
                     self.push_error(span.with_item(self.satisfy_err(other.clone(), PetrType::Sum(sum_tys.iter().cloned().collect()))));
                 }
             },
@@ -746,6 +737,15 @@ impl TypeChecker {
         let pretty_printed_b = pretty_printing::pretty_print_petr_type(&clone_2, &self);
         TypeConstraintError::FailedToSatisfy(pretty_printed_a, pretty_printed_b)
     }
+
+    fn satisfy_expr_return(
+        &mut self,
+        ty: TypeVariable,
+        expr: &TypedExpr,
+    ) {
+        let expr_ty = self.expr_ty(expr);
+        self.satisfies(ty, expr_ty, expr.span());
+    }
 }
 
 #[derive(Clone)]
@@ -988,8 +988,8 @@ fn unify_basic_math_op(
     let lhs_ty = ctx.expr_ty(&lhs);
     let rhs_ty = ctx.expr_ty(&rhs);
     let int_ty = ctx.int();
-    ctx.unify(lhs_ty, int_ty, lhs.span());
-    ctx.unify(rhs_ty, int_ty, rhs.span());
+    ctx.unify(int_ty, lhs_ty, lhs.span());
+    ctx.unify(int_ty, rhs_ty, rhs.span());
     (lhs, rhs)
 }
 
@@ -1197,7 +1197,7 @@ impl TypeCheck for petr_resolve::FunctionCall {
         // unify declared return type with body return type
         let declared_return_type = func_decl.return_ty;
 
-        ctx.unify_expr_return(declared_return_type, &func_decl.body);
+        ctx.satisfy_expr_return(declared_return_type, &func_decl.body);
 
         // to create a monomorphized func decl, we don't actually have to update all of the types
         // throughout the entire definition. We only need to update the parameter types.
