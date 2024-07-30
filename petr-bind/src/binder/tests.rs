@@ -71,7 +71,7 @@ fn pretty_print_bindings(
             result.push_str(&format!("  {}: Module {:?}\n", module_name, module));
         }
 
-        for (id, binding) in &scope.bindings {
+        for id in scope.bindings.keys() {
             let binding_name = interner.get(*id);
             result.push_str(&format!("  {}: Binding\n", binding_name));
         }
@@ -81,7 +81,7 @@ fn pretty_print_bindings(
             result.push_str(&format!("  {}: FunctionParameter {:?}\n", param_name, param));
         }
 
-        for (id, import) in &scope.imports {
+        for id in scope.imports.keys() {
             let import_name = interner.get(*id);
             result.push_str(&format!("  {id}: Import {}\n", import_name));
         }

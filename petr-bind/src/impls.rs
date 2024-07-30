@@ -1,7 +1,7 @@
 use petr_ast::{Commented, Expression, ExpressionWithBindings, FunctionDeclaration, ImportStatement, TypeDeclaration};
 use petr_utils::{Identifier, SpannedItem, TypeId};
 
-use crate::{binder::ScopeKind, Bind, Binder, FunctionId, Item, ScopeId};
+use crate::{binder::ScopeKind, Bind, Binder, FunctionId, ScopeId};
 
 impl Bind for SpannedItem<&TypeDeclaration> {
     type Output = Option<(Identifier, TypeId)>;

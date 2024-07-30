@@ -262,7 +262,7 @@ impl SpecificType {
                 variants,
                 constant_literal_types,
             } => GeneralType::UserDefined {
-                name: name.clone(),
+                name: *name,
                 variants: variants
                     .iter()
                     .map(|variant| {
@@ -275,7 +275,7 @@ impl SpecificType {
                     .collect(),
                 constant_literal_types: constant_literal_types.clone(),
             },
-            SpecificType::Arrow(tys) => GeneralType::Arrow(tys.iter().map(|ty| *ty).collect()),
+            SpecificType::Arrow(tys) => GeneralType::Arrow(tys.clone()),
             SpecificType::ErrorRecovery => GeneralType::ErrorRecovery,
             SpecificType::List(ty) => {
                 let ty = ty.generalize(ctx);
@@ -352,7 +352,7 @@ impl Type for SpecificType {
 impl Type for GeneralType {
     fn as_specific_ty(
         &self,
-        ctx: &TypeContext,
+        _ctx: &TypeContext,
     ) -> SpecificType {
         match self {
             GeneralType::Unit => SpecificType::Unit,
@@ -364,11 +364,11 @@ impl Type for GeneralType {
                 variants,
                 constant_literal_types,
             } => SpecificType::UserDefined {
-                name: name.clone(),
+                name: *name,
                 variants: variants
                     .iter()
                     .map(|variant| {
-                        let fields = variant.fields.iter().map(|field| field.as_specific_ty(ctx)).collect::<Vec<_>>();
+                        let fields = variant.fields.iter().map(|field| field.as_specific_ty(_ctx)).collect::<Vec<_>>();
 
                         TypeVariant {
                             fields: fields.into_boxed_slice(),
@@ -379,10 +379,10 @@ impl Type for GeneralType {
             },
             GeneralType::Arrow(tys) => SpecificType::Arrow(tys.clone()),
             GeneralType::ErrorRecovery => SpecificType::ErrorRecovery,
-            GeneralType::List(ty) => SpecificType::List(Box::new(ty.as_specific_ty(ctx))),
+            GeneralType::List(ty) => SpecificType::List(Box::new(ty.as_specific_ty(_ctx))),
             GeneralType::Infer(u, s) => SpecificType::Infer(*u, *s),
             GeneralType::Sum(tys) => {
-                let tys = tys.iter().map(|ty| ty.as_specific_ty(ctx)).collect();
+                let tys = tys.iter().map(|ty| ty.as_specific_ty(_ctx)).collect();
                 SpecificType::Sum(tys)
             },
         }
@@ -651,12 +651,12 @@ impl TypeChecker {
                 self.ctx.update_type(t2, Sum(intersection));
             },
             (Sum(sum_tys), other) | (other, Sum(sum_tys)) => {
+                if
                 // if `other` is a generalized version of the sum type,
                 // then it satisfies the sum type
-                if other.is_subset_of(&sum_tys, &self.ctx) {
-                } else if
+                 other.is_subset_of(sum_tys, &self.ctx)  || 
                 // `other` must be a member of the Sum type
-                sum_tys.contains(other) {
+                    sum_tys.contains(other) {
                 } else {
                     self.push_error(span.with_item(self.satisfy_err(other.clone(), SpecificType::Sum(sum_tys.iter().cloned().collect()))));
                 }
@@ -1470,6 +1470,7 @@ fn replace_var_reference_types(
 mod pretty_printing {
     use crate::*;
 
+    #[cfg(test)]
     pub fn pretty_print_type_checker(type_checker: TypeChecker) -> String {
         let mut s = String::new();
         for (id, ty) in &type_checker.type_map {
@@ -1589,6 +1590,7 @@ mod pretty_printing {
         }
     }
 
+    #[cfg(test)]
     pub fn pretty_print_typed_expr(
         typed_expr: &TypedExpr,
         type_checker: &TypeChecker,

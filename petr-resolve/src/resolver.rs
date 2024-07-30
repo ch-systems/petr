@@ -18,6 +18,8 @@ pub enum ResolutionError {
     NotFound(String),
     #[error("Could not find implementation for operator: {0} at {1}")]
     OperatorImplementationNotFound(String, String),
+    #[error("This item is not a valid member of a path. Valid members are modules, functions, or types.")]
+    ItemIsNotValidPath,
 }
 
 pub(crate) struct Resolver {
@@ -226,7 +228,9 @@ impl Resolver {
             FunctionParameter(_ty) => {
                 // I don't think we have to do anything here but not sure
             },
-            Binding(binding) => {
+            Binding(_binding) => {
+                todo!()
+                /*
                 let resolved_expr = match binding.val.resolve(self, binder, scope_id) {
                     Some(o) => o,
                     None => {
@@ -242,6 +246,7 @@ impl Resolver {
                         expression: resolved_expr,
                     },
                 );
+                    */
             },
             // TODO not sure if we can skip this, or if we should resolve it during imports
             Module(id) => {
@@ -669,7 +674,16 @@ impl Resolve for petr_utils::Path {
             Item::Function(f, _) if self.identifiers.len() == 1 => return Some(either::Either::Left(f)),
             Item::Type(t) if self.identifiers.len() == 1 => return Some(either::Either::Right(t)),
             Item::Import { path, alias: _ } if self.identifiers.len() == 1 => return path.resolve(resolver, binder, scope_id),
-            a => todo!("push error -- import path is not a module"),
+            _ => {
+                resolver.errs.push(
+                    self.identifiers
+                        .last()
+                        .expect("empty path shouldn't be possible")
+                        .span
+                        .with_item(ResolutionError::ItemIsNotValidPath),
+                );
+                return None;
+            },
         };
 
         let mut rover = binder.get_module(first_item);
@@ -692,7 +706,10 @@ impl Resolve for petr_utils::Path {
                     Some(either::Right(ty)) => return Some(either::Right(ty)),
                     None => todo!("push error -- import not found"),
                 },
-                a => todo!("push error -- import path item is not a module"),
+                _ => {
+                    resolver.errs.push(item.span.with_item(ResolutionError::ItemIsNotValidPath));
+                    return None;
+                },
             }
         }
 

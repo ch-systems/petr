@@ -1,5 +1,5 @@
 use expect_test::expect;
-use petr_utils::{render_error, PrettyPrint};
+use petr_utils::PrettyPrint;
 
 use super::Parser;
 
@@ -8,7 +8,7 @@ fn check<T: Into<String>>(
     expected: expect_test::Expect,
 ) {
     let parser = Parser::new(sources.into_iter().map(|s| ("test", s)));
-    let (ast, errs, interner, source_map) = parser.into_result();
+    let (ast, errs, interner, _) = parser.into_result();
 
     let pretty_printed_ast = ast.pretty_print(&interner, 0);
     let errs = errs.into_iter().map(|err| format!("{err:?}")).collect::<Vec<_>>().join("\n");
