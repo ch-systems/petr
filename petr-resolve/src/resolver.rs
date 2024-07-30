@@ -28,8 +28,9 @@ pub(crate) struct Resolver {
 
 #[derive(Debug, Clone)]
 pub struct TypeDeclaration {
-    pub name:     Identifier,
+    pub name: Identifier,
     pub variants: Box<[TypeVariant]>,
+    constant_literal_types: Vec<petr_ast::Literal>,
 }
 
 #[derive(Debug, Clone)]
@@ -737,11 +738,19 @@ impl Resolve for petr_ast::TypeDeclaration {
                 fields: field_types.into_boxed_slice(),
             });
         }
-        todo!("update later versions of type decl to include constant literal types");
+        let constant_literal_types = self
+            .variants
+            .iter()
+            .filter_map(|variant| match variant.item() {
+                petr_ast::TypeVariantOrLiteral::Literal(lit) => Some(lit.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
 
         Some(TypeDeclaration {
-            name:     self.name,
+            name: self.name,
             variants: variants.into_boxed_slice(),
+            constant_literal_types,
         })
     }
 }
