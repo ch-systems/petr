@@ -555,7 +555,7 @@ impl Resolve for petr_ast::IntrinsicCall {
             .iter()
             .map(|x| match x.resolve(resolver, binder, scope_id) {
                 Some(x) => x,
-                None => dbg!(Expr::error_recovery(x.span())),
+                None => Expr::error_recovery(x.span()),
             })
             .collect();
         Some(Intrinsic {
@@ -600,8 +600,7 @@ impl Resolve for SpannedItem<&petr_ast::FunctionCall> {
         binder: &Binder,
         scope_id: ScopeId,
     ) -> Option<Self::Resolved> {
-        println!("resolving function {}", self.item().func_name.identifiers.last().unwrap().id);
-        let resolved_id = match dbg!(self.item().func_name.resolve(resolver, binder, scope_id)) {
+        let resolved_id = match self.item().func_name.resolve(resolver, binder, scope_id) {
             Some(either::Either::Left(func)) => func,
             Some(either::Either::Right(_ty)) => {
                 todo!("push error -- tried to call ty as func");

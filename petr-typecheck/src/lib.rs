@@ -1395,7 +1395,7 @@ mod pretty_printing {
                 s.push(')');
                 s
             },
-            PetrType::Literal(l) => format!("Literal {:?}", l),
+            PetrType::Literal(l) => format!("{}", l),
         }
     }
 
@@ -1495,8 +1495,8 @@ mod tests {
             fn foo(x in 'A) returns 'A x
             "#,
             expect![[r#"
-                fn foo: (t5 → t5)
-                variable x: t5
+                fn foo: (infer t5 → infer t5)
+                variable x: infer t5
 
             "#]],
         );
@@ -1547,7 +1547,7 @@ mod tests {
                 fn firstVariant: (MyType → MyComposedType)
                 type constructor: MyComposedType
 
-                fn secondVariant: (int → MyType → t19 → MyComposedType)
+                fn secondVariant: (int → MyType → infer t20 → MyComposedType)
                 type constructor: MyComposedType
 
                 fn foo: (MyType → MyComposedType)
@@ -1641,7 +1641,7 @@ mod tests {
 
 
                 __ERRORS__
-                SpannedItem UnificationFailure(String, Boolean) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(52), length: 4 } }]
+                SpannedItem UnificationFailure("string", "true") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(52), length: 4 } }]
             "#]],
         );
     }
@@ -1679,7 +1679,7 @@ mod tests {
                 __MONOMORPHIZED FUNCTIONS__
                 fn bool_literal([]) -> bool
                 __ERRORS__
-                SpannedItem UnificationFailure(String, Boolean) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(110), length: 14 } }]
+                SpannedItem UnificationFailure("string", "bool") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(110), length: 14 } }]
             "#]],
         );
     }
@@ -1699,18 +1699,18 @@ mod tests {
             ~bool_literal(true, false)
         "#,
             expect![[r#"
-                fn bool_literal: (t5 → t6 → bool)
+                fn bool_literal: (infer t5 → infer t7 → bool)
                 literal: true
 
                 fn my_func: bool
-                function call to functionid0 with args: a: int, b: int, returns bool
+                function call to functionid0 with args: a: 1, b: 2, returns bool
 
                 fn my_second_func: bool
-                function call to functionid0 with args: a: bool, b: bool, returns bool
+                function call to functionid0 with args: a: true, b: false, returns bool
 
                 __MONOMORPHIZED FUNCTIONS__
-                fn bool_literal(["int", "int"]) -> bool
-                fn bool_literal(["bool", "bool"]) -> bool"#]],
+                fn bool_literal(["1", "2"]) -> bool
+                fn bool_literal(["true", "false"]) -> bool"#]],
         );
     }
     #[test]
@@ -1720,12 +1720,9 @@ mod tests {
                 fn my_list() returns 'list [ 1, true ]
             "#,
             expect![[r#"
-                fn my_list: t8
+                fn my_list: infer t8
                 list: [literal: 1, literal: true, ]
 
-
-                __ERRORS__
-                SpannedItem UnificationFailure(Integer, Boolean) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(48), length: 5 } }]
             "#]],
         );
     }
@@ -1768,16 +1765,16 @@ fn main() returns 'int ~hi(1, 2)"#,
                 fn hi: (int → int → int)
                 a: variable: symbolid2 (int),
                 b: variable: symbolid4 (int),
-                c: literal: 20 (int),
-                d: literal: 30 (int),
-                e: literal: 42 (int),
+                c: literal: 20 (20),
+                d: literal: 30 (30),
+                e: literal: 42 (42),
                 "variable a: int" (int)
 
                 fn main: int
-                function call to functionid0 with args: x: int, y: int, returns int
+                function call to functionid0 with args: x: 1, y: 2, returns int
 
                 __MONOMORPHIZED FUNCTIONS__
-                fn hi(["int", "int"]) -> int
+                fn hi(["1", "2"]) -> int
                 fn main([]) -> int"#]],
         )
     }
@@ -1794,13 +1791,13 @@ fn main() returns 'int ~hi(1, 2)"#,
                 if variable: symbolid2 then literal: 1 else literal: 2
 
                 fn main: int
-                function call to functionid0 with args: x: int, returns int
+                function call to functionid0 with args: x: 1, returns int
 
                 __MONOMORPHIZED FUNCTIONS__
-                fn hi(["int"]) -> int
+                fn hi(["1"]) -> int
                 fn main([]) -> int
                 __ERRORS__
-                SpannedItem UnificationFailure(Integer, Boolean) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(61), length: 2 } }]
+                SpannedItem UnificationFailure("int", "bool") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(61), length: 2 } }]
             "#]],
         )
     }
@@ -1823,7 +1820,7 @@ fn main() returns 'int ~hi(1, 2)"#,
                 fn hi([]) -> int
                 fn main([]) -> int
                 __ERRORS__
-                SpannedItem UnificationFailure(Integer, Unit) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(33), length: 46 } }]
+                SpannedItem UnificationFailure("unit", "1") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(33), length: 46 } }]
             "#]],
         )
     }
@@ -1861,17 +1858,17 @@ fn main() returns 'int ~hi(1, 2)"#,
             expect![[r#"
                 type OneOrTwo: OneOrTwo
 
-                fn OneOrTwo: ((Literal Integer(1) | Literal Integer(2)) → OneOrTwo)
+                fn OneOrTwo: ((1 | 2) → OneOrTwo)
                 type constructor: OneOrTwo
 
                 fn main: OneOrTwo
-                function call to functionid0 with args: OneOrTwo: Literal Integer(10), returns OneOrTwo
+                function call to functionid0 with args: OneOrTwo: 10, returns OneOrTwo
 
                 __MONOMORPHIZED FUNCTIONS__
-                fn OneOrTwo(["Literal Integer(10)"]) -> OneOrTwo
+                fn OneOrTwo(["10"]) -> OneOrTwo
                 fn main([]) -> OneOrTwo
                 __ERRORS__
-                SpannedItem FailedToSatisfy("Literal Integer(10)", "(Literal Integer(1) | Literal Integer(2))") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(104), length: 0 } }]
+                SpannedItem FailedToSatisfy("10", "(1 | 2)") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(104), length: 0 } }]
             "#]],
         )
     }
@@ -1888,17 +1885,17 @@ fn main() returns 'int ~hi(1, 2)"#,
             expect![[r#"
                 type AOrB: AOrB
 
-                fn AOrB: ((Literal String("A") | Literal String("B")) → AOrB)
+                fn AOrB: (("A" | "B") → AOrB)
                 type constructor: AOrB
 
                 fn main: AOrB
-                function call to functionid0 with args: AOrB: Literal String("c"), returns AOrB
+                function call to functionid0 with args: AOrB: "c", returns AOrB
 
                 __MONOMORPHIZED FUNCTIONS__
-                fn AOrB(["Literal String(\"c\")"]) -> AOrB
+                fn AOrB(["\"c\""]) -> AOrB
                 fn main([]) -> AOrB
                 __ERRORS__
-                SpannedItem FailedToSatisfy("Literal String(\"c\")", "(Literal String(\"A\") | Literal String(\"B\"))") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(97), length: 0 } }]
+                SpannedItem FailedToSatisfy("\"c\"", "(\"A\" | \"B\")") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(97), length: 0 } }]
             "#]],
         )
     }
@@ -1915,17 +1912,17 @@ fn main() returns 'int ~hi(1, 2)"#,
             expect![[r#"
                 type AlwaysTrue: AlwaysTrue
 
-                fn AlwaysTrue: ((Literal Boolean(true)) → AlwaysTrue)
+                fn AlwaysTrue: ((true) → AlwaysTrue)
                 type constructor: AlwaysTrue
 
                 fn main: AlwaysTrue
-                function call to functionid0 with args: AlwaysTrue: Literal Boolean(false), returns AlwaysTrue
+                function call to functionid0 with args: AlwaysTrue: false, returns AlwaysTrue
 
                 __MONOMORPHIZED FUNCTIONS__
-                fn AlwaysTrue(["Literal Boolean(false)"]) -> AlwaysTrue
+                fn AlwaysTrue(["false"]) -> AlwaysTrue
                 fn main([]) -> AlwaysTrue
                 __ERRORS__
-                SpannedItem FailedToSatisfy("Literal Boolean(false)", "(Literal Boolean(true))") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(100), length: 0 } }]
+                SpannedItem FailedToSatisfy("false", "(true)") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(100), length: 0 } }]
             "#]],
         )
     }
