@@ -103,7 +103,7 @@ pub enum TypeConstraintKind {
 }
 
 pub struct TypeContext {
-    types:          IndexMap<TypeVariable, PetrType>,
+    types:          IndexMap<TypeVariable, SpecificType>,
     constraints:    Vec<TypeConstraint>,
     // known primitive type IDs
     unit_ty:        TypeVariable,
@@ -117,11 +117,11 @@ impl Default for TypeContext {
     fn default() -> Self {
         let mut types = IndexMap::default();
         // instantiate basic primitive types
-        let unit_ty = types.insert(PetrType::Unit);
-        let string_ty = types.insert(PetrType::String);
-        let bool_ty = types.insert(PetrType::Boolean);
-        let int_ty = types.insert(PetrType::Integer);
-        let error_recovery = types.insert(PetrType::ErrorRecovery);
+        let unit_ty = types.insert(SpecificType::Unit);
+        let string_ty = types.insert(SpecificType::String);
+        let bool_ty = types.insert(SpecificType::Boolean);
+        let int_ty = types.insert(SpecificType::Integer);
+        let error_recovery = types.insert(SpecificType::ErrorRecovery);
         // insert primitive types
         TypeContext {
             types,
@@ -161,14 +161,14 @@ impl TypeContext {
         // infer is special -- it knows its own id, mostly for printing
         // and disambiguating
         let infer_id = self.types.len();
-        self.types.insert(PetrType::Infer(infer_id, span))
+        self.types.insert(SpecificType::Infer(infer_id, span))
     }
 
     /// Update a type variable with a new PetrType
     fn update_type(
         &mut self,
         t1: TypeVariable,
-        known: PetrType,
+        known: SpecificType,
     ) {
         *self.types.get_mut(t1) = known;
     }
@@ -188,7 +188,7 @@ pub struct TypeChecker {
 
 #[derive(Clone, PartialEq, Debug, Eq, PartialOrd, Ord)]
 /// A type which is general, and has no constraints applied to it.
-/// This is a generalization of [PetrType].
+/// This is a generalization of [`SpecificType`].
 /// This is more useful for IR generation, since functions are monomorphized
 /// based on general types.
 pub enum GeneralType {
@@ -209,8 +209,12 @@ pub enum GeneralType {
     Sum(BTreeSet<GeneralType>),
 }
 
+/// This is an information-rich type -- it tracks effects and data types. It is used for
+/// the type-checking stage to provide rich information to the user.
+/// Types are generalized into instances of [`GeneralType`] for monomorphization and
+/// code generation.
 #[derive(Clone, PartialEq, Debug, Eq, PartialOrd, Ord)]
-pub enum PetrType {
+pub enum SpecificType {
     Unit,
     Integer,
     Boolean,
@@ -228,12 +232,12 @@ pub enum PetrType {
     Arrow(Vec<TypeVariable>),
     ErrorRecovery,
     // TODO make this petr type instead of typevariable
-    List(Box<PetrType>),
+    List(Box<SpecificType>),
     /// the usize is just an identifier for use in rendering the type
     /// the span is the location of the inference, for error reporting if the inference is never
     /// resolved
     Infer(usize, Span),
-    Sum(BTreeSet<PetrType>),
+    Sum(BTreeSet<SpecificType>),
     Literal(Literal),
 }
 
@@ -242,18 +246,18 @@ pub struct GeneralizedTypeVariant {
     pub fields: Box<[GeneralType]>,
 }
 
-impl PetrType {
+impl SpecificType {
     fn generalize(
         &self,
         ctx: &TypeContext,
     ) -> GeneralType {
         match self {
-            PetrType::Unit => GeneralType::Unit,
-            PetrType::Integer => GeneralType::Integer,
-            PetrType::Boolean => GeneralType::Boolean,
-            PetrType::String => GeneralType::String,
-            PetrType::Ref(ty) => ctx.types.get(*ty).generalize(ctx),
-            PetrType::UserDefined {
+            SpecificType::Unit => GeneralType::Unit,
+            SpecificType::Integer => GeneralType::Integer,
+            SpecificType::Boolean => GeneralType::Boolean,
+            SpecificType::String => GeneralType::String,
+            SpecificType::Ref(ty) => ctx.types.get(*ty).generalize(ctx),
+            SpecificType::UserDefined {
                 name,
                 variants,
                 constant_literal_types,
@@ -271,19 +275,19 @@ impl PetrType {
                     .collect(),
                 constant_literal_types: constant_literal_types.clone(),
             },
-            PetrType::Arrow(tys) => GeneralType::Arrow(tys.iter().map(|ty| *ty).collect()),
-            PetrType::ErrorRecovery => GeneralType::ErrorRecovery,
-            PetrType::List(ty) => {
+            SpecificType::Arrow(tys) => GeneralType::Arrow(tys.iter().map(|ty| *ty).collect()),
+            SpecificType::ErrorRecovery => GeneralType::ErrorRecovery,
+            SpecificType::List(ty) => {
                 let ty = ty.generalize(ctx);
                 GeneralType::List(Box::new(ty))
             },
-            PetrType::Infer(u, s) => GeneralType::Infer(*u, *s),
-            PetrType::Literal(l) => match l {
+            SpecificType::Infer(u, s) => GeneralType::Infer(*u, *s),
+            SpecificType::Literal(l) => match l {
                 Literal::Integer(_) => GeneralType::Integer,
                 Literal::Boolean(_) => GeneralType::Boolean,
                 Literal::String(_) => GeneralType::String,
             },
-            PetrType::Sum(tys) => {
+            SpecificType::Sum(tys) => {
                 // generalize all types, fold if possible
                 let all_generalized: BTreeSet<_> = tys.iter().map(|ty| ty.generalize(ctx)).collect();
                 if all_generalized.len() == 1 {
@@ -301,11 +305,11 @@ impl PetrType {
     /// For example, `String` is a generalized form of `Sum(Literal("a") | Literal("B"))`
     fn is_subset_of(
         &self,
-        sum_tys: &BTreeSet<PetrType>,
+        sum_tys: &BTreeSet<SpecificType>,
         ctx: &TypeContext,
     ) -> bool {
         use petr_resolve::Literal;
-        use PetrType::*;
+        use SpecificType::*;
         match self {
             String => sum_tys.iter().all(|ty| matches!(ty, Literal(Literal::String(_)))),
             Integer => sum_tys.iter().all(|ty| matches!(ty, Literal(Literal::Integer(_)))),
@@ -319,14 +323,14 @@ impl PetrType {
 
 #[derive(Clone, PartialEq, Debug, Eq, PartialOrd, Ord)]
 pub struct TypeVariant {
-    pub fields: Box<[PetrType]>,
+    pub fields: Box<[SpecificType]>,
 }
 
 pub trait Type {
     fn as_specific_ty(
         &self,
         ctx: &TypeContext,
-    ) -> PetrType;
+    ) -> SpecificType;
 
     fn generalize(
         &self,
@@ -336,11 +340,11 @@ pub trait Type {
     }
 }
 
-impl Type for PetrType {
+impl Type for SpecificType {
     fn as_specific_ty(
         &self,
         _ctx: &TypeContext,
-    ) -> PetrType {
+    ) -> SpecificType {
         self.clone()
     }
 }
@@ -349,17 +353,17 @@ impl Type for GeneralType {
     fn as_specific_ty(
         &self,
         ctx: &TypeContext,
-    ) -> PetrType {
+    ) -> SpecificType {
         match self {
-            GeneralType::Unit => PetrType::Unit,
-            GeneralType::Integer => PetrType::Integer,
-            GeneralType::Boolean => PetrType::Boolean,
-            GeneralType::String => PetrType::String,
+            GeneralType::Unit => SpecificType::Unit,
+            GeneralType::Integer => SpecificType::Integer,
+            GeneralType::Boolean => SpecificType::Boolean,
+            GeneralType::String => SpecificType::String,
             GeneralType::UserDefined {
                 name,
                 variants,
                 constant_literal_types,
-            } => PetrType::UserDefined {
+            } => SpecificType::UserDefined {
                 name: name.clone(),
                 variants: variants
                     .iter()
@@ -373,13 +377,13 @@ impl Type for GeneralType {
                     .collect(),
                 constant_literal_types: constant_literal_types.clone(),
             },
-            GeneralType::Arrow(tys) => PetrType::Arrow(tys.clone()),
-            GeneralType::ErrorRecovery => PetrType::ErrorRecovery,
-            GeneralType::List(ty) => PetrType::List(Box::new(ty.as_specific_ty(ctx))),
-            GeneralType::Infer(u, s) => PetrType::Infer(*u, *s),
+            GeneralType::Arrow(tys) => SpecificType::Arrow(tys.clone()),
+            GeneralType::ErrorRecovery => SpecificType::ErrorRecovery,
+            GeneralType::List(ty) => SpecificType::List(Box::new(ty.as_specific_ty(ctx))),
+            GeneralType::Infer(u, s) => SpecificType::Infer(*u, *s),
             GeneralType::Sum(tys) => {
                 let tys = tys.iter().map(|ty| ty.as_specific_ty(ctx)).collect();
-                PetrType::Sum(tys)
+                SpecificType::Sum(tys)
             },
         }
     }
@@ -398,7 +402,7 @@ impl TypeChecker {
     pub fn look_up_variable(
         &self,
         ty: TypeVariable,
-    ) -> &PetrType {
+    ) -> &SpecificType {
         self.ctx.types.get(ty)
     }
 
@@ -437,7 +441,7 @@ impl TypeChecker {
                 self.errors.push(id.span.with_item(TypeConstraintError::Internal(
                     "attempted to insert generic type into variable scope when no variable scope existed".into(),
                 )));
-                self.ctx.update_type(fresh_ty, PetrType::ErrorRecovery);
+                self.ctx.update_type(fresh_ty, SpecificType::ErrorRecovery);
             },
         };
         fresh_ty
@@ -472,7 +476,7 @@ impl TypeChecker {
                 .collect::<Vec<_>>();
             self.ctx.update_type(
                 ty,
-                PetrType::UserDefined {
+                SpecificType::UserDefined {
                     name: decl.name,
                     variants,
                     constant_literal_types: decl.constant_literal_types,
@@ -539,7 +543,7 @@ impl TypeChecker {
     ) {
         let ty1 = self.ctx.types.get(t1).clone();
         let ty2 = self.ctx.types.get(t2).clone();
-        use PetrType::*;
+        use SpecificType::*;
         match (ty1, ty2) {
             (a, b) if a == b => (),
             (ErrorRecovery, _) | (_, ErrorRecovery) => (),
@@ -584,23 +588,23 @@ impl TypeChecker {
             (ty, Literal(lit)) => match (&lit, ty) {
                 (petr_resolve::Literal::Integer(_), Integer)
                 | (petr_resolve::Literal::Boolean(_), Boolean)
-                | (petr_resolve::Literal::String(_), String) => self.ctx.update_type(t1, PetrType::Literal(lit)),
-                (lit, ty) => self.push_error(span.with_item(self.unify_err(ty.clone(), PetrType::Literal(lit.clone())))),
+                | (petr_resolve::Literal::String(_), String) => self.ctx.update_type(t1, SpecificType::Literal(lit)),
+                (lit, ty) => self.push_error(span.with_item(self.unify_err(ty.clone(), SpecificType::Literal(lit.clone())))),
             },
             // literals can unify broader parent types
             // but the broader parent type gets instantiated with the literal type
             (Literal(lit), ty) => match (&lit, ty) {
                 (petr_resolve::Literal::Integer(_), Integer)
                 | (petr_resolve::Literal::Boolean(_), Boolean)
-                | (petr_resolve::Literal::String(_), String) => self.ctx.update_type(t2, PetrType::Literal(lit)),
+                | (petr_resolve::Literal::String(_), String) => self.ctx.update_type(t2, SpecificType::Literal(lit)),
                 (lit, ty) => {
-                    self.push_error(span.with_item(self.unify_err(ty.clone(), PetrType::Literal(lit.clone()))));
+                    self.push_error(span.with_item(self.unify_err(ty.clone(), SpecificType::Literal(lit.clone()))));
                 },
             },
             (other, Sum(sum_tys)) => {
                 // `other` must be a member of the Sum type
                 if !sum_tys.contains(&other) {
-                    self.push_error(span.with_item(self.unify_err(other.clone(), PetrType::Sum(sum_tys.iter().cloned().collect()))));
+                    self.push_error(span.with_item(self.unify_err(other.clone(), SpecificType::Sum(sum_tys.iter().cloned().collect()))));
                 }
                 // unify both types to the other type
                 self.ctx.update_type(t2, other);
@@ -629,7 +633,7 @@ impl TypeChecker {
     ) {
         let ty1 = self.ctx.types.get(t1);
         let ty2 = self.ctx.types.get(t2);
-        use PetrType::*;
+        use SpecificType::*;
         match (ty1, ty2) {
             (a, b) if a == b => (),
             (ErrorRecovery, _) | (_, ErrorRecovery) => (),
@@ -654,7 +658,7 @@ impl TypeChecker {
                 // `other` must be a member of the Sum type
                 sum_tys.contains(other) {
                 } else {
-                    self.push_error(span.with_item(self.satisfy_err(other.clone(), PetrType::Sum(sum_tys.iter().cloned().collect()))));
+                    self.push_error(span.with_item(self.satisfy_err(other.clone(), SpecificType::Sum(sum_tys.iter().cloned().collect()))));
                 }
             },
             (Literal(l1), Literal(l2)) if l1 == l2 => (),
@@ -664,7 +668,7 @@ impl TypeChecker {
                 (petr_resolve::Literal::Boolean(_), Boolean) => (),
                 (petr_resolve::Literal::String(_), String) => (),
                 (lit, ty) => {
-                    self.push_error(span.with_item(self.satisfy_err(ty.clone(), PetrType::Literal(lit.clone()))));
+                    self.push_error(span.with_item(self.satisfy_err(ty.clone(), SpecificType::Literal(lit.clone()))));
                 },
             },
             // if we are trying to satisfy an inferred type with no bounds, this is ok
@@ -719,31 +723,31 @@ impl TypeChecker {
             return tys[0];
         }
 
-        let ty = PetrType::Arrow(tys);
+        let ty = SpecificType::Arrow(tys);
         self.ctx.types.insert(ty)
     }
 
     pub fn to_petr_type(
         &mut self,
         ty: &petr_resolve::Type,
-    ) -> PetrType {
+    ) -> SpecificType {
         match ty {
-            petr_resolve::Type::Integer => PetrType::Integer,
-            petr_resolve::Type::Bool => PetrType::Boolean,
-            petr_resolve::Type::Unit => PetrType::Unit,
-            petr_resolve::Type::String => PetrType::String,
+            petr_resolve::Type::Integer => SpecificType::Integer,
+            petr_resolve::Type::Bool => SpecificType::Boolean,
+            petr_resolve::Type::Unit => SpecificType::Unit,
+            petr_resolve::Type::String => SpecificType::String,
             petr_resolve::Type::ErrorRecovery(_) => {
                 // unifies to anything, fresh var
-                PetrType::ErrorRecovery
+                SpecificType::ErrorRecovery
             },
-            petr_resolve::Type::Named(ty_id) => PetrType::Ref(*self.type_map.get(&ty_id.into()).expect("type did not exist in type map")),
+            petr_resolve::Type::Named(ty_id) => SpecificType::Ref(*self.type_map.get(&ty_id.into()).expect("type did not exist in type map")),
             petr_resolve::Type::Generic(generic_name) => {
                 // TODO don't create an ID and then reference it -- this is messy
                 let id = self.generic_type(generic_name);
-                PetrType::Ref(id)
+                SpecificType::Ref(id)
             },
-            petr_resolve::Type::Sum(tys) => PetrType::Sum(tys.iter().map(|ty| self.to_petr_type(ty)).collect()),
-            petr_resolve::Type::Literal(l) => PetrType::Literal(l.clone()),
+            petr_resolve::Type::Sum(tys) => SpecificType::Sum(tys.iter().map(|ty| self.to_petr_type(ty)).collect()),
+            petr_resolve::Type::Literal(l) => SpecificType::Literal(l.clone()),
         }
     }
 
@@ -766,7 +770,7 @@ impl TypeChecker {
         &mut self,
         literal: &petr_resolve::Literal,
     ) -> TypeVariable {
-        let ty = PetrType::Literal(literal.clone());
+        let ty = SpecificType::Literal(literal.clone());
         self.ctx.types.insert(ty)
     }
 
@@ -891,8 +895,8 @@ impl TypeChecker {
 
     fn unify_err(
         &self,
-        clone_1: PetrType,
-        clone_2: PetrType,
+        clone_1: SpecificType,
+        clone_2: SpecificType,
     ) -> TypeConstraintError {
         let pretty_printed_a = pretty_printing::pretty_print_petr_type(&clone_1, &self);
         let pretty_printed_b = pretty_printing::pretty_print_petr_type(&clone_2, &self);
@@ -901,8 +905,8 @@ impl TypeChecker {
 
     fn satisfy_err(
         &self,
-        clone_1: PetrType,
-        clone_2: PetrType,
+        clone_1: SpecificType,
+        clone_2: SpecificType,
     ) -> TypeConstraintError {
         let pretty_printed_a = pretty_printing::pretty_print_petr_type(&clone_1, &self);
         let pretty_printed_b = pretty_printing::pretty_print_petr_type(&clone_2, &self);
@@ -1079,7 +1083,7 @@ impl TypeCheck for Expr {
                     let first_ty = ctx.ctx.types.get(first_ty).clone();
                     TypedExprKind::List {
                         elements: type_checked_exprs,
-                        ty:       ctx.insert_type::<PetrType>(&PetrType::List(Box::new(first_ty))),
+                        ty:       ctx.insert_type::<SpecificType>(&SpecificType::List(Box::new(first_ty))),
                     }
                 }
             },
@@ -1514,27 +1518,27 @@ mod pretty_printing {
         type_checker: &TypeChecker,
     ) -> String {
         let mut ty = type_checker.look_up_variable(*ty);
-        while let PetrType::Ref(t) = ty {
+        while let SpecificType::Ref(t) = ty {
             ty = type_checker.look_up_variable(*t);
         }
         pretty_print_petr_type(ty, type_checker)
     }
 
     pub fn pretty_print_petr_type(
-        ty: &PetrType,
+        ty: &SpecificType,
         type_checker: &TypeChecker,
     ) -> String {
         match ty {
-            PetrType::Unit => "unit".to_string(),
-            PetrType::Integer => "int".to_string(),
-            PetrType::Boolean => "bool".to_string(),
-            PetrType::String => "string".to_string(),
-            PetrType::Ref(ty) => pretty_print_ty(ty, type_checker),
-            PetrType::UserDefined { name, .. } => {
+            SpecificType::Unit => "unit".to_string(),
+            SpecificType::Integer => "int".to_string(),
+            SpecificType::Boolean => "bool".to_string(),
+            SpecificType::String => "string".to_string(),
+            SpecificType::Ref(ty) => pretty_print_ty(ty, type_checker),
+            SpecificType::UserDefined { name, .. } => {
                 let name = type_checker.resolved.interner.get(name.id);
                 name.to_string()
             },
-            PetrType::Arrow(tys) => {
+            SpecificType::Arrow(tys) => {
                 let mut s = String::new();
                 s.push('(');
                 for (ix, ty) in tys.iter().enumerate() {
@@ -1548,10 +1552,10 @@ mod pretty_printing {
                 s.push(')');
                 s
             },
-            PetrType::ErrorRecovery => "error recovery".to_string(),
-            PetrType::List(ty) => format!("[{}]", pretty_print_petr_type(ty, type_checker)),
-            PetrType::Infer(id, _) => format!("infer t{id}"),
-            PetrType::Sum(tys) => {
+            SpecificType::ErrorRecovery => "error recovery".to_string(),
+            SpecificType::List(ty) => format!("[{}]", pretty_print_petr_type(ty, type_checker)),
+            SpecificType::Infer(id, _) => format!("infer t{id}"),
+            SpecificType::Sum(tys) => {
                 let mut s = String::new();
                 s.push('(');
                 for (ix, ty) in tys.iter().enumerate() {
@@ -1565,7 +1569,7 @@ mod pretty_printing {
                 s.push(')');
                 s
             },
-            PetrType::Literal(l) => format!("{}", l),
+            SpecificType::Literal(l) => format!("{}", l),
         }
     }
 

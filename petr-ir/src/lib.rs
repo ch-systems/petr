@@ -9,7 +9,7 @@
 
 use std::{collections::BTreeMap, rc::Rc};
 
-use petr_typecheck::{FunctionSignature, PetrType, Type, TypeChecker, TypeVariable, TypedExpr, TypedExprKind};
+use petr_typecheck::{FunctionSignature, SpecificType, Type, TypeChecker, TypeVariable, TypedExpr, TypedExprKind};
 use petr_utils::{idx_map_key, Identifier, IndexMap, SpannedItem, SymbolId};
 
 mod error;
@@ -24,7 +24,6 @@ pub fn lower(checker: TypeChecker) -> Result<(DataSection, Vec<IrOpcode>)> {
     Ok(lowerer.finalize())
 }
 
-// TODO: fully typed functions
 pub struct Function {
     body: Vec<IrOpcode>,
 }
@@ -364,7 +363,7 @@ impl Lowerer {
 
                 let constant_literal_types = constant_literal_types
                     .iter()
-                    .map(|ty| self.lower_type(PetrType::Literal(ty.clone())))
+                    .map(|ty| self.lower_type(SpecificType::Literal(ty.clone())))
                     .collect::<Vec<_>>();
 
                 IrTy::UserDefinedType {
