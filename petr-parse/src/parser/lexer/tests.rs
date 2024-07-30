@@ -8,7 +8,7 @@ fn check<T: Into<String>>(
     let mut lexer = Lexer::new(sources.into_iter().map(|s| -> &'static str { Box::leak(s.into().into_boxed_str()) }));
     let mut toks = vec![];
     loop {
-        let next_tok = lexer.advance();
+        let next_tok = lexer.advance().unwrap();
         if next_tok.item() == &Token::Eof {
             break;
         }

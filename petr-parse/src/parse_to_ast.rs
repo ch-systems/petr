@@ -208,21 +208,34 @@ impl Parse for FunctionParameter {
 }
 
 impl Parse for Ty {
-    // TODO types are not just idents,
-    // they can be more than that
     fn parse(p: &mut Parser) -> Option<Self> {
         p.with_help("type", |p| -> Option<Self> {
-            p.token(Token::TyMarker)?;
-            let next: Identifier = p.parse()?;
-            let ty = match p.slice() {
-                "int" => Ty::Int,
-                "bool" => Ty::Bool,
-                "string" => Ty::String,
-                "unit" => Ty::Unit,
-                _ => Ty::Named(next),
-            };
+            if let Some(_tok) = p.try_tokens(&[Token::SumKeyword, Token::SumSymbol]) {
+                p.with_help("sum type", |p| {
+                    let tys = p.sequence_one_or_more(Token::Pipe)?;
+                    Some(Ty::Sum(tys.into_boxed_slice()))
+                })
+            } else if let Some(_tok) = p.try_token(Token::TyMarker) {
+                let next: Identifier = p.parse()?;
+                let ty = match p.slice() {
+                    "int" => Ty::Int,
+                    "bool" => Ty::Bool,
+                    "string" => Ty::String,
+                    "unit" => Ty::Unit,
+                    _ => Ty::Named(next),
+                };
 
-            Some(ty)
+                Some(ty)
+            } else {
+                // TODO: Better error message on failed type parse
+                // Currently just throws "expected literal" which is very wrong
+                // https://github.com/ch-systems/petr/issues/111
+                // ^^ could help
+
+                // parse constant literal types, which are just literals
+                let lit: Literal = p.parse()?;
+                Some(Ty::Literal(lit))
+            }
         })
     }
 }

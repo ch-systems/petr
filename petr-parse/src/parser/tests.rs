@@ -11,11 +11,7 @@ fn check<T: Into<String>>(
     let (ast, errs, interner, source_map) = parser.into_result();
 
     let pretty_printed_ast = ast.pretty_print(&interner, 0);
-    let errs = errs
-        .into_iter()
-        .map(|err| format!("{:?}", render_error(&source_map, err)))
-        .collect::<Vec<_>>()
-        .join("\n");
+    let errs = errs.into_iter().map(|err| format!("{err:?}")).collect::<Vec<_>>().join("\n");
     let errors_str = if errs.is_empty() {
         String::new()
     } else {
@@ -332,6 +328,22 @@ fn constant_literal_types() {
             3 |
             "hi" |
               Constructed(number: 'int boolean: 'bool)
+        "#]],
+    )
+}
+
+#[test]
+fn sum_types() {
+    check(
+        vec![r#"fn myFunc(x in 'sum 1 | 2 | 3) returns 'int 5"#],
+        expect![[r#"
+            AST
+            ____
+            module test =
+            Func myFunc(
+              x ∈ ''lit ty 1 | 'lit ty 2 | 'lit ty 3
+            ) -> 'int 5
+
         "#]],
     )
 }

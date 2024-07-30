@@ -898,9 +898,17 @@ impl TypeChecker {
         clone_1: SpecificType,
         clone_2: SpecificType,
     ) -> TypeConstraintError {
-        let pretty_printed_a = pretty_printing::pretty_print_petr_type(&clone_1, &self);
-        let pretty_printed_b = pretty_printing::pretty_print_petr_type(&clone_2, &self);
-        TypeConstraintError::UnificationFailure(pretty_printed_a, pretty_printed_b)
+        let pretty_printed_b = pretty_printing::pretty_print_petr_type(&clone_2, self);
+        match clone_1 {
+            SpecificType::Sum(tys) => {
+                let tys = tys.iter().map(|ty| pretty_printing::pretty_print_petr_type(ty, self)).collect::<Vec<_>>();
+                TypeConstraintError::NotSubtype(tys, pretty_printed_b)
+            },
+            _ => {
+                let pretty_printed_a = pretty_printing::pretty_print_petr_type(&clone_1, self);
+                TypeConstraintError::UnificationFailure(pretty_printed_a, pretty_printed_b)
+            },
+        }
     }
 
     fn satisfy_err(
@@ -908,9 +916,17 @@ impl TypeChecker {
         clone_1: SpecificType,
         clone_2: SpecificType,
     ) -> TypeConstraintError {
-        let pretty_printed_a = pretty_printing::pretty_print_petr_type(&clone_1, &self);
-        let pretty_printed_b = pretty_printing::pretty_print_petr_type(&clone_2, &self);
-        TypeConstraintError::FailedToSatisfy(pretty_printed_a, pretty_printed_b)
+        let pretty_printed_b = pretty_printing::pretty_print_petr_type(&clone_2, self);
+        match clone_1 {
+            SpecificType::Sum(tys) => {
+                let tys = tys.iter().map(|ty| pretty_printing::pretty_print_petr_type(ty, self)).collect::<Vec<_>>();
+                TypeConstraintError::NotSubtype(tys, pretty_printed_b)
+            },
+            _ => {
+                let pretty_printed_a = pretty_printing::pretty_print_petr_type(&clone_1, self);
+                TypeConstraintError::FailedToSatisfy(pretty_printed_a, pretty_printed_b)
+            },
+        }
     }
 
     fn satisfy_expr_return(
