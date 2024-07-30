@@ -30,7 +30,7 @@ pub(crate) struct Resolver {
 pub struct TypeDeclaration {
     pub name: Identifier,
     pub variants: Box<[TypeVariant]>,
-    constant_literal_types: Vec<petr_ast::Literal>,
+    pub constant_literal_types: Vec<petr_ast::Literal>,
 }
 
 #[derive(Debug, Clone)]

@@ -338,7 +338,11 @@ impl Lowerer {
             Boolean => IrTy::Boolean,
             String => IrTy::String,
             Ref(ty) => self.to_ir_type(ty),
-            UserDefined { name: _, variants } => {
+            UserDefined {
+                name: _,
+                variants,
+                constant_literal_types,
+            } => {
                 // get the user type
                 let mut variants_buf = Vec::with_capacity(variants.len());
 
@@ -349,7 +353,16 @@ impl Lowerer {
                     }
                     variants_buf.push(IrUserDefinedTypeVariant { fields: fields_buf });
                 }
-                IrTy::UserDefinedType { variants: variants_buf }
+
+                let constant_literal_types = constant_literal_types
+                    .iter()
+                    .map(|ty| self.petr_type_to_ir_type(PetrType::Literal(ty.clone())))
+                    .collect::<Vec<_>>();
+
+                IrTy::UserDefinedType {
+                    variants: variants_buf,
+                    constant_literal_types,
+                }
             },
             Arrow(_) => todo!(),
             ErrorRecovery => todo!(),
@@ -359,7 +372,19 @@ impl Lowerer {
                 self.errors.push(span.with_item(LoweringError::UnableToInferType));
                 IrTy::Unit
             },
-            Sum(_) => todo!(),
+            Sum(a) => {
+                let mut variants_buf = Vec::with_capacity(a.len());
+                for variant in a {
+                    let ir_ty = self.petr_type_to_ir_type(variant);
+                    variants_buf.push(ir_ty);
+                }
+
+                // We might need IrTy::Sum here, but trying to get away without it for now...
+                IrTy::UserDefinedType {
+                    variants: variants_buf.into_iter().map(|v| IrUserDefinedTypeVariant { fields: vec![v] }).collect(),
+                    constant_literal_types: vec![],
+                }
+            },
             Literal(a) => match a {
                 petr_typecheck::Literal::Integer(_) => IrTy::Int64,
                 petr_typecheck::Literal::Boolean(_) => IrTy::Boolean,

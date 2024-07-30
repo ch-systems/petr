@@ -183,8 +183,10 @@ pub enum PetrType {
     Ref(TypeVariable),
     /// A user-defined type
     UserDefined {
-        name:     Identifier,
+        name: Identifier,
+        // TODO these should be boxed slices, as their size is not changed
         variants: Vec<TypeVariant>,
+        constant_literal_types: Vec<Literal>,
     },
     Arrow(Vec<TypeVariable>),
     ErrorRecovery,
@@ -307,7 +309,14 @@ impl TypeChecker {
                     })
                 })
                 .collect::<Vec<_>>();
-            self.ctx.update_type(ty, PetrType::UserDefined { name: decl.name, variants });
+            self.ctx.update_type(
+                ty,
+                PetrType::UserDefined {
+                    name: decl.name,
+                    variants,
+                    constant_literal_types: decl.constant_literal_types,
+                },
+            );
             self.type_map.insert(id.into(), ty);
         }
 
@@ -1351,7 +1360,7 @@ mod pretty_printing {
             PetrType::Boolean => "bool".to_string(),
             PetrType::String => "string".to_string(),
             PetrType::Ref(ty) => pretty_print_ty(ty, type_checker),
-            PetrType::UserDefined { name, variants: _ } => {
+            PetrType::UserDefined { name, .. } => {
                 let name = type_checker.resolved.interner.get(name.id);
                 name.to_string()
             },
@@ -1837,6 +1846,87 @@ fn main() returns 'int ~hi(1, 2)"#,
                 __MONOMORPHIZED FUNCTIONS__
                 fn hi([]) -> unit
                 fn main([]) -> unit"#]],
+        )
+    }
+
+    #[test]
+    fn disallow_incorrect_constant_int() {
+        check(
+            r#"
+            type OneOrTwo = 1 | 2
+
+            fn main() returns 'OneOrTwo
+                ~OneOrTwo 10
+                "#,
+            expect![[r#"
+                type OneOrTwo: OneOrTwo
+
+                fn OneOrTwo: ((Literal Integer(1) | Literal Integer(2)) → OneOrTwo)
+                type constructor: OneOrTwo
+
+                fn main: OneOrTwo
+                function call to functionid0 with args: OneOrTwo: Literal Integer(10), returns OneOrTwo
+
+                __MONOMORPHIZED FUNCTIONS__
+                fn OneOrTwo(["Literal Integer(10)"]) -> OneOrTwo
+                fn main([]) -> OneOrTwo
+                __ERRORS__
+                SpannedItem FailedToSatisfy("Literal Integer(10)", "(Literal Integer(1) | Literal Integer(2))") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(104), length: 0 } }]
+            "#]],
+        )
+    }
+
+    #[test]
+    fn disallow_incorrect_constant_string() {
+        check(
+            r#"
+            type AOrB = "A" | "B"
+
+            fn main() returns 'AOrB
+                ~AOrB "c"
+                "#,
+            expect![[r#"
+                type AOrB: AOrB
+
+                fn AOrB: ((Literal String("A") | Literal String("B")) → AOrB)
+                type constructor: AOrB
+
+                fn main: AOrB
+                function call to functionid0 with args: AOrB: Literal String("c"), returns AOrB
+
+                __MONOMORPHIZED FUNCTIONS__
+                fn AOrB(["Literal String(\"c\")"]) -> AOrB
+                fn main([]) -> AOrB
+                __ERRORS__
+                SpannedItem FailedToSatisfy("Literal String(\"c\")", "(Literal String(\"A\") | Literal String(\"B\"))") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(97), length: 0 } }]
+            "#]],
+        )
+    }
+
+    #[test]
+    fn disallow_incorrect_constant_bool() {
+        check(
+            r#"
+        type AlwaysTrue = true
+
+        fn main() returns 'AlwaysTrue
+            ~AlwaysTrue false 
+            "#,
+            expect![[r#"
+                type AlwaysTrue: AlwaysTrue
+
+                fn AlwaysTrue: ((Literal Boolean(true)) → AlwaysTrue)
+                type constructor: AlwaysTrue
+
+                fn main: AlwaysTrue
+                function call to functionid0 with args: AlwaysTrue: Literal Boolean(false), returns AlwaysTrue
+
+                __MONOMORPHIZED FUNCTIONS__
+                fn AlwaysTrue(["Literal Boolean(false)"]) -> AlwaysTrue
+                fn main([]) -> AlwaysTrue
+                __ERRORS__
+                SpannedItem FailedToSatisfy("Literal Boolean(false)", "(Literal Boolean(true))") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(100), length: 0 } }]
+            "#]],
         )
     }
 }
