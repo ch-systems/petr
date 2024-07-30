@@ -110,10 +110,6 @@ impl Lowerer {
             return Ok(previously_monomorphized_definition.0);
         }
 
-        let def = self.type_checker.get_function(&func.0);
-
-        println!("about to look for func {}", def.name.id);
-        println!("signature: {:?}", func.1);
         let func_def = self.type_checker.get_monomorphized_function(&func).clone();
 
         let mut buf = vec![];
@@ -126,7 +122,7 @@ impl Lowerer {
             for (param_ty, (param_name, _)) in func.1.iter().zip(func_def.params).rev() {
                 let param_ty = ctx.lower_type(param_ty.clone());
                 // in order, assign parameters to registers
-                if param_ty.fits_in_reg() {
+                if param_ty.is_copy_type() {
                     // load from stack into register
                     let param_reg = ctx.fresh_reg();
                     let ty_reg = TypedReg {
@@ -268,11 +264,22 @@ impl Lowerer {
             }),
             TypeConstructor { ty, args } => {
                 let mut buf = vec![];
+                let ir_ty = self.to_ir_type(*ty);
+                if ir_ty.is_copy_type() && args.len() == 1 {
+                    // if it's a copy type, then the args should be 1, as any
+                    // more args would make it non-copy due to size.
+                    //
+                    // If it's a copy type, just copy the value into the register
+                    buf.append(&mut self.lower_expr(&args[0], return_destination)?);
+                    return Ok(buf);
+                }
+
                 // the memory model for types is currently not finalized,
                 // but for now, it is just sequential memory that is word-aligned
-                let ir_ty = self.to_ir_type(*ty);
+                println!("lowering type constructor for ir type {ir_ty:?}");
                 let size_of_aggregate_type = ir_ty.size();
                 let ReturnDestination::Reg(return_destination) = return_destination;
+
                 buf.push(IrOpcode::MallocImmediate(return_destination, size_of_aggregate_type));
                 // for each arg, lower it and store it in memory
                 let mut current_size_offset = 0;
@@ -375,7 +382,6 @@ impl Lowerer {
             ErrorRecovery => todo!(),
             List(ty) => IrTy::List(Box::new(self.lower_type(*ty))),
             Infer(_, span) => {
-                println!("Unable to infer ty: {ty:?}");
                 self.errors.push(span.with_item(LoweringError::UnableToInferType));
                 IrTy::Unit
             },

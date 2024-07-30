@@ -154,7 +154,7 @@ impl IrTy {
         .into()
     }
 
-    pub(crate) fn fits_in_reg(&self) -> bool {
+    pub(crate) fn is_copy_type(&self) -> bool {
         self.size().num_bytes() <= 8
     }
 }

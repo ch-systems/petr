@@ -1,13 +1,10 @@
 //! TODO:
 //! - Effectual Types
-//! - Swap to General Types and Specific Types
 //! - Formalize constraints:
 //!     - Unify
 //!     - Satisfies
 //!     - UnifyEffects
 //!     - SatisfiesEffects
-//! - rename PetrType to SpecificType
-//! - Use GeneralizedType for all IR Gen
 
 mod error;
 
