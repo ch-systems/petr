@@ -9,7 +9,7 @@
 
 use std::{collections::BTreeMap, rc::Rc};
 
-use petr_typecheck::{FunctionSignature, PetrType, TypeChecker, TypeVariable, TypedExpr, TypedExprKind};
+use petr_typecheck::{FunctionSignature, SpecificType, Type, TypeChecker, TypeVariable, TypedExpr, TypedExprKind};
 use petr_utils::{idx_map_key, Identifier, IndexMap, SpannedItem, SymbolId};
 
 mod error;
@@ -24,7 +24,6 @@ pub fn lower(checker: TypeChecker) -> Result<(DataSection, Vec<IrOpcode>)> {
     Ok(lowerer.finalize())
 }
 
-// TODO: fully typed functions
 pub struct Function {
     body: Vec<IrOpcode>,
 }
@@ -121,9 +120,9 @@ impl Lowerer {
             // the stack is FILO, we reverse that order here.
 
             for (param_ty, (param_name, _)) in func.1.iter().zip(func_def.params).rev() {
-                let param_ty = ctx.petr_type_to_ir_type(param_ty.clone());
+                let param_ty = ctx.lower_type(param_ty.clone());
                 // in order, assign parameters to registers
-                if param_ty.fits_in_reg() {
+                if param_ty.is_copy_type() {
                     // load from stack into register
                     let param_reg = ctx.fresh_reg();
                     let ty_reg = TypedReg {
@@ -185,7 +184,7 @@ impl Lowerer {
                     let arg_ty = self.type_checker.expr_ty(arg_expr);
                     let petr_ty = self.type_checker.look_up_variable(arg_ty);
                     arg_types.push((*arg_name, petr_ty.clone()));
-                    let ir_ty = self.petr_type_to_ir_type(petr_ty.clone());
+                    let ir_ty = self.lower_type(petr_ty.clone());
                     expr.push(IrOpcode::StackPush(TypedReg { ty: ir_ty, reg }));
 
                     buf.append(&mut expr);
@@ -193,9 +192,9 @@ impl Lowerer {
                 // push current PC onto the stack
                 buf.push(IrOpcode::PushPc());
 
-                let arg_petr_types = arg_types.iter().map(|(_name, ty)| ty.clone()).collect::<Vec<_>>();
+                let arg_petr_types = arg_types.iter().map(|(_name, ty)| ty.generalize(self.type_checker.ctx())).collect();
 
-                let monomorphized_func_id = self.monomorphize_function((*func, arg_petr_types.into_boxed_slice()))?;
+                let monomorphized_func_id = self.monomorphize_function((*func, arg_petr_types))?;
 
                 // jump to the function
                 buf.push(IrOpcode::JumpImmediateFunction(monomorphized_func_id));
@@ -265,11 +264,22 @@ impl Lowerer {
             }),
             TypeConstructor { ty, args } => {
                 let mut buf = vec![];
+                let ir_ty = self.to_ir_type(*ty);
+                if ir_ty.is_copy_type() && args.len() == 1 {
+                    // if it's a copy type, then the args should be 1, as any
+                    // more args would make it non-copy due to size.
+                    //
+                    // If it's a copy type, just copy the value into the register
+                    buf.append(&mut self.lower_expr(&args[0], return_destination)?);
+                    return Ok(buf);
+                }
+
                 // the memory model for types is currently not finalized,
                 // but for now, it is just sequential memory that is word-aligned
-                let ir_ty = self.to_ir_type(*ty);
+                println!("lowering type constructor for ir type {ir_ty:?}");
                 let size_of_aggregate_type = ir_ty.size();
                 let ReturnDestination::Reg(return_destination) = return_destination;
+
                 buf.push(IrOpcode::MallocImmediate(return_destination, size_of_aggregate_type));
                 // for each arg, lower it and store it in memory
                 let mut current_size_offset = 0;
@@ -323,41 +333,70 @@ impl Lowerer {
         self.data_section.insert(match lit {
             Integer(val) => DataSectionEntry::Int64(*val),
             Boolean(val) => DataSectionEntry::Bool(*val),
-            String(val) => DataSectionEntry::String(val.clone()),
+            String(val) => DataSectionEntry::String(Rc::from(val.as_str())),
         })
     }
 
-    fn petr_type_to_ir_type(
+    /// Lowers a type from the type checker to one that the IR generation can reason about
+    fn lower_type<T: petr_typecheck::Type>(
         &mut self,
-        ty: PetrType,
+        ty: T,
     ) -> IrTy {
-        use petr_typecheck::PetrType::*;
+        // Generalize the type. These general types are much more useful for codegen.
+        // Specific types include extra information about constant literal value types,
+        // data flow analysis, effects tracking, etc., that codegen does not care about.
+        let ty = ty.generalize(self.type_checker.ctx());
+        use petr_typecheck::GeneralType::*;
         match ty {
             Unit => IrTy::Unit,
             Integer => IrTy::Int64,
             Boolean => IrTy::Boolean,
             String => IrTy::String,
-            Ref(ty) => self.to_ir_type(ty),
-            UserDefined { name: _, variants } => {
+            UserDefined {
+                name: _,
+                variants,
+                constant_literal_types,
+            } => {
                 // get the user type
                 let mut variants_buf = Vec::with_capacity(variants.len());
 
                 for variant in variants {
                     let mut fields_buf = Vec::with_capacity(variant.fields.len());
                     for field in &variant.fields {
-                        fields_buf.push(self.to_ir_type(*field));
+                        fields_buf.push(self.lower_type(field.clone()));
                     }
                     variants_buf.push(IrUserDefinedTypeVariant { fields: fields_buf });
                 }
-                IrTy::UserDefinedType { variants: variants_buf }
+
+                let constant_literal_types = constant_literal_types
+                    .iter()
+                    .map(|ty| self.lower_type(SpecificType::Literal(ty.clone())))
+                    .collect::<Vec<_>>();
+
+                IrTy::UserDefinedType {
+                    variants: variants_buf,
+                    constant_literal_types,
+                }
             },
             Arrow(_) => todo!(),
             ErrorRecovery => todo!(),
-            List(ty) => IrTy::List(Box::new(self.to_ir_type(ty))),
+            List(ty) => IrTy::List(Box::new(self.lower_type(*ty))),
             Infer(_, span) => {
-                println!("Unable to infer ty: {ty:?}");
                 self.errors.push(span.with_item(LoweringError::UnableToInferType));
                 IrTy::Unit
+            },
+            Sum(a) => {
+                let mut variants_buf = Vec::with_capacity(a.len());
+                for variant in a {
+                    let ir_ty = self.lower_type(variant);
+                    variants_buf.push(ir_ty);
+                }
+
+                // We might need IrTy::Sum here, but trying to get away without it for now...
+                IrTy::UserDefinedType {
+                    variants: variants_buf.into_iter().map(|v| IrUserDefinedTypeVariant { fields: vec![v] }).collect(),
+                    constant_literal_types: vec![],
+                }
             },
         }
     }
@@ -368,7 +407,7 @@ impl Lowerer {
         param_ty: TypeVariable,
     ) -> IrTy {
         let ty = self.type_checker.look_up_variable(param_ty).clone();
-        self.petr_type_to_ir_type(ty)
+        self.lower_type(ty)
     }
 
     fn lower_intrinsic(
@@ -562,7 +601,10 @@ mod tests {
         }
         let (errs, resolved) = resolve_symbols(ast, interner, Default::default());
         if !errs.is_empty() {
-            dbg!(&errs);
+            for err in errs {
+                eprintln!("{:?}", render_error(&source_map, err));
+            }
+            panic!("resolving names failed");
         }
         let type_checker = TypeChecker::new(resolved);
 

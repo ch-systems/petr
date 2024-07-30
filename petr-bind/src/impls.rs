@@ -1,10 +1,10 @@
 use petr_ast::{Commented, Expression, ExpressionWithBindings, FunctionDeclaration, ImportStatement, TypeDeclaration};
-use petr_utils::{Identifier, SpannedItem};
+use petr_utils::{Identifier, SpannedItem, TypeId};
 
-use crate::{binder::ScopeKind, Bind, Binder, Item};
+use crate::{binder::ScopeKind, Bind, Binder, FunctionId, ScopeId};
 
 impl Bind for SpannedItem<&TypeDeclaration> {
-    type Output = Option<(Identifier, Item)>;
+    type Output = Option<(Identifier, TypeId)>;
 
     fn bind(
         &self,
@@ -15,7 +15,7 @@ impl Bind for SpannedItem<&TypeDeclaration> {
 }
 
 impl Bind for SpannedItem<TypeDeclaration> {
-    type Output = Option<(Identifier, Item)>;
+    type Output = Option<(Identifier, TypeId)>;
 
     fn bind(
         &self,
@@ -44,8 +44,7 @@ impl Bind for Expression {
                 expr_id,
             }) => binder.with_scope(ScopeKind::ExpressionWithBindings, |binder, scope_id| {
                 for binding in bindings.iter() {
-                    let binding_id = binder.insert_binding(binding.clone());
-                    binder.insert_into_current_scope(binding.name.id, binding.name.span().with_item(Item::Binding(binding_id)));
+                    binder.insert_binding_into_current_scope(binding.name.id, binding.name.span().with_item(binding.clone()));
                 }
                 expression.bind(binder);
                 binder.insert_expression(*expr_id, scope_id);
@@ -91,7 +90,7 @@ impl<T: Bind> Bind for SpannedItem<T> {
 }
 
 impl Bind for SpannedItem<FunctionDeclaration> {
-    type Output = Option<(Identifier, Item)>;
+    type Output = Option<(Identifier, (FunctionId, ScopeId))>;
 
     fn bind(
         &self,
@@ -102,7 +101,7 @@ impl Bind for SpannedItem<FunctionDeclaration> {
 }
 
 impl Bind for SpannedItem<&FunctionDeclaration> {
-    type Output = Option<(Identifier, Item)>;
+    type Output = Option<(Identifier, (FunctionId, ScopeId))>;
 
     fn bind(
         &self,
@@ -113,24 +112,25 @@ impl Bind for SpannedItem<&FunctionDeclaration> {
 }
 
 impl Bind for ImportStatement {
-    type Output = Option<(Identifier, Item)>;
+    type Output = Option<(Identifier, crate::binder::ImportStatement)>;
 
     fn bind(
         &self,
         binder: &mut Binder,
     ) -> Self::Output {
-        let item = Item::Import {
+        // the alias, if any, or the last path element if there is no alias
+        let name = self.alias.unwrap_or_else(|| *self.path.iter().last().expect("should never be empty"));
+        println!("handling import");
+
+        let import = crate::binder::ImportStatement {
             path:  self.path.clone(),
             alias: self.alias,
         };
 
-        // the alias, if any, or the last path element if there is no alias
-        let name = self.alias.unwrap_or_else(|| *self.path.iter().last().expect("should never be empty"));
-
-        binder.insert_into_current_scope(name.id, name.span.with_item(item.clone()));
+        binder.insert_import_into_current_scope(name.id, name.span.with_item(import.clone()));
 
         if self.is_exported() {
-            Some((name, item))
+            Some((name, import))
         } else {
             None
         }

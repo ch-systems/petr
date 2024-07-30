@@ -13,6 +13,7 @@ pub struct FormatterConfig {
     put_fn_args_on_new_lines: bool,
     put_trailing_semis_on_let_bindings: bool,
     backup: bool,
+    use_symbol_for_fn_return_type: bool,
 }
 
 impl FormatterConfig {
@@ -83,7 +84,12 @@ impl FormatterConfig {
             put_fn_args_on_new_lines: self.put_fn_args_on_new_lines,
             put_trailing_semis_on_let_bindings: self.put_trailing_semis_on_let_bindings,
             backup: self.backup,
+            use_symbol_for_fn_return_type: self.use_symbol_for_fn_return_type,
         }
+    }
+
+    pub(crate) fn use_symbol_for_fn_return_type(&self) -> bool {
+        self.use_symbol_for_fn_return_type
     }
 }
 
@@ -107,6 +113,7 @@ pub struct FormatterConfigBuilder {
     put_fn_args_on_new_lines: bool,
     put_trailing_semis_on_let_bindings: bool,
     backup: bool,
+    use_symbol_for_fn_return_type: bool,
 }
 
 impl FormatterConfigBuilder {
@@ -243,6 +250,17 @@ impl FormatterConfigBuilder {
             put_fn_args_on_new_lines: self.put_fn_args_on_new_lines,
             put_trailing_semis_on_let_bindings: self.put_trailing_semis_on_let_bindings,
             backup: self.backup,
+            use_symbol_for_fn_return_type: self.use_symbol_for_fn_return_type,
+        }
+    }
+
+    pub fn use_symbol_for_fn_return_type(
+        self,
+        use_symbol_for_fn_return_type: bool,
+    ) -> Self {
+        Self {
+            use_symbol_for_fn_return_type,
+            ..self
         }
     }
 }
@@ -263,6 +281,7 @@ impl Default for FormatterConfigBuilder {
             put_fn_args_on_new_lines: false,
             put_trailing_semis_on_let_bindings: false,
             backup: false,
+            use_symbol_for_fn_return_type: true,
         }
     }
 }

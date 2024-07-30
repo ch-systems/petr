@@ -114,6 +114,7 @@ impl Formattable for FunctionDeclaration {
             lines.push(ctx.new_line(buf));
             buf = Default::default();
         }
+
         // parameter contents are indented by one
         ctx.indented(|ctx| {
             for (ix, param) in self.parameters.iter().enumerate() {
@@ -132,7 +133,13 @@ impl Formattable for FunctionDeclaration {
                 }
             }
         });
-        buf.push_str(") returns ");
+
+        buf.push_str(") ");
+        if ctx.config.use_symbol_for_fn_return_type() {
+            buf.push_str("→ ");
+        } else {
+            buf.push_str("returns ");
+        }
 
         buf.push_str(&self.return_type.pretty_print(&ctx.interner, ctx.indentation()));
 
@@ -163,7 +170,8 @@ impl Formattable for FunctionParameter {
         let ty_in = if ctx.config.use_set_notation_for_types() { "∈" } else { "in" };
 
         buf.push_str(&format!(" {ty_in} "));
-        buf.push_str(&self.ty.pretty_print(&ctx.interner, ctx.indentation()));
+        let ty = self.ty.format(ctx).into_single_line().content;
+        buf.push_str(&ty);
 
         FormattedLines::new(vec![ctx.new_line(buf)])
     }
@@ -411,6 +419,18 @@ impl Formattable for AstNode {
     }
 }
 
+impl Formattable for TypeVariantOrLiteral {
+    fn format(
+        &self,
+        ctx: &mut FormatterContext,
+    ) -> FormattedLines {
+        match self {
+            TypeVariantOrLiteral::Variant(variant) => variant.format(ctx),
+            TypeVariantOrLiteral::Literal(lit) => FormattedLines::new(vec![ctx.new_line(lit.to_string())]),
+        }
+    }
+}
+
 impl Formattable for TypeDeclaration {
     fn format(
         &self,
@@ -504,13 +524,21 @@ impl Formattable for Ty {
         ctx: &mut FormatterContext,
     ) -> FormattedLines {
         let name = match self {
-            Ty::Bool => "bool".to_string(),
-            Ty::Int => "int".to_string(),
-            Ty::String => "string".to_string(),
-            Ty::Unit => "unit".to_string(),
-            Ty::Named(name) => ctx.interner.get(name.id).to_string(),
+            Ty::Bool => "'bool".to_string(),
+            Ty::Int => "'int".to_string(),
+            Ty::String => "'string".to_string(),
+            Ty::Unit => "'unit".to_string(),
+            Ty::Named(name) => format!("'{}", ctx.interner.get(name.id)),
+            Ty::Literal(lit) => lit.to_string(),
+            Ty::Sum(tys) => format!(
+                "'Σ {}",
+                tys.iter()
+                    .map(|ty| ty.format(ctx).into_single_line().content)
+                    .collect::<Vec<_>>()
+                    .join(" | ")
+            ),
         };
-        FormattedLines::new(vec![ctx.new_line(format!("'{name}"))])
+        FormattedLines::new(vec![ctx.new_line(name)])
     }
 }
 

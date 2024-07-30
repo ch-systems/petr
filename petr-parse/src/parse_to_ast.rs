@@ -70,6 +70,18 @@ impl Parse for TypeDeclaration {
     }
 }
 
+impl Parse for TypeVariantOrLiteral {
+    fn parse(p: &mut Parser) -> Option<Self> {
+        p.with_help("type variant or literal", |p| -> Option<Self> {
+            if *p.peek().item() == Token::Identifier {
+                Some(Self::Variant(p.parse()?))
+            } else {
+                Some(Self::Literal(p.parse()?))
+            }
+        })
+    }
+}
+
 impl Parse for TypeVariant {
     fn parse(p: &mut Parser) -> Option<Self> {
         p.with_help("type variant", |p| -> Option<Self> {
@@ -170,12 +182,15 @@ impl Parse for Literal {
     fn parse(p: &mut Parser) -> Option<Self> {
         let tok = p.advance();
         match tok.item() {
-            Token::Integer => Some(Literal::Integer(p.slice().parse().expect("lexer should have verified this"))),
-            Token::String => Some(Literal::String(Rc::from(&p.slice()[1..p.slice().len() - 1]))),
             Token::True => Some(Literal::Boolean(true)),
             Token::False => Some(Literal::Boolean(false)),
+            Token::Integer => Some(Literal::Integer(p.slice().parse().expect("lexer should have verified this"))),
+            Token::String => Some(Literal::String(p.slice()[1..p.slice().len() - 1].to_string())),
             _ => {
-                p.push_error(p.span().with_item(ParseErrorKind::ExpectedToken(Token::Integer, *tok.item())));
+                p.push_error(p.span().with_item(ParseErrorKind::ExpectedOneOf(
+                    vec![Token::Integer, Token::True, Token::False, Token::String],
+                    *tok.item(),
+                )));
                 None
             },
         }
@@ -193,24 +208,38 @@ impl Parse for FunctionParameter {
 }
 
 impl Parse for Ty {
-    // TODO types are not just idents,
-    // they can be more than that
     fn parse(p: &mut Parser) -> Option<Self> {
         p.with_help("type", |p| -> Option<Self> {
-            p.token(Token::TyMarker)?;
-            let next: Identifier = p.parse()?;
-            let ty = match p.slice() {
-                "int" => Ty::Int,
-                "bool" => Ty::Bool,
-                "string" => Ty::String,
-                "unit" => Ty::Unit,
-                _ => Ty::Named(next),
-            };
+            if let Some(_tok) = p.try_tokens(&[Token::SumKeyword, Token::SumSymbol]) {
+                p.with_help("sum type", |p| {
+                    let tys = p.sequence_one_or_more(Token::Pipe)?;
+                    Some(Ty::Sum(tys.into_boxed_slice()))
+                })
+            } else if let Some(_tok) = p.try_token(Token::TyMarker) {
+                let next: Identifier = p.parse()?;
+                let ty = match p.slice() {
+                    "int" => Ty::Int,
+                    "bool" => Ty::Bool,
+                    "string" => Ty::String,
+                    "unit" => Ty::Unit,
+                    _ => Ty::Named(next),
+                };
 
-            Some(ty)
+                Some(ty)
+            } else {
+                // TODO: Better error message on failed type parse
+                // Currently just throws "expected literal" which is very wrong
+                // https://github.com/ch-systems/petr/issues/111
+                // ^^ could help
+
+                // parse constant literal types, which are just literals
+                let lit: Literal = p.parse()?;
+                Some(Ty::Literal(lit))
+            }
         })
     }
 }
+
 impl Parse for Operator {
     fn parse(p: &mut Parser) -> Option<Self> {
         let tok = p.advance();
@@ -230,6 +259,7 @@ impl Parse for Operator {
         }
     }
 }
+
 impl Parse for Identifier {
     fn parse(p: &mut Parser) -> Option<Self> {
         let identifier = p.advance();

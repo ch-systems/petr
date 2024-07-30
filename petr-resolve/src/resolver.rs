@@ -18,6 +18,8 @@ pub enum ResolutionError {
     NotFound(String),
     #[error("Could not find implementation for operator: {0} at {1}")]
     OperatorImplementationNotFound(String, String),
+    #[error("This item is not a valid member of a path. Valid members are modules, functions, or types.")]
+    ItemIsNotValidPath,
 }
 
 pub(crate) struct Resolver {
@@ -28,8 +30,9 @@ pub(crate) struct Resolver {
 
 #[derive(Debug, Clone)]
 pub struct TypeDeclaration {
-    pub name:     Identifier,
+    pub name: Identifier,
     pub variants: Box<[TypeVariant]>,
+    pub constant_literal_types: Vec<petr_ast::Literal>,
 }
 
 #[derive(Debug, Clone)]
@@ -44,7 +47,7 @@ pub struct TypeField {
     pub ty:   Type,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum Type {
     Integer,
     Bool,
@@ -54,6 +57,8 @@ pub enum Type {
     ErrorRecovery(Span),
     Named(TypeId),
     Generic(Identifier),
+    Sum(Box<[Type]>),
+    Literal(petr_ast::Literal),
 }
 
 impl Resolve for petr_ast::Ty {
@@ -70,18 +75,17 @@ impl Resolve for petr_ast::Ty {
             petr_ast::Ty::Bool => Type::Bool,
             petr_ast::Ty::String => Type::String,
             petr_ast::Ty::Unit => Type::Unit,
-            petr_ast::Ty::Named(name) => match binder.find_symbol_in_scope(name.id, scope_id) {
-                Some(Item::Type(id)) => Type::Named(*id),
-                Some(something) => {
-                    let name = _resolver.interner.get(name.id);
-                    // this makes sense, the type constructor is getting resolved instead of the ty
-                    // find_symbol_in_scope could take in what it is looking for as a parameter,
-                    // _or_ we could have a special case when a function body is just a type
-                    // constructorjkkj
-                    todo!("push error -- symbol {name} is not type, it is a {something:?}");
-                    // return None;
-                },
+            petr_ast::Ty::Named(name) => match binder.find_type_in_scope(name.id, scope_id) {
+                Some(id) => Type::Named(id),
                 None => Type::Generic(*name),
+            },
+            petr_ast::Ty::Literal(l) => Type::Literal(l.clone()),
+            petr_ast::Ty::Sum(tys) => {
+                let tys = tys
+                    .iter()
+                    .map(|x| x.resolve(_resolver, binder, scope_id).unwrap_or(Type::Unit))
+                    .collect::<Vec<_>>();
+                Type::Sum(tys.into_boxed_slice())
             },
         })
     }
@@ -204,8 +208,8 @@ impl Resolver {
     ) {
         // Iterate over the binder's scopes and resolve all symbols
         let scopes_and_ids = binder.scope_iter().collect::<Vec<_>>();
-        for (scope_id, scope) in scopes_and_ids {
-            for (_name, item) in scope.iter() {
+        for (scope_id, _scope) in scopes_and_ids {
+            for (_name, item) in binder.iter_scope(scope_id) {
                 self.resolve_item(item.item(), binder, scope_id)
             }
         }
@@ -224,8 +228,9 @@ impl Resolver {
             FunctionParameter(_ty) => {
                 // I don't think we have to do anything here but not sure
             },
-            Binding(a) => {
-                let binding = binder.get_binding(*a);
+            Binding(_binding) => {
+                todo!()
+                /*
                 let resolved_expr = match binding.val.resolve(self, binder, scope_id) {
                     Some(o) => o,
                     None => {
@@ -235,12 +240,13 @@ impl Resolver {
                     },
                 };
                 self.resolved.bindings.insert(
-                    *a,
+                    todo!(),
                     crate::resolver::Binding {
                         name:       binding.name,
                         expression: resolved_expr,
                     },
                 );
+                    */
             },
             // TODO not sure if we can skip this, or if we should resolve it during imports
             Module(id) => {
@@ -368,7 +374,7 @@ impl Resolve for SpannedItem<FunctionDeclaration> {
             // resolved function map.
             // If we were to return `None` and not resolve the function, then calls to this
             // function would hold a reference `FunctionId(x)` which would not exist anymore.
-            None => dbg!(Expr::error_recovery(self.span())),
+            None => Expr::error_recovery(self.span()),
         };
 
         Some(Function {
@@ -448,41 +454,32 @@ impl Resolve for SpannedItem<Expression> {
                 Expr::new(ExprKind::FunctionCall(resolved_call), self.span())
             },
             Expression::Variable(var) => {
-                let item = match binder.find_symbol_in_scope(var.id, scope_id) {
-                    Some(item @ Item::FunctionParameter(_) | item @ Item::Binding(_)) => item,
-                    _otherwise => {
-                        let var_name = resolver.interner.get(var.id);
-                        resolver.errs.push(var.span.with_item(ResolutionError::NotFound(var_name.to_string())));
-                        return None;
-                    },
-                };
+                let item = binder.find_binding_in_scope(var.id, scope_id);
                 match item {
-                    Item::Binding(binding_id) => {
-                        let binding = binder.get_binding(*binding_id);
+                    Some(binding) => Expr::new(
+                        ExprKind::Variable {
+                            name: *var,
+                            // I think this works for inference -- instantiating a new generic
+                            // type. Should revisit for soundness.
+                            ty:   Type::Generic(binding.name),
+                        },
+                        self.span(),
+                    ),
+                    None => {
+                        let Some(ty) = binder.find_function_parameter_in_scope(var.id, scope_id) else {
+                            todo!("not found err");
+                        };
 
-                        Expr::new(
-                            ExprKind::Variable {
-                                name: *var,
-                                // I think this works for inference -- instantiating a new generic
-                                // type. Should revisit for soundness.
-                                ty:   Type::Generic(binding.name),
-                            },
-                            self.span(),
-                        )
-                    },
-                    Item::FunctionParameter(ty) => {
                         let ty = match ty.resolve(resolver, binder, scope_id) {
                             Some(ty) => ty,
 
                             None => {
                                 todo!("not found err");
-                                // Type::ErrorRecovery
                             },
                         };
 
                         Expr::new(ExprKind::Variable { name: *var, ty }, self.span())
                     },
-                    _ => unreachable!(),
                 }
             },
             Expression::TypeConstructor(parent_type_id, args) => {
@@ -563,7 +560,7 @@ impl Resolve for petr_ast::IntrinsicCall {
             .iter()
             .map(|x| match x.resolve(resolver, binder, scope_id) {
                 Some(x) => x,
-                None => dbg!(Expr::error_recovery(x.span())),
+                None => Expr::error_recovery(x.span()),
             })
             .collect();
         Some(Intrinsic {
@@ -660,6 +657,7 @@ impl Resolve for petr_utils::Path {
             let item = path_iter.next().expect("import with no items was parsed -- should be an invariant");
             binder.find_symbol_in_scope(item.id, scope_id)
         }) else {
+            println!("didn't even find first item");
             let name = self.identifiers.iter().map(|x| resolver.interner.get(x.id)).collect::<Vec<_>>().join(".");
             resolver.errs.push(
                 self.identifiers
@@ -673,13 +671,23 @@ impl Resolve for petr_utils::Path {
 
         let first_item = match first_item {
             Item::Module(id) if self.identifiers.len() > 1 => id,
-            Item::Function(f, _) if self.identifiers.len() == 1 => return Some(either::Either::Left(*f)),
-            Item::Type(t) if self.identifiers.len() == 1 => return Some(either::Either::Right(*t)),
+            Item::Function(f, _) if self.identifiers.len() == 1 => return Some(either::Either::Left(f)),
+            Item::Type(t) if self.identifiers.len() == 1 => return Some(either::Either::Right(t)),
             Item::Import { path, alias: _ } if self.identifiers.len() == 1 => return path.resolve(resolver, binder, scope_id),
-            a => todo!("push error -- import path is not a module {a:?}"),
+            _ => {
+                resolver.errs.push(
+                    self.identifiers
+                        .last()
+                        .expect("empty path shouldn't be possible")
+                        .span
+                        .with_item(ResolutionError::ItemIsNotValidPath),
+                );
+                return None;
+            },
         };
 
-        let mut rover = binder.get_module(*first_item);
+        let mut rover = binder.get_module(first_item);
+
         // iterate over the rest of the path to find the path item
         for (ix, item) in path_iter.enumerate() {
             let is_last = ix == self.identifiers.len() - 2; // -2 because we advanced the iter by one already
@@ -690,15 +698,18 @@ impl Resolve for petr_utils::Path {
             };
 
             match next_symbol {
-                Item::Module(id) => rover = binder.get_module(*id),
-                Item::Function(func, _scope) if is_last => return Some(either::Either::Left(*func)),
-                Item::Type(ty) if is_last => return Some(either::Either::Right(*ty)),
+                Item::Module(id) => rover = binder.get_module(id),
+                Item::Function(func, _scope) if is_last => return Some(either::Either::Left(func)),
+                Item::Type(ty) if is_last => return Some(either::Either::Right(ty)),
                 Item::Import { path, alias: _ } => match path.resolve(resolver, binder, scope_id) {
                     Some(either::Left(func)) => return Some(either::Left(func)),
                     Some(either::Right(ty)) => return Some(either::Right(ty)),
                     None => todo!("push error -- import not found"),
                 },
-                a => todo!("push error -- import path item is not a module, it is a {a:?}"),
+                _ => {
+                    resolver.errs.push(item.span.with_item(ResolutionError::ItemIsNotValidPath));
+                    return None;
+                },
             }
         }
 
@@ -722,9 +733,12 @@ impl Resolve for petr_ast::TypeDeclaration {
         // for field in variant's fields
         // resolve the field type
         let mut variants = Vec::with_capacity(self.variants.len());
-        for variant in self.variants.iter() {
-            let mut field_types = Vec::with_capacity(variant.item().fields.len());
-            for field in variant.item().fields.iter() {
+        for variant in self.variants.iter().filter_map(|variant| match variant.item() {
+            petr_ast::TypeVariantOrLiteral::Variant(variant) => Some(variant),
+            _ => None,
+        }) {
+            let mut field_types = Vec::with_capacity(variant.fields.len());
+            for field in variant.fields.iter() {
                 if let Some(field_type) = field.item().ty.resolve(resolver, binder, scope_id) {
                     field_types.push(TypeField {
                         name: field.item().name,
@@ -736,14 +750,23 @@ impl Resolve for petr_ast::TypeDeclaration {
                 }
             }
             variants.push(TypeVariant {
-                name:   variant.item().name,
+                name:   variant.name,
                 fields: field_types.into_boxed_slice(),
             });
         }
+        let constant_literal_types = self
+            .variants
+            .iter()
+            .filter_map(|variant| match variant.item() {
+                petr_ast::TypeVariantOrLiteral::Literal(lit) => Some(lit.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
 
         Some(TypeDeclaration {
-            name:     self.name,
+            name: self.name,
             variants: variants.into_boxed_slice(),
+            constant_literal_types,
         })
     }
 }
@@ -778,6 +801,10 @@ mod tests {
                         format!("named type {}", resolver.interner.get(resolver.get_type(*id).name.id))
                     },
                     Type::Generic(a) => format!("generic type {}", resolver.interner.get(a.id)),
+                    Type::Sum(tys) => {
+                        format!("sum type [{}]", tys.iter().map(|x| x.to_string(resolver)).collect::<Vec<_>>().join(" | "))
+                    },
+                    Type::Literal(l) => format!("{:?}", l),
                 }
             }
         }
@@ -859,7 +886,7 @@ mod tests {
         }
         let resolver = Resolver::new_from_single_ast(ast, interner);
         let (errs, queryable) = resolver.into_queryable();
-        assert!(errs.is_empty());
+        assert!(errs.is_empty(), "{errs:#?}");
         let result = pretty_print_resolution(&queryable);
         expect.assert_eq(&result);
     }
@@ -1051,6 +1078,22 @@ mod tests {
                 _____FUNCTIONS_____
                 #0 hi(  x: int, ) -> int   "if x: int then Literal(Integer(1)) else Unit"
                 _____TYPES_____
+            "#]],
+        )
+    }
+
+    #[test]
+    fn constant_literal_types_generate_type_constructor() {
+        check(
+            "
+            type IntBelowFive = 1 | 2 | 3 | 4
+            ",
+            expect![[r#"
+                _____FUNCTIONS_____
+                #0 IntBelowFive(  IntBelowFive: sum type [Integer(1) | Integer(2) | Integer(3) | Integer(4)], ) -> named type IntBelowFive   "Type constructor"
+                _____TYPES_____
+                #0 IntBelowFive
+
             "#]],
         )
     }

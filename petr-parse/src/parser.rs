@@ -96,6 +96,8 @@ pub enum ParseErrorKind {
     InvalidIdentifier(String),
     #[error("Internal error in parser. Please file an issue on GitHub. A span was joined with a span from another file.")]
     InternalSpanError(#[label] SourceSpan, #[label] SourceSpan),
+    #[error("Invalid token encountered")]
+    LexerError,
 }
 
 impl ParseErrorKind {
@@ -357,7 +359,14 @@ impl Parser {
         if let Some(tok) = self.peek.take() {
             return tok;
         }
-        let next_tok = self.lexer.advance();
+        let next_tok = match self.lexer.advance() {
+            Ok(o) => o,
+            Err(span) => {
+                let span = span.span();
+                self.push_error(span.with_item(ParseErrorKind::LexerError));
+                return span.with_item(Token::Eof);
+            },
+        };
         match *next_tok.item() {
             Token::Newline => self.advance(),
             Token::Comment => {
@@ -377,6 +386,20 @@ impl Parser {
     ) -> Option<SpannedItem<Token>> {
         let peeked_token = self.peek();
         if *peeked_token.item() == tok {
+            Some(self.advance())
+        } else {
+            None
+        }
+    }
+
+    /// doesn't push the error to the error list and doesn't advance if none of the tokens are
+    /// found
+    pub(crate) fn try_tokens(
+        &mut self,
+        toks: &[Token],
+    ) -> Option<SpannedItem<Token>> {
+        let peeked_token = self.peek();
+        if toks.contains(peeked_token.item()) {
             Some(self.advance())
         } else {
             None

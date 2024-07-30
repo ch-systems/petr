@@ -92,6 +92,19 @@ impl PrettyPrint for TypeDeclaration {
     }
 }
 
+impl PrettyPrint for TypeVariantOrLiteral {
+    fn pretty_print(
+        &self,
+        interner: &SymbolInterner,
+        indentation: usize,
+    ) -> String {
+        match self {
+            TypeVariantOrLiteral::Variant(variant) => variant.pretty_print(interner, indentation),
+            TypeVariantOrLiteral::Literal(literal) => literal.pretty_print(interner, indentation),
+        }
+    }
+}
+
 impl PrettyPrint for TypeVariant {
     fn pretty_print(
         &self,
@@ -127,6 +140,8 @@ impl PrettyPrint for Ty {
             Ty::String => "string".to_string(),
             Ty::Unit => "unit".to_string(),
             Ty::Named(name) => name.pretty_print(interner, 0),
+            Ty::Literal(lit) => format!("lit ty {}", lit.pretty_print(interner, 0)),
+            Ty::Sum(tys) => tys.iter().map(|ty| ty.pretty_print(interner, 0)).collect::<Vec<_>>().join(" | "),
         };
         format!("'{name}")
     }
@@ -154,9 +169,7 @@ impl PrettyPrint for Expression {
         indentation: usize,
     ) -> String {
         match self {
-            Expression::Literal(Literal::Integer(i)) => i.to_string(),
-            Expression::Literal(Literal::Boolean(b)) => b.to_string(),
-            Expression::Literal(Literal::String(s)) => format!("\"{s}\""),
+            Expression::Literal(l) => l.pretty_print(interner, indentation),
             Expression::List(list) => list.pretty_print(interner, indentation),
             Expression::Operator(op) => op.pretty_print(interner, indentation),
             Expression::TypeConstructor(..) => "type constructor".to_string(),
@@ -165,6 +178,20 @@ impl PrettyPrint for Expression {
             Expression::IntrinsicCall(call) => call.pretty_print(interner, indentation),
             Expression::Binding(binding) => binding.pretty_print(interner, indentation + 1),
             Expression::If(if_expr) => if_expr.pretty_print(interner, indentation),
+        }
+    }
+}
+
+impl PrettyPrint for Literal {
+    fn pretty_print(
+        &self,
+        _: &SymbolInterner,
+        _: usize,
+    ) -> String {
+        match self {
+            Literal::Integer(i) => i.to_string(),
+            Literal::Boolean(b) => b.to_string(),
+            Literal::String(s) => format!("\"{s}\""),
         }
     }
 }

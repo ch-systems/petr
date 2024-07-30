@@ -5,6 +5,7 @@ mod tests;
 
 use logos::Logos;
 use petr_utils::{SourceId, Span, SpannedItem};
+pub type LexerError = ();
 
 use crate::IndexMap;
 #[derive(Debug, Logos, PartialEq, Clone, Copy)]
@@ -46,12 +47,18 @@ pub enum Token {
     InKeyword,
     #[token("∈")]
     IsInSymbol,
+    #[token("'sum")]
+    SumKeyword,
     #[token("'")]
     TyMarker,
     #[token(",")]
     Comma,
     #[token("returns")]
     ReturnsKeyword,
+    #[token("→")]
+    ReturnsSymbol,
+    #[token("'Σ")]
+    SumSymbol,
     #[token("type")]
     TypeKeyword,
     #[token("\n")]
@@ -141,6 +148,9 @@ impl std::fmt::Display for Token {
             If => write!(f, "if"),
             Then => write!(f, "then"),
             Else => write!(f, "else"),
+            SumKeyword => write!(f, "'sum"),
+            SumSymbol => write!(f, "Σ"),
+            ReturnsSymbol => write!(f, "→"),
         }
     }
 }
@@ -201,21 +211,22 @@ impl Lexer {
         self.current_lexer().slice()
     }
 
-    pub(crate) fn advance(&mut self) -> SpannedItem<Token> {
+    pub(crate) fn advance(&mut self) -> Result<SpannedItem<Token>, SpannedItem<LexerError>> {
         let pre_advance_span = self.span();
         if !self.has_started_lexing {
             self.has_started_lexing = true;
-            return self.span().with_item(Token::NewFile(self.current_source()));
+            return Ok(self.span().with_item(Token::NewFile(self.current_source())));
         }
         let current_lexer = self.current_lexer_mut();
 
         match current_lexer.next() {
-            None => match self.advance_lexer() {
+            None => Ok(match self.advance_lexer() {
                 Some(_) => self.span().with_item(Token::NewFile(self.current_source())),
 
                 None => pre_advance_span.with_item(Token::Eof),
-            },
-            Some(tok) => self.span().with_item(tok.expect("TODO: handle lexer failure")),
+            }),
+            Some(Ok(tok)) => Ok(self.span().with_item(tok)),
+            Some(Err(_)) => Err(self.span().with_item(())),
         }
     }
 

@@ -105,7 +105,10 @@ pub enum IrTy {
     Unit,
     String,
     Boolean,
-    UserDefinedType { variants: Vec<IrUserDefinedTypeVariant> },
+    UserDefinedType {
+        variants: Vec<IrUserDefinedTypeVariant>,
+        constant_literal_types: Vec<IrTy>,
+    },
     List(Box<IrTy>),
 }
 
@@ -131,10 +134,14 @@ impl IrTy {
             IrTy::String => 8,
             IrTy::Boolean => 1,
             // the size of a sum type is the size of the largest variant
-            IrTy::UserDefinedType { variants } => {
+            IrTy::UserDefinedType {
+                variants,
+                constant_literal_types,
+            } => {
                 return variants
                     .iter()
                     .map(|v| v.size())
+                    .chain(constant_literal_types.iter().map(|t| t.size()))
                     .max()
                     .expect("user defined type should have at least one variant")
             },
@@ -147,7 +154,7 @@ impl IrTy {
         .into()
     }
 
-    pub(crate) fn fits_in_reg(&self) -> bool {
+    pub(crate) fn is_copy_type(&self) -> bool {
         self.size().num_bytes() <= 8
     }
 }

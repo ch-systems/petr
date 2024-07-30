@@ -32,7 +32,7 @@ fn basic_func_decl() {
             fn foo(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int
+            ) → 'int
               + 2 3
         "#]],
     );
@@ -47,7 +47,7 @@ fn func_decl_params_same_line() {
             fn foo(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int
+            ) → 'int
               + 2 3
         "#]],
     );
@@ -63,7 +63,7 @@ fn commented_fn_decl() {
             fn foo(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int
+            ) → 'int
               + 2 3
         "#]],
     );
@@ -80,7 +80,7 @@ fn multiple_comments_before_fn() {
             fn foo(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int
+            ) → 'int
               + 2 3
         "#]],
     );
@@ -96,7 +96,7 @@ fn multiple_comments_before_fn_no_join() {
             fn foo(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int
+            ) → 'int
               + 2 3
         "#]],
     );
@@ -112,7 +112,7 @@ fn extract_comments_from_within_decl() {
             fn foo(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int
+            ) → 'int
               + 2 3
         "#]],
     );
@@ -128,13 +128,13 @@ fn multiple_functions() {
             fn foo(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int
+            ) → 'int
               + 2 3
 
             fn bar(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int
+            ) → 'int
               + 2 3
         "#]],
     );
@@ -154,14 +154,14 @@ fn multiple_functions_with_comments() {
             fn foo(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int
+            ) → 'int
               + 2 3
 
             {- this function is called bar -}
             fn bar(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int
+            ) → 'int
               + 2 3
         "#]],
     );
@@ -181,7 +181,7 @@ fn multiple_functions_more_newlines_between_functions() {
             fn foo(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int
+            ) → 'int
               + 2 3
 
 
@@ -189,7 +189,7 @@ fn multiple_functions_more_newlines_between_functions() {
             fn bar(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int
+            ) → 'int
               + 2 3
         "#]],
     );
@@ -211,7 +211,7 @@ fn multiple_functions_newlines_between_comment_and_item() {
             fn foo(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int
+            ) → 'int
               + 2 3
 
             {- bar should look like this
@@ -220,7 +220,7 @@ fn multiple_functions_newlines_between_comment_and_item() {
             fn bar(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int
+            ) → 'int
               + 2 3
         "#]],
     );
@@ -242,7 +242,7 @@ fn multiple_functions_newlines_between_comment_and_item_unjoined() {
             fn foo(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int
+            ) → 'int
               + 2 3
 
             {- bar should look like this -}
@@ -251,7 +251,7 @@ fn multiple_functions_newlines_between_comment_and_item_unjoined() {
             fn bar(
               a ∈ 'int,
               b ∈ 'int,
-            ) returns 'int
+            ) → 'int
               + 2 3
         "#]],
     );
@@ -347,7 +347,7 @@ fn format_list() {
         Default::default(),
         "fn returns_list() returns 'list [1, 2, 3]",
         expect![[r#"
-            fn returns_list() returns 'list
+            fn returns_list() → 'list
               [1, 2, 3]
         "#]],
     );
@@ -364,7 +364,7 @@ fn long_line_forces_newlines() {
         fn returns_list() returns 'list [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]
         ",
         expect![[r#"
-            fn returns_list() returns 'list
+            fn returns_list() → 'list
               [
                 1,
                 2,
@@ -378,7 +378,7 @@ fn long_line_forces_newlines() {
               d ∈ 'd,
               e ∈ 'e,
               f ∈ 'f,
-            ) returns 'list
+            ) → 'list
               [
                 1,
                 2,
@@ -387,7 +387,7 @@ fn long_line_forces_newlines() {
                 5,
               ]
 
-            fn returns_list() returns 'list
+            fn returns_list() → 'list
               [
                 1,
                 2,
@@ -429,7 +429,7 @@ fn put_only_params_on_newlines_if_necessary() {
               d ∈ 'd,
               e ∈ 'e,
               f ∈ 'f,
-            ) returns 'list
+            ) → 'list
               [1, 2, 3, 4]
         "#]],
     );
@@ -443,7 +443,7 @@ fn put_only_params_and_body_on_newlines_if_necessary() {
         expect![[r#"
             fn returns_list(
               a ∈ 'a,
-            ) returns 'aaaaaaaaaaaaaaaa
+            ) → 'aaaaaaaaaaaaaaaa
               [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         "#]],
     );
@@ -457,7 +457,7 @@ fn no_matter_what_the_line_is_too_long_use_shortest_config_best_attempt() {
         expect![[r#"
             fn returns_list(
               a ∈ 'a,
-            ) returns 'aaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            ) → 'aaaaaaaaaaaaaaaaaaaaaaaaaaaa
               [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         "#]],
     );
@@ -469,7 +469,7 @@ fn exported_func() {
         Default::default(),
         "export fn foo() returns 'int + 1 2",
         expect![[r#"
-            export fn foo() returns 'int
+            export fn foo() → 'int
               + 1 2
         "#]],
     )
@@ -483,7 +483,7 @@ fn func_application_in_list() {
             ~foo 1,2,3,4
         ]",
         expect![[r#"
-            fn foo() returns 'int
+            fn foo() → 'int
               [~foo 1, 2, 3, 4]
         "#]],
     )
@@ -497,7 +497,7 @@ fn func_application_in_list_with_parens_resolve_ambiguity() {
             ~foo(1,2),3,4
          ]",
         expect![[r#"
-            fn foo() returns 'int
+            fn foo() → 'int
               [~foo(1, 2), 3, 4]
         "#]],
     )
@@ -509,7 +509,7 @@ fn func_application() {
         Default::default(),
         "fn foo() returns 'int ~foo 1,2,3,4",
         expect![[r#"
-            fn foo() returns 'int
+            fn foo() → 'int
               ~foo 1, 2, 3, 4
         "#]],
     )
@@ -521,7 +521,7 @@ fn string_in_list() {
         Default::default(),
         "fn returns_list() returns 'list [\"one\", \"two\", \"three\"]",
         expect![[r#"
-            fn returns_list() returns 'list
+            fn returns_list() → 'list
               ["one", "two", "three"]
         "#]],
     );
@@ -533,7 +533,7 @@ fn string_in_operators() {
         Default::default(),
         "fn concat_strings() returns 'string + \"Hello, \" \"world!\"",
         expect![[r#"
-            fn concat_strings() returns 'string
+            fn concat_strings() → 'string
               + "Hello, " "world!"
         "#]],
     );
@@ -545,7 +545,7 @@ fn string_literals() {
         Default::default(),
         "fn string_literals() returns 'string \"This is a string literal.\"",
         expect![[r#"
-            fn string_literals() returns 'string
+            fn string_literals() → 'string
               "This is a string literal."
         "#]],
     );
@@ -560,10 +560,10 @@ fn intrinsic() {
 
         fn my_func() returns 'unit @puts(~string_literal)"#,
         expect![[r#"
-            fn string_literals() returns 'string
+            fn string_literals() → 'string
               "This is a string literal."
 
-            fn my_func() returns 'unit
+            fn my_func() → 'unit
               @puts(~string_literal)
         "#]],
     );
@@ -576,7 +576,7 @@ fn intrinsic_2() {
         r#"
                   fn my_func() returns 'unit @puts("hello, world!")"#,
         expect![[r#"
-            fn my_func() returns 'unit
+            fn my_func() → 'unit
               @puts("hello, world!")
         "#]],
     );
@@ -593,7 +593,7 @@ fn let_bindings_trailing_semi() {
         expect![[r#"
             fn makes_function_call(
               c ∈ 'int,
-            ) returns 'int
+            ) → 'int
               let a = 1;
                   b = 20;
               ~fn_call a, b, let z = 10; c
@@ -602,7 +602,7 @@ fn let_bindings_trailing_semi() {
               a ∈ 'int,
               b ∈ 'int,
               c ∈ 'int,
-            ) returns 'int
+            ) → 'int
               + a + b c
         "#]],
     )
@@ -619,7 +619,7 @@ fn let_bindings_no_trailing_comma() {
         expect![[r#"
             fn makes_function_call(
               c ∈ 'int,
-            ) returns 'int
+            ) → 'int
               let a = 1;
                   b = 20
               ~fn_call a, b, let z = 10 c
@@ -628,8 +628,18 @@ fn let_bindings_no_trailing_comma() {
               a ∈ 'int,
               b ∈ 'int,
               c ∈ 'int,
-            ) returns 'int
+            ) → 'int
               + a + b c
         "#]],
     )
+}
+
+#[test]
+fn sum_ty_formatting() {
+    check(Default::default(), "fn myFunc(x in 'sum 1 | 2 | 3) returns 'int 5", expect![[r#"
+        fn myFunc(
+          x ∈ 'Σ 1 | 2 | 3,
+        ) → 'int
+          5
+    "#]])
 }

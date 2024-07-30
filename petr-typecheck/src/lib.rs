@@ -1,6 +1,17 @@
+//! TODO:
+//! - Effectual Types
+//! - Formalize constraints:
+//!     - Unify
+//!     - Satisfies
+//!     - UnifyEffects
+//!     - SatisfiesEffects
+
 mod error;
 
-use std::{collections::BTreeMap, rc::Rc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    rc::Rc,
+};
 
 use error::TypeConstraintError;
 pub use petr_bind::FunctionId;
@@ -89,7 +100,7 @@ pub enum TypeConstraintKind {
 }
 
 pub struct TypeContext {
-    types:          IndexMap<TypeVariable, PetrType>,
+    types:          IndexMap<TypeVariable, SpecificType>,
     constraints:    Vec<TypeConstraint>,
     // known primitive type IDs
     unit_ty:        TypeVariable,
@@ -103,11 +114,11 @@ impl Default for TypeContext {
     fn default() -> Self {
         let mut types = IndexMap::default();
         // instantiate basic primitive types
-        let unit_ty = types.insert(PetrType::Unit);
-        let string_ty = types.insert(PetrType::String);
-        let bool_ty = types.insert(PetrType::Boolean);
-        let int_ty = types.insert(PetrType::Integer);
-        let error_recovery = types.insert(PetrType::ErrorRecovery);
+        let unit_ty = types.insert(SpecificType::Unit);
+        let string_ty = types.insert(SpecificType::String);
+        let bool_ty = types.insert(SpecificType::Boolean);
+        let int_ty = types.insert(SpecificType::Integer);
+        let error_recovery = types.insert(SpecificType::ErrorRecovery);
         // insert primitive types
         TypeContext {
             types,
@@ -147,20 +158,20 @@ impl TypeContext {
         // infer is special -- it knows its own id, mostly for printing
         // and disambiguating
         let infer_id = self.types.len();
-        self.types.insert(PetrType::Infer(infer_id, span))
+        self.types.insert(SpecificType::Infer(infer_id, span))
     }
 
     /// Update a type variable with a new PetrType
     fn update_type(
         &mut self,
         t1: TypeVariable,
-        known: PetrType,
+        known: SpecificType,
     ) {
         *self.types.get_mut(t1) = known;
     }
 }
 
-pub type FunctionSignature = (FunctionId, Box<[PetrType]>);
+pub type FunctionSignature = (FunctionId, Box<[GeneralType]>);
 
 pub struct TypeChecker {
     ctx: TypeContext,
@@ -173,7 +184,34 @@ pub struct TypeChecker {
 }
 
 #[derive(Clone, PartialEq, Debug, Eq, PartialOrd, Ord)]
-pub enum PetrType {
+/// A type which is general, and has no constraints applied to it.
+/// This is a generalization of [`SpecificType`].
+/// This is more useful for IR generation, since functions are monomorphized
+/// based on general types.
+pub enum GeneralType {
+    Unit,
+    Integer,
+    Boolean,
+    String,
+    UserDefined {
+        name: Identifier,
+        // TODO these should be boxed slices, as their size is not changed
+        variants: Box<[GeneralizedTypeVariant]>,
+        constant_literal_types: Vec<Literal>,
+    },
+    Arrow(Vec<TypeVariable>),
+    ErrorRecovery,
+    List(Box<GeneralType>),
+    Infer(usize, Span),
+    Sum(BTreeSet<GeneralType>),
+}
+
+/// This is an information-rich type -- it tracks effects and data types. It is used for
+/// the type-checking stage to provide rich information to the user.
+/// Types are generalized into instances of [`GeneralType`] for monomorphization and
+/// code generation.
+#[derive(Clone, PartialEq, Debug, Eq, PartialOrd, Ord)]
+pub enum SpecificType {
     Unit,
     Integer,
     Boolean,
@@ -183,28 +221,177 @@ pub enum PetrType {
     Ref(TypeVariable),
     /// A user-defined type
     UserDefined {
-        name:     Identifier,
+        name: Identifier,
+        // TODO these should be boxed slices, as their size is not changed
         variants: Vec<TypeVariant>,
+        constant_literal_types: Vec<Literal>,
     },
     Arrow(Vec<TypeVariable>),
     ErrorRecovery,
-    List(TypeVariable),
+    // TODO make this petr type instead of typevariable
+    List(Box<SpecificType>),
     /// the usize is just an identifier for use in rendering the type
     /// the span is the location of the inference, for error reporting if the inference is never
     /// resolved
     Infer(usize, Span),
+    Sum(BTreeSet<SpecificType>),
+    Literal(Literal),
+}
+
+#[derive(Clone, PartialEq, Debug, Eq, PartialOrd, Ord)]
+pub struct GeneralizedTypeVariant {
+    pub fields: Box<[GeneralType]>,
+}
+
+impl SpecificType {
+    fn generalize(
+        &self,
+        ctx: &TypeContext,
+    ) -> GeneralType {
+        match self {
+            SpecificType::Unit => GeneralType::Unit,
+            SpecificType::Integer => GeneralType::Integer,
+            SpecificType::Boolean => GeneralType::Boolean,
+            SpecificType::String => GeneralType::String,
+            SpecificType::Ref(ty) => ctx.types.get(*ty).generalize(ctx),
+            SpecificType::UserDefined {
+                name,
+                variants,
+                constant_literal_types,
+            } => GeneralType::UserDefined {
+                name: *name,
+                variants: variants
+                    .iter()
+                    .map(|variant| {
+                        let generalized_fields = variant.fields.iter().map(|field| field.generalize(ctx)).collect::<Vec<_>>();
+
+                        GeneralizedTypeVariant {
+                            fields: generalized_fields.into_boxed_slice(),
+                        }
+                    })
+                    .collect(),
+                constant_literal_types: constant_literal_types.clone(),
+            },
+            SpecificType::Arrow(tys) => GeneralType::Arrow(tys.clone()),
+            SpecificType::ErrorRecovery => GeneralType::ErrorRecovery,
+            SpecificType::List(ty) => {
+                let ty = ty.generalize(ctx);
+                GeneralType::List(Box::new(ty))
+            },
+            SpecificType::Infer(u, s) => GeneralType::Infer(*u, *s),
+            SpecificType::Literal(l) => match l {
+                Literal::Integer(_) => GeneralType::Integer,
+                Literal::Boolean(_) => GeneralType::Boolean,
+                Literal::String(_) => GeneralType::String,
+            },
+            SpecificType::Sum(tys) => {
+                // generalize all types, fold if possible
+                let all_generalized: BTreeSet<_> = tys.iter().map(|ty| ty.generalize(ctx)).collect();
+                if all_generalized.len() == 1 {
+                    // in this case, all specific types generalized to the same type
+                    all_generalized.into_iter().next().expect("invariant")
+                } else {
+                    GeneralType::Sum(all_generalized.into_iter().collect())
+                }
+            },
+        }
+    }
+
+    /// If `self` is a generalized form of `sum_tys`, return true
+    /// A generalized form is a type that is a superset of the sum types.
+    /// For example, `String` is a generalized form of `Sum(Literal("a") | Literal("B"))`
+    fn is_subset_of(
+        &self,
+        sum_tys: &BTreeSet<SpecificType>,
+        ctx: &TypeContext,
+    ) -> bool {
+        use petr_resolve::Literal;
+        use SpecificType::*;
+        match self {
+            String => sum_tys.iter().all(|ty| matches!(ty, Literal(Literal::String(_)))),
+            Integer => sum_tys.iter().all(|ty| matches!(ty, Literal(Literal::Integer(_)))),
+            Boolean => sum_tys.iter().all(|ty| matches!(ty, Literal(Literal::Boolean(_)))),
+            Ref(ty) => ctx.types.get(*ty).is_subset_of(sum_tys, ctx),
+            Sum(tys) => tys.iter().all(|ty| sum_tys.contains(ty)),
+            _ => false,
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Debug, Eq, PartialOrd, Ord)]
 pub struct TypeVariant {
-    pub fields: Box<[TypeVariable]>,
+    pub fields: Box<[SpecificType]>,
+}
+
+pub trait Type {
+    fn as_specific_ty(
+        &self,
+        ctx: &TypeContext,
+    ) -> SpecificType;
+
+    fn generalize(
+        &self,
+        ctx: &TypeContext,
+    ) -> GeneralType {
+        self.as_specific_ty(ctx).generalize(ctx)
+    }
+}
+
+impl Type for SpecificType {
+    fn as_specific_ty(
+        &self,
+        _ctx: &TypeContext,
+    ) -> SpecificType {
+        self.clone()
+    }
+}
+
+impl Type for GeneralType {
+    fn as_specific_ty(
+        &self,
+        _ctx: &TypeContext,
+    ) -> SpecificType {
+        match self {
+            GeneralType::Unit => SpecificType::Unit,
+            GeneralType::Integer => SpecificType::Integer,
+            GeneralType::Boolean => SpecificType::Boolean,
+            GeneralType::String => SpecificType::String,
+            GeneralType::UserDefined {
+                name,
+                variants,
+                constant_literal_types,
+            } => SpecificType::UserDefined {
+                name: *name,
+                variants: variants
+                    .iter()
+                    .map(|variant| {
+                        let fields = variant.fields.iter().map(|field| field.as_specific_ty(_ctx)).collect::<Vec<_>>();
+
+                        TypeVariant {
+                            fields: fields.into_boxed_slice(),
+                        }
+                    })
+                    .collect(),
+                constant_literal_types: constant_literal_types.clone(),
+            },
+            GeneralType::Arrow(tys) => SpecificType::Arrow(tys.clone()),
+            GeneralType::ErrorRecovery => SpecificType::ErrorRecovery,
+            GeneralType::List(ty) => SpecificType::List(Box::new(ty.as_specific_ty(_ctx))),
+            GeneralType::Infer(u, s) => SpecificType::Infer(*u, *s),
+            GeneralType::Sum(tys) => {
+                let tys = tys.iter().map(|ty| ty.as_specific_ty(_ctx)).collect();
+                SpecificType::Sum(tys)
+            },
+        }
+    }
 }
 
 impl TypeChecker {
-    pub fn insert_type(
+    pub fn insert_type<T: Type>(
         &mut self,
-        ty: PetrType,
+        ty: &T,
     ) -> TypeVariable {
+        let ty = ty.as_specific_ty(&self.ctx);
         // TODO: check if type already exists and return that ID instead
         self.ctx.types.insert(ty)
     }
@@ -212,7 +399,7 @@ impl TypeChecker {
     pub fn look_up_variable(
         &self,
         ty: TypeVariable,
-    ) -> &PetrType {
+    ) -> &SpecificType {
         self.ctx.types.get(ty)
     }
 
@@ -251,7 +438,7 @@ impl TypeChecker {
                 self.errors.push(id.span.with_item(TypeConstraintError::Internal(
                     "attempted to insert generic type into variable scope when no variable scope existed".into(),
                 )));
-                self.ctx.update_type(fresh_ty, PetrType::ErrorRecovery);
+                self.ctx.update_type(fresh_ty, SpecificType::ErrorRecovery);
             },
         };
         fresh_ty
@@ -277,14 +464,21 @@ impl TypeChecker {
                 .iter()
                 .map(|variant| {
                     self.with_type_scope(|ctx| {
-                        let fields = variant.fields.iter().map(|field| ctx.to_type_var(&field.ty)).collect::<Vec<_>>();
+                        let fields = variant.fields.iter().map(|field| ctx.to_petr_type(&field.ty)).collect::<Vec<_>>();
                         TypeVariant {
                             fields: fields.into_boxed_slice(),
                         }
                     })
                 })
                 .collect::<Vec<_>>();
-            self.ctx.update_type(ty, PetrType::UserDefined { name: decl.name, variants });
+            self.ctx.update_type(
+                ty,
+                SpecificType::UserDefined {
+                    name: decl.name,
+                    variants,
+                    constant_literal_types: decl.constant_literal_types,
+                },
+            );
             self.type_map.insert(id.into(), ty);
         }
 
@@ -335,6 +529,9 @@ impl TypeChecker {
 
     /// Attempt to unify two types, returning an error if they cannot be unified
     /// The more specific of the two types will instantiate the more general of the two types.
+    ///
+    /// TODO: The unify constraint should attempt to upcast `t2` as `t1`  if possible, but will never
+    /// downcast `t1` as `t2`. This is not currently how it works and needs investigation.
     fn apply_unify_constraint(
         &mut self,
         t1: TypeVariable,
@@ -343,7 +540,7 @@ impl TypeChecker {
     ) {
         let ty1 = self.ctx.types.get(t1).clone();
         let ty2 = self.ctx.types.get(t2).clone();
-        use PetrType::*;
+        use SpecificType::*;
         match (ty1, ty2) {
             (a, b) if a == b => (),
             (ErrorRecovery, _) | (_, ErrorRecovery) => (),
@@ -354,6 +551,61 @@ impl TypeChecker {
                 // to the first
                 self.ctx.update_type(t2, Ref(t1));
             },
+            (Sum(a_tys), Sum(b_tys)) => {
+                // the unification of two sum types is the union of the two types
+                let union = a_tys.iter().chain(b_tys.iter()).cloned().collect();
+                self.ctx.update_type(t1, Sum(union));
+                self.ctx.update_type(t2, Ref(t1));
+            },
+            (Sum(sum_tys), other) => {
+                // the unfication of a sum type and another type is the sum type plus the other
+                // type
+                let union: BTreeSet<_> = sum_tys.iter().cloned().chain(std::iter::once(other)).collect();
+                self.ctx.update_type(t1, Sum(union));
+                self.ctx.update_type(t2, Ref(t1));
+            },
+            // literals can unify to each other if they're equal
+            (Literal(l1), Literal(l2)) if l1 == l2 => (),
+            (Literal(l1), Literal(l2)) if l1 != l2 => {
+                // update t1 to a sum type of both,
+                // and update t2 to reference t1
+                let sum = Sum([Literal(l1), Literal(l2)].into());
+                self.ctx.update_type(t1, sum);
+                self.ctx.update_type(t2, Ref(t1));
+            },
+            (Literal(l1), Sum(tys)) => {
+                // update t1 to a sum type of both,
+                // and update t2 to reference t1
+                let sum = Sum([Literal(l1)].iter().chain(tys.iter()).cloned().collect());
+                self.ctx.update_type(t1, sum);
+                self.ctx.update_type(t2, Ref(t1));
+            },
+            // literals can unify broader parent types
+            // but the broader parent type gets instantiated with the literal type
+            (ty, Literal(lit)) => match (&lit, ty) {
+                (petr_resolve::Literal::Integer(_), Integer)
+                | (petr_resolve::Literal::Boolean(_), Boolean)
+                | (petr_resolve::Literal::String(_), String) => self.ctx.update_type(t1, SpecificType::Literal(lit)),
+                (lit, ty) => self.push_error(span.with_item(self.unify_err(ty.clone(), SpecificType::Literal(lit.clone())))),
+            },
+            // literals can unify broader parent types
+            // but the broader parent type gets instantiated with the literal type
+            (Literal(lit), ty) => match (&lit, ty) {
+                (petr_resolve::Literal::Integer(_), Integer)
+                | (petr_resolve::Literal::Boolean(_), Boolean)
+                | (petr_resolve::Literal::String(_), String) => self.ctx.update_type(t2, SpecificType::Literal(lit)),
+                (lit, ty) => {
+                    self.push_error(span.with_item(self.unify_err(ty.clone(), SpecificType::Literal(lit.clone()))));
+                },
+            },
+            (other, Sum(sum_tys)) => {
+                // `other` must be a member of the Sum type
+                if !sum_tys.contains(&other) {
+                    self.push_error(span.with_item(self.unify_err(other.clone(), SpecificType::Sum(sum_tys.iter().cloned().collect()))));
+                }
+                // unify both types to the other type
+                self.ctx.update_type(t2, other);
+            },
             // instantiate the infer type with the known type
             (Infer(_, _), known) => {
                 self.ctx.update_type(t1, known);
@@ -363,7 +615,7 @@ impl TypeChecker {
             },
             // lastly, if no unification rule exists for these two types, it is a mismatch
             (a, b) => {
-                self.push_error(span.with_item(TypeConstraintError::UnificationFailure(a, b)));
+                self.push_error(span.with_item(self.unify_err(a, b)));
             },
         }
     }
@@ -378,20 +630,48 @@ impl TypeChecker {
     ) {
         let ty1 = self.ctx.types.get(t1);
         let ty2 = self.ctx.types.get(t2);
-        use PetrType::*;
+        use SpecificType::*;
         match (ty1, ty2) {
             (a, b) if a == b => (),
             (ErrorRecovery, _) | (_, ErrorRecovery) => (),
             (Ref(a), _) => self.apply_satisfies_constraint(*a, t2, span),
             (_, Ref(b)) => self.apply_satisfies_constraint(t1, *b, span),
             // if t1 is a fully instantiated type, then t2 can be updated to be a reference to t1
-            (Unit | Integer | Boolean | UserDefined { .. } | String | Arrow(..) | List(..), Infer(_, _)) => {
+            (Unit | Integer | Boolean | UserDefined { .. } | String | Arrow(..) | List(..) | Literal(_) | Sum(_), Infer(_, _)) => {
                 self.ctx.update_type(t2, Ref(t1));
+            },
+            // the "parent" infer type will not instantiate to the "child" type
+            (Infer(_, _), Unit | Integer | Boolean | UserDefined { .. } | String | Arrow(..) | List(..) | Literal(_) | Sum(_)) => (),
+            (Sum(a_tys), Sum(b_tys)) => {
+                // calculate the intersection of these types, update t2 to the intersection
+                let intersection = a_tys.iter().filter(|a_ty| b_tys.contains(a_ty)).cloned().collect();
+                self.ctx.update_type(t2, Sum(intersection));
+            },
+            (Sum(sum_tys), other) | (other, Sum(sum_tys)) => {
+                if
+                // if `other` is a generalized version of the sum type,
+                // then it satisfies the sum type
+                 other.is_subset_of(sum_tys, &self.ctx)  || 
+                // `other` must be a member of the Sum type
+                    sum_tys.contains(other) {
+                } else {
+                    self.push_error(span.with_item(self.satisfy_err(other.clone(), SpecificType::Sum(sum_tys.iter().cloned().collect()))));
+                }
+            },
+            (Literal(l1), Literal(l2)) if l1 == l2 => (),
+            // Literals can satisfy broader parent types
+            (ty, Literal(lit)) => match (lit, ty) {
+                (petr_resolve::Literal::Integer(_), Integer) => (),
+                (petr_resolve::Literal::Boolean(_), Boolean) => (),
+                (petr_resolve::Literal::String(_), String) => (),
+                (lit, ty) => {
+                    self.push_error(span.with_item(self.satisfy_err(ty.clone(), SpecificType::Literal(lit.clone()))));
+                },
             },
             // if we are trying to satisfy an inferred type with no bounds, this is ok
             (Infer(..), _) => (),
             (a, b) => {
-                self.push_error(span.with_item(TypeConstraintError::FailedToSatisfy(a.clone(), b.clone())));
+                self.push_error(span.with_item(self.satisfy_err(a.clone(), b.clone())));
             },
         }
     }
@@ -440,29 +720,40 @@ impl TypeChecker {
             return tys[0];
         }
 
-        let ty = PetrType::Arrow(tys);
+        let ty = SpecificType::Arrow(tys);
         self.ctx.types.insert(ty)
+    }
+
+    pub fn to_petr_type(
+        &mut self,
+        ty: &petr_resolve::Type,
+    ) -> SpecificType {
+        match ty {
+            petr_resolve::Type::Integer => SpecificType::Integer,
+            petr_resolve::Type::Bool => SpecificType::Boolean,
+            petr_resolve::Type::Unit => SpecificType::Unit,
+            petr_resolve::Type::String => SpecificType::String,
+            petr_resolve::Type::ErrorRecovery(_) => {
+                // unifies to anything, fresh var
+                SpecificType::ErrorRecovery
+            },
+            petr_resolve::Type::Named(ty_id) => SpecificType::Ref(*self.type_map.get(&ty_id.into()).expect("type did not exist in type map")),
+            petr_resolve::Type::Generic(generic_name) => {
+                // TODO don't create an ID and then reference it -- this is messy
+                let id = self.generic_type(generic_name);
+                SpecificType::Ref(id)
+            },
+            petr_resolve::Type::Sum(tys) => SpecificType::Sum(tys.iter().map(|ty| self.to_petr_type(ty)).collect()),
+            petr_resolve::Type::Literal(l) => SpecificType::Literal(l.clone()),
+        }
     }
 
     pub fn to_type_var(
         &mut self,
         ty: &petr_resolve::Type,
     ) -> TypeVariable {
-        let ty = match ty {
-            petr_resolve::Type::Integer => PetrType::Integer,
-            petr_resolve::Type::Bool => PetrType::Boolean,
-            petr_resolve::Type::Unit => PetrType::Unit,
-            petr_resolve::Type::String => PetrType::String,
-            petr_resolve::Type::ErrorRecovery(span) => {
-                // unifies to anything, fresh var
-                return self.fresh_ty_var(*span);
-            },
-            petr_resolve::Type::Named(ty_id) => PetrType::Ref(*self.type_map.get(&ty_id.into()).expect("type did not exist in type map")),
-            petr_resolve::Type::Generic(generic_name) => {
-                return self.generic_type(generic_name);
-            },
-        };
-        self.ctx.types.insert(ty)
+        let petr_ty = self.to_petr_type(ty);
+        self.ctx.types.insert(petr_ty)
     }
 
     pub fn get_type(
@@ -476,12 +767,7 @@ impl TypeChecker {
         &mut self,
         literal: &petr_resolve::Literal,
     ) -> TypeVariable {
-        use petr_resolve::Literal::*;
-        let ty = match literal {
-            Integer(_) => PetrType::Integer,
-            Boolean(_) => PetrType::Boolean,
-            String(_) => PetrType::String,
-        };
+        let ty = SpecificType::Literal(literal.clone());
         self.ctx.types.insert(ty)
     }
 
@@ -534,7 +820,7 @@ impl TypeChecker {
 
     pub fn get_monomorphized_function(
         &self,
-        id: &(FunctionId, Box<[PetrType]>),
+        id: &FunctionSignature,
     ) -> &Function {
         self.monomorphized_functions.get(id).expect("invariant: should exist")
     }
@@ -602,6 +888,55 @@ impl TypeChecker {
 
     pub fn errors(&self) -> &[TypeError] {
         &self.errors
+    }
+
+    fn unify_err(
+        &self,
+        clone_1: SpecificType,
+        clone_2: SpecificType,
+    ) -> TypeConstraintError {
+        let pretty_printed_b = pretty_printing::pretty_print_petr_type(&clone_2, self);
+        match clone_1 {
+            SpecificType::Sum(tys) => {
+                let tys = tys.iter().map(|ty| pretty_printing::pretty_print_petr_type(ty, self)).collect::<Vec<_>>();
+                TypeConstraintError::NotSubtype(tys, pretty_printed_b)
+            },
+            _ => {
+                let pretty_printed_a = pretty_printing::pretty_print_petr_type(&clone_1, self);
+                TypeConstraintError::UnificationFailure(pretty_printed_a, pretty_printed_b)
+            },
+        }
+    }
+
+    fn satisfy_err(
+        &self,
+        clone_1: SpecificType,
+        clone_2: SpecificType,
+    ) -> TypeConstraintError {
+        let pretty_printed_b = pretty_printing::pretty_print_petr_type(&clone_2, self);
+        match clone_1 {
+            SpecificType::Sum(tys) => {
+                let tys = tys.iter().map(|ty| pretty_printing::pretty_print_petr_type(ty, self)).collect::<Vec<_>>();
+                TypeConstraintError::NotSubtype(tys, pretty_printed_b)
+            },
+            _ => {
+                let pretty_printed_a = pretty_printing::pretty_print_petr_type(&clone_1, self);
+                TypeConstraintError::FailedToSatisfy(pretty_printed_a, pretty_printed_b)
+            },
+        }
+    }
+
+    fn satisfy_expr_return(
+        &mut self,
+        ty: TypeVariable,
+        expr: &TypedExpr,
+    ) {
+        let expr_ty = self.expr_ty(expr);
+        self.satisfies(ty, expr_ty, expr.span());
+    }
+
+    pub fn ctx(&self) -> &TypeContext {
+        &self.ctx
     }
 }
 
@@ -758,9 +1093,10 @@ impl TypeCheck for Expr {
                         let second_ty = ctx.expr_ty(expr);
                         ctx.unify(first_ty, second_ty, expr.span());
                     }
+                    let first_ty = ctx.ctx.types.get(first_ty).clone();
                     TypedExprKind::List {
                         elements: type_checked_exprs,
-                        ty:       ctx.insert_type(PetrType::List(first_ty)),
+                        ty:       ctx.insert_type::<SpecificType>(&SpecificType::List(Box::new(first_ty))),
                     }
                 }
             },
@@ -845,8 +1181,8 @@ fn unify_basic_math_op(
     let lhs_ty = ctx.expr_ty(&lhs);
     let rhs_ty = ctx.expr_ty(&rhs);
     let int_ty = ctx.int();
-    ctx.unify(lhs_ty, int_ty, lhs.span());
-    ctx.unify(rhs_ty, int_ty, rhs.span());
+    ctx.unify(int_ty, lhs_ty, lhs.span());
+    ctx.unify(int_ty, rhs_ty, rhs.span());
     (lhs, rhs)
 }
 
@@ -1038,9 +1374,12 @@ impl TypeCheck for petr_resolve::FunctionCall {
             args.push((*name, arg, arg_ty));
         }
 
-        let concrete_arg_types: Vec<PetrType> = args.iter().map(|(_, _, ty)| ctx.look_up_variable(*ty).clone()).collect();
+        let concrete_arg_types: Vec<_> = args
+            .iter()
+            .map(|(_, _, ty)| ctx.look_up_variable(*ty).generalize(&ctx.ctx).clone())
+            .collect();
 
-        let signature = (self.function, concrete_arg_types.clone().into_boxed_slice());
+        let signature: FunctionSignature = (self.function, concrete_arg_types.clone().into_boxed_slice());
         // now that we know the argument types, check if this signature has been monomorphized
         // already
         if ctx.monomorphized_functions.contains_key(&signature) {
@@ -1054,7 +1393,7 @@ impl TypeCheck for petr_resolve::FunctionCall {
         // unify declared return type with body return type
         let declared_return_type = func_decl.return_ty;
 
-        ctx.unify_expr_return(declared_return_type, &func_decl.body);
+        ctx.satisfy_expr_return(declared_return_type, &func_decl.body);
 
         // to create a monomorphized func decl, we don't actually have to update all of the types
         // throughout the entire definition. We only need to update the parameter types.
@@ -1067,7 +1406,7 @@ impl TypeCheck for petr_resolve::FunctionCall {
 
         // update the parameter types to be the concrete types
         for (param, concrete_ty) in monomorphized_func_decl.params.iter_mut().zip(concrete_arg_types.iter()) {
-            let param_ty = ctx.insert_type(concrete_ty.clone());
+            let param_ty = ctx.insert_type(concrete_ty);
             param.1 = param_ty;
         }
 
@@ -1125,36 +1464,11 @@ fn replace_var_reference_types(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use expect_test::{expect, Expect};
-    use petr_resolve::resolve_symbols;
-    use petr_utils::render_error;
+mod pretty_printing {
+    use crate::*;
 
-    use super::*;
-    fn check(
-        input: impl Into<String>,
-        expect: Expect,
-    ) {
-        let input = input.into();
-        let parser = petr_parse::Parser::new(vec![("test", input)]);
-        let (ast, errs, interner, source_map) = parser.into_result();
-        if !errs.is_empty() {
-            errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
-            panic!("test failed: code didn't parse");
-        }
-        let (errs, resolved) = resolve_symbols(ast, interner, Default::default());
-        if !errs.is_empty() {
-            errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
-            panic!("unresolved symbols in test");
-        }
-        let type_checker = TypeChecker::new(resolved);
-        let res = pretty_print_type_checker(type_checker);
-
-        expect.assert_eq(&res);
-    }
-
-    fn pretty_print_type_checker(type_checker: TypeChecker) -> String {
+    #[cfg(test)]
+    pub fn pretty_print_type_checker(type_checker: TypeChecker) -> String {
         let mut s = String::new();
         for (id, ty) in &type_checker.type_map {
             let text = match id {
@@ -1213,25 +1527,32 @@ mod tests {
         s
     }
 
-    fn pretty_print_ty(
+    pub fn pretty_print_ty(
         ty: &TypeVariable,
         type_checker: &TypeChecker,
     ) -> String {
         let mut ty = type_checker.look_up_variable(*ty);
-        while let PetrType::Ref(t) = ty {
+        while let SpecificType::Ref(t) = ty {
             ty = type_checker.look_up_variable(*t);
         }
+        pretty_print_petr_type(ty, type_checker)
+    }
+
+    pub fn pretty_print_petr_type(
+        ty: &SpecificType,
+        type_checker: &TypeChecker,
+    ) -> String {
         match ty {
-            PetrType::Unit => "unit".to_string(),
-            PetrType::Integer => "int".to_string(),
-            PetrType::Boolean => "bool".to_string(),
-            PetrType::String => "string".to_string(),
-            PetrType::Ref(ty) => pretty_print_ty(ty, type_checker),
-            PetrType::UserDefined { name, variants: _ } => {
+            SpecificType::Unit => "unit".to_string(),
+            SpecificType::Integer => "int".to_string(),
+            SpecificType::Boolean => "bool".to_string(),
+            SpecificType::String => "string".to_string(),
+            SpecificType::Ref(ty) => pretty_print_ty(ty, type_checker),
+            SpecificType::UserDefined { name, .. } => {
                 let name = type_checker.resolved.interner.get(name.id);
                 name.to_string()
             },
-            PetrType::Arrow(tys) => {
+            SpecificType::Arrow(tys) => {
                 let mut s = String::new();
                 s.push('(');
                 for (ix, ty) in tys.iter().enumerate() {
@@ -1245,13 +1566,29 @@ mod tests {
                 s.push(')');
                 s
             },
-            PetrType::ErrorRecovery => "error recovery".to_string(),
-            PetrType::List(ty) => format!("[{}]", pretty_print_ty(ty, type_checker)),
-            PetrType::Infer(id, _) => format!("t{id}"),
+            SpecificType::ErrorRecovery => "error recovery".to_string(),
+            SpecificType::List(ty) => format!("[{}]", pretty_print_petr_type(ty, type_checker)),
+            SpecificType::Infer(id, _) => format!("infer t{id}"),
+            SpecificType::Sum(tys) => {
+                let mut s = String::new();
+                s.push('(');
+                for (ix, ty) in tys.iter().enumerate() {
+                    let is_last = ix == tys.len() - 1;
+                    // print the petr ty
+                    s.push_str(&pretty_print_petr_type(ty, type_checker));
+                    if !is_last {
+                        s.push_str(" | ");
+                    }
+                }
+                s.push(')');
+                s
+            },
+            SpecificType::Literal(l) => format!("{}", l),
         }
     }
 
-    fn pretty_print_typed_expr(
+    #[cfg(test)]
+    pub fn pretty_print_typed_expr(
         typed_expr: &TypedExpr,
         type_checker: &TypeChecker,
     ) -> String {
@@ -1293,6 +1630,38 @@ mod tests {
             _otherwise => format!("{:?}", typed_expr),
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use expect_test::{expect, Expect};
+    use petr_resolve::resolve_symbols;
+    use petr_utils::render_error;
+
+    use super::*;
+    use crate::pretty_printing::*;
+
+    fn check(
+        input: impl Into<String>,
+        expect: Expect,
+    ) {
+        let input = input.into();
+        let parser = petr_parse::Parser::new(vec![("test", input)]);
+        let (ast, errs, interner, source_map) = parser.into_result();
+        if !errs.is_empty() {
+            errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
+            panic!("test failed: code didn't parse");
+        }
+        let (errs, resolved) = resolve_symbols(ast, interner, Default::default());
+        if !errs.is_empty() {
+            errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
+            panic!("unresolved symbols in test");
+        }
+        let type_checker = TypeChecker::new(resolved);
+        let res = pretty_print_type_checker(type_checker);
+
+        expect.assert_eq(&res);
+    }
 
     #[test]
     fn identity_resolution_concrete_type() {
@@ -1315,8 +1684,8 @@ mod tests {
             fn foo(x in 'A) returns 'A x
             "#,
             expect![[r#"
-                fn foo: (t5 → t5)
-                variable x: t5
+                fn foo: (infer t5 → infer t5)
+                variable x: infer t5
 
             "#]],
         );
@@ -1367,7 +1736,7 @@ mod tests {
                 fn firstVariant: (MyType → MyComposedType)
                 type constructor: MyComposedType
 
-                fn secondVariant: (int → MyType → t19 → MyComposedType)
+                fn secondVariant: (int → MyType → infer t16 → MyComposedType)
                 type constructor: MyComposedType
 
                 fn foo: (MyType → MyComposedType)
@@ -1461,7 +1830,7 @@ mod tests {
 
 
                 __ERRORS__
-                SpannedItem UnificationFailure(String, Boolean) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(52), length: 4 } }]
+                SpannedItem UnificationFailure("string", "true") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(52), length: 4 } }]
             "#]],
         );
     }
@@ -1499,7 +1868,7 @@ mod tests {
                 __MONOMORPHIZED FUNCTIONS__
                 fn bool_literal([]) -> bool
                 __ERRORS__
-                SpannedItem UnificationFailure(String, Boolean) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(110), length: 14 } }]
+                SpannedItem UnificationFailure("string", "bool") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(110), length: 14 } }]
             "#]],
         );
     }
@@ -1519,14 +1888,14 @@ mod tests {
             ~bool_literal(true, false)
         "#,
             expect![[r#"
-                fn bool_literal: (t5 → t6 → bool)
+                fn bool_literal: (infer t5 → infer t7 → bool)
                 literal: true
 
                 fn my_func: bool
-                function call to functionid0 with args: a: int, b: int, returns bool
+                function call to functionid0 with args: a: 1, b: 2, returns bool
 
                 fn my_second_func: bool
-                function call to functionid0 with args: a: bool, b: bool, returns bool
+                function call to functionid0 with args: a: true, b: false, returns bool
 
                 __MONOMORPHIZED FUNCTIONS__
                 fn bool_literal(["int", "int"]) -> bool
@@ -1540,12 +1909,9 @@ mod tests {
                 fn my_list() returns 'list [ 1, true ]
             "#,
             expect![[r#"
-                fn my_list: t8
+                fn my_list: infer t8
                 list: [literal: 1, literal: true, ]
 
-
-                __ERRORS__
-                SpannedItem UnificationFailure(Integer, Boolean) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(48), length: 5 } }]
             "#]],
         );
     }
@@ -1588,13 +1954,13 @@ fn main() returns 'int ~hi(1, 2)"#,
                 fn hi: (int → int → int)
                 a: variable: symbolid2 (int),
                 b: variable: symbolid4 (int),
-                c: literal: 20 (int),
-                d: literal: 30 (int),
-                e: literal: 42 (int),
+                c: literal: 20 (20),
+                d: literal: 30 (30),
+                e: literal: 42 (42),
                 "variable a: int" (int)
 
                 fn main: int
-                function call to functionid0 with args: x: int, y: int, returns int
+                function call to functionid0 with args: x: 1, y: 2, returns int
 
                 __MONOMORPHIZED FUNCTIONS__
                 fn hi(["int", "int"]) -> int
@@ -1614,13 +1980,13 @@ fn main() returns 'int ~hi(1, 2)"#,
                 if variable: symbolid2 then literal: 1 else literal: 2
 
                 fn main: int
-                function call to functionid0 with args: x: int, returns int
+                function call to functionid0 with args: x: 1, returns int
 
                 __MONOMORPHIZED FUNCTIONS__
                 fn hi(["int"]) -> int
                 fn main([]) -> int
                 __ERRORS__
-                SpannedItem UnificationFailure(Integer, Boolean) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(61), length: 2 } }]
+                SpannedItem UnificationFailure("int", "bool") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(61), length: 2 } }]
             "#]],
         )
     }
@@ -1643,7 +2009,7 @@ fn main() returns 'int ~hi(1, 2)"#,
                 fn hi([]) -> int
                 fn main([]) -> int
                 __ERRORS__
-                SpannedItem UnificationFailure(Integer, Unit) [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(33), length: 46 } }]
+                SpannedItem UnificationFailure("unit", "1") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(33), length: 46 } }]
             "#]],
         )
     }
@@ -1666,6 +2032,87 @@ fn main() returns 'int ~hi(1, 2)"#,
                 __MONOMORPHIZED FUNCTIONS__
                 fn hi([]) -> unit
                 fn main([]) -> unit"#]],
+        )
+    }
+
+    #[test]
+    fn disallow_incorrect_constant_int() {
+        check(
+            r#"
+            type OneOrTwo = 1 | 2
+
+            fn main() returns 'OneOrTwo
+                ~OneOrTwo 10
+                "#,
+            expect![[r#"
+                type OneOrTwo: OneOrTwo
+
+                fn OneOrTwo: ((1 | 2) → OneOrTwo)
+                type constructor: OneOrTwo
+
+                fn main: OneOrTwo
+                function call to functionid0 with args: OneOrTwo: 10, returns OneOrTwo
+
+                __MONOMORPHIZED FUNCTIONS__
+                fn OneOrTwo(["int"]) -> OneOrTwo
+                fn main([]) -> OneOrTwo
+                __ERRORS__
+                SpannedItem FailedToSatisfy("10", "(1 | 2)") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(104), length: 0 } }]
+            "#]],
+        )
+    }
+
+    #[test]
+    fn disallow_incorrect_constant_string() {
+        check(
+            r#"
+            type AOrB = "A" | "B"
+
+            fn main() returns 'AOrB
+                ~AOrB "c"
+                "#,
+            expect![[r#"
+                type AOrB: AOrB
+
+                fn AOrB: (("A" | "B") → AOrB)
+                type constructor: AOrB
+
+                fn main: AOrB
+                function call to functionid0 with args: AOrB: "c", returns AOrB
+
+                __MONOMORPHIZED FUNCTIONS__
+                fn AOrB(["string"]) -> AOrB
+                fn main([]) -> AOrB
+                __ERRORS__
+                SpannedItem FailedToSatisfy("\"c\"", "(\"A\" | \"B\")") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(97), length: 0 } }]
+            "#]],
+        )
+    }
+
+    #[test]
+    fn disallow_incorrect_constant_bool() {
+        check(
+            r#"
+        type AlwaysTrue = true
+
+        fn main() returns 'AlwaysTrue
+            ~AlwaysTrue false 
+            "#,
+            expect![[r#"
+                type AlwaysTrue: AlwaysTrue
+
+                fn AlwaysTrue: ((true) → AlwaysTrue)
+                type constructor: AlwaysTrue
+
+                fn main: AlwaysTrue
+                function call to functionid0 with args: AlwaysTrue: false, returns AlwaysTrue
+
+                __MONOMORPHIZED FUNCTIONS__
+                fn AlwaysTrue(["bool"]) -> AlwaysTrue
+                fn main([]) -> AlwaysTrue
+                __ERRORS__
+                SpannedItem FailedToSatisfy("false", "(true)") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(100), length: 0 } }]
+            "#]],
         )
     }
 }

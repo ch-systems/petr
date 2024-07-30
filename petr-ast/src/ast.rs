@@ -79,13 +79,28 @@ impl ImportStatement {
 #[derive(Clone)]
 pub struct TypeDeclaration {
     pub name:       Identifier,
-    pub variants:   Box<[SpannedItem<TypeVariant>]>,
+    pub variants:   Box<[SpannedItem<TypeVariantOrLiteral>]>,
     pub visibility: Visibility,
 }
 
 impl TypeDeclaration {
     pub fn is_exported(&self) -> bool {
         self.visibility == Visibility::Exported
+    }
+}
+
+#[derive(Clone)]
+pub enum TypeVariantOrLiteral {
+    Variant(TypeVariant),
+    Literal(Literal),
+}
+
+impl TypeVariantOrLiteral {
+    pub fn fields(&self) -> Vec<TypeField> {
+        match self {
+            TypeVariantOrLiteral::Variant(variant) => variant.fields.iter().map(|x| x.item().clone()).collect(),
+            TypeVariantOrLiteral::Literal(_) => vec![],
+        }
     }
 }
 
@@ -211,11 +226,12 @@ pub struct List {
     pub elements: Box<[Commented<SpannedItem<Expression>>]>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Literal {
     Integer(i64),
     Boolean(bool),
-    String(Rc<str>),
+    // TODO intern these strings and use an ID
+    String(String),
 }
 
 impl std::fmt::Display for Literal {
@@ -238,19 +254,21 @@ pub struct OperatorExpression {
     pub op:  SpannedItem<Operator>,
 }
 
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug)]
 pub struct FunctionParameter {
     pub name: Identifier,
     pub ty:   Ty,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum Ty {
     Int,
     Bool,
     Named(Identifier),
     String,
     Unit,
+    Literal(Literal),
+    Sum(Box<[Ty]>),
 }
 
 #[derive(Clone)]

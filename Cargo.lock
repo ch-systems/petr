@@ -993,6 +993,7 @@ dependencies = [
  "expect-test",
  "petr-ast",
  "petr-parse",
+ "petr-stdlib",
  "petr-utils",
 ]
 
