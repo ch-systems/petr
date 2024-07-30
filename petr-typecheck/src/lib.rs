@@ -2115,4 +2115,25 @@ fn main() returns 'int ~hi(1, 2)"#,
             "#]],
         )
     }
+
+    #[test]
+    fn disallow_wrong_sum_type_in_add() {
+        check(
+            r#"
+            type IntBelowFive = 1 | 2 | 3 | 4 | 5
+            {- reject an `add` which may return an int above five -}
+            fn add(a in 'IntBelowFive, b in 'IntBelowFive) returns 'IntBelowFive @add(a, b)
+"#,
+expect![[r#""#]])
+    }
+    #[test]
+    fn allow_wrong_sum_type_in_add() {
+        check(
+            r#"
+            type IntBelowFive = 1 | 2 | 3 | 4 | 5
+            {- reject an `add` which may return an int above five -}
+            fn add(a in 'IntBelowFive, b in 'IntBelowFive) returns 'int @add(a, b)
+"#,
+expect![[r#""#]])
+    }
 }

@@ -18,6 +18,7 @@ monaco.languages.setMonarchTokensProvider("petr", {
 			[/\@[a-zA-Z_]+/, "intrinsic"],
 			[/[0-9]+/, "integer-literal"],
       [/\".*\"/, "string-literal"],
+      [/\{-.*-\}/, "comment"],
 		],
 	},
 });
@@ -52,6 +53,7 @@ monaco.editor.defineTheme("petr-theme", {
 		{ token: "string-literal", foreground: literalColor },
 		{ token: "integer-literal", foreground: literalColor },
 		{ token: "keyword", foreground: literalColor },
+		{ token: "comment", foreground: "C4A484", fontStyle: "italic"},
 	],
 	colors: {
 		"editor.foreground": "#ffffff",
