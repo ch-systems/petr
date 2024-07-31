@@ -99,6 +99,12 @@ pub enum TypeConstraintKind {
     Satisfies(TypeVariable, TypeVariable),
 }
 
+#[derive(Clone, Copy, Debug, PartialOrd, Ord, PartialEq, Eq)]
+enum TypeConstraintKindValue {
+    Unify,
+    Satisfies,
+}
+
 pub struct TypeContext {
     types:          IndexMap<TypeVariable, SpecificType>,
     constraints:    Vec<TypeConstraint>,
@@ -542,6 +548,11 @@ impl TypeChecker {
             call.type_check(self);
         }
 
+        // before applying existing constraints, it is likely that many duplicate constraints
+        // exist. We can safely remove any duplicate constraints to avoid excessive error
+        // reporting.
+        self.deduplicate_constraints();
+
         // we have now collected our constraints and can solve for them
         self.apply_constraints();
     }
@@ -984,6 +995,90 @@ impl TypeChecker {
     pub fn ctx(&self) -> &TypeContext {
         &self.ctx
     }
+
+    /// terms:
+    /// ### resolved type variable
+    ///
+    /// a type variable that is not a `Ref`. To get the resolved type of
+    /// a type variable, you must follow the chain of `Ref`s until you reach a non-Ref type.
+    ///
+    /// ### constraint kind strength:
+    /// The following is the hierarchy of constraints in terms of strength, from strongest (1) to
+    /// weakest:
+    /// 1. Unify(t1, t2) (t2 _must_ be coerceable to exactly equal t1)
+    /// 2. Satisfies (t2 must be a subset of t1. For all cases where t2 can unify to t1, t2
+    ///    satisfies t1 as a constraint)
+    ///
+    /// ### constraint strength
+    /// A constraint `a` is _stronger than_ a constraint `b` iff:
+    /// - `a` is higher than `b` in terms of constraint kind strength `a` is a more specific constraint than `b`
+    ///    - e.g. Unify(Literal(5), x) is stronger than Unify(Int, x) because the former is more specific
+    ///    - e.g. Unify(a, b) is stronger than Satisfies(a, b)
+    ///
+    ///
+    /// ### duplicated constraint:
+    /// A constraint `a` is _duplicated by_ constraint `b` iff:
+    /// - `a` and `b` are the same constraint kind, and the resolved type variables are the same
+    /// - `a` is a stronger constraint than `b`
+    ///
+    fn deduplicate_constraints(&mut self) {
+        use TypeConstraintKindValue as Kind;
+        let mut constraints = ConstraintDeduplicator::default();
+        let mut errs = vec![];
+        for constraint in &self.ctx.constraints {
+            println!("on constraint: {:?}", constraint);
+            let (mut tys, kind) = match &constraint.kind {
+                TypeConstraintKind::Unify(t1, t2) => (vec![*t1, *t2], Kind::Unify),
+                TypeConstraintKind::Satisfies(t1, t2) => (vec![*t1, *t2], Kind::Satisfies),
+            };
+
+            // resolve all `Ref` types to get a resolved type variable
+            'outer: for ty_var in tys.iter_mut() {
+                // track what we have seen, in case a circular reference is present
+                let mut seen_vars = BTreeSet::new();
+                seen_vars.insert(*ty_var);
+                let ty = self.ctx.types.get(*ty_var);
+                while let SpecificType::Ref(t) = ty {
+                    if seen_vars.insert(*t) {
+                        *ty_var = *t;
+                    } else {
+                        // circular reference
+                        errs.push(constraint.span.with_item(TypeConstraintError::CircularType));
+                        continue 'outer;
+                    }
+                    *ty_var = *t;
+                }
+            }
+
+            constraints.insert((kind, tys), *constraint);
+        }
+
+        for err in errs {
+            self.push_error(err);
+        }
+
+        self.ctx.constraints = constraints.into_values();
+    }
+}
+
+/// the `key` type is what we use to deduplicate constraints
+#[derive(Default)]
+struct ConstraintDeduplicator {
+    constraints: BTreeMap<(TypeConstraintKindValue, Vec<TypeVariable>), TypeConstraint>,
+}
+
+impl ConstraintDeduplicator {
+    fn insert(
+        &mut self,
+        key: (TypeConstraintKindValue, Vec<TypeVariable>),
+        constraint: TypeConstraint,
+    ) {
+        self.constraints.insert(key, constraint);
+    }
+
+    fn into_values(self) -> Vec<TypeConstraint> {
+        self.constraints.into_values().collect()
+    }
 }
 
 #[derive(Clone)]
@@ -1309,7 +1404,7 @@ impl TypeCheck for SpannedItem<ResolvedIntrinsic> {
                 let arg = self.item().args[0].type_check(ctx);
                 let arg_ty = ctx.expr_ty(&arg);
                 let int_ty = ctx.int();
-                ctx.unify(arg_ty, int_ty, arg.span());
+                ctx.unify(int_ty, arg_ty, arg.span());
                 TypedExprKind::Intrinsic {
                     intrinsic: Intrinsic::Malloc(Box::new(arg)),
                     ty:        int_ty,
@@ -1583,6 +1678,7 @@ mod pretty_printing {
     ) -> String {
         let mut ty = type_checker.look_up_variable(*ty);
         while let SpecificType::Ref(t) = ty {
+            println!("looping");
             ty = type_checker.look_up_variable(*t);
         }
         pretty_print_petr_type(ty, type_checker)

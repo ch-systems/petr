@@ -15,4 +15,7 @@ pub enum TypeConstraintError {
     UnknownInference,
     #[error("internal compiler error: {0}")]
     Internal(String),
+    // TODO better errors here
+    #[error("This type references itself in a circular way")]
+    CircularType,
 }
