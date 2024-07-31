@@ -1,3 +1,7 @@
+I've worked on languages professionally for many years, now. I've always had to worry about pesky things like user adoption, familiarity and similarity to other languages, and proprietary compilation targets.
+
+This is what happens when I can do whatever I want -- `petr` seeks to be a low-level performant general purpose programming languages, with a sophisticated type and side-effects-tracking system. And weird syntax! 
+
 ```
                   __         
     ____   ___   / /_   _____
