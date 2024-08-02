@@ -18,4 +18,6 @@ pub enum TypeConstraintError {
     // TODO better errors here
     #[error("This type references itself in a circular way")]
     CircularType,
+    #[error("Type {1} is not castable to type {0}")]
+    InvalidTypeUpdate(String, String),
 }
