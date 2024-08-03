@@ -1,0 +1,2 @@
+Type List = Head element 'A tail 'list | Nil
+

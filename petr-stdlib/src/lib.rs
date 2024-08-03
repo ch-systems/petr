@@ -4,5 +4,6 @@ pub fn stdlib() -> Vec<(&'static str, &'static str)> {
         ("std/ops.pt", include_str!("ops.pt")),
         ("std/io.pt", include_str!("io.pt")),
         ("std/mem.pt", include_str!("mem.pt")),
+        ("std/list.pt", include_str!("list.pt")),
     ]
 }

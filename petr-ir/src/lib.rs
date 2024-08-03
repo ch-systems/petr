@@ -2,7 +2,7 @@
 // - reuse data labels
 // - figure out actual interface around "return destination" etc
 // - store position to jump back to after fn call
-// - terminate instructions in correct places (end of entry point)
+// - terminate nstructions in correct places (end of entry point)
 // - comments on IR ops
 // - dead code elimination
 //
@@ -11,14 +11,14 @@ use std::{collections::BTreeMap, rc::Rc};
 
 use petr_typecheck::{FunctionSignature, SpecificType, TypeSolution, TypeVariable, TypedExpr, TypedExprKind};
 use petr_utils::{idx_map_key, Identifier, IndexMap, SpannedItem, SymbolId};
-
 mod error;
 mod opcodes;
-
 pub use error::LoweringError;
 use opcodes::*;
 pub use opcodes::{DataLabel, Intrinsic, IrOpcode, LabelId, Reg, ReservedRegister};
 
+/// Top-level convenience function that takes a type solution (the output of the type checker) and
+/// outputs lowered IR and a data section.
 pub fn lower(solution: TypeSolution) -> Result<(DataSection, Vec<IrOpcode>)> {
     let lowerer = Lowerer::new(solution)?;
     Ok(lowerer.finalize())
@@ -45,6 +45,7 @@ pub struct Lowerer {
     label_assigner: usize,
 }
 
+/// Represents static data in the data section of the program.
 #[derive(Debug, Clone)]
 pub enum DataSectionEntry {
     Int64(i64),
@@ -81,6 +82,8 @@ impl Lowerer {
         Ok(lowerer)
     }
 
+    /// Consumes the [`Lowerer`], performing lowering to IR and returning the data section and
+    /// program section.
     pub fn finalize(self) -> (DataSection, Vec<IrOpcode>) {
         let mut program_section = vec![];
 
