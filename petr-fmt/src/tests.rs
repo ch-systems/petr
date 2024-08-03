@@ -636,10 +636,14 @@ fn let_bindings_no_trailing_comma() {
 
 #[test]
 fn sum_ty_formatting() {
-    check(Default::default(), "fn myFunc(x in 'sum 1 | 2 | 3) returns 'int 5", expect![[r#"
+    check(
+        Default::default(),
+        "fn myFunc(x in 'sum 1 | 2 | 3) returns 'int 5",
+        expect![[r#"
         fn myFunc(
           x ∈ 'Σ 1 | 2 | 3,
         ) → 'int
           5
-    "#]])
+    "#]],
+    )
 }

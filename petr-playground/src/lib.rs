@@ -74,13 +74,18 @@ fn compile_snippet(input: String) -> Result<Lowerer, Vec<String>> {
         return Err(errs.into_iter().map(|err| format!("{:?}", render_error(&source_map, err))).collect());
     }
 
-    let (errs, type_checker) = type_check(resolved);
+    let solution = match type_check(resolved) {
+        Ok(o) => o,
+        Err(e) => {
+            return Err(e.into_iter().map(|err| format!("{:?}", render_error(&source_map, err))).collect());
+        },
+    };
 
     if !errs.is_empty() {
         return Err(errs.into_iter().map(|err| format!("{:?}", render_error(&source_map, err))).collect());
     }
 
-    let lowerer = match Lowerer::new(type_checker) {
+    let lowerer = match Lowerer::new(solution) {
         Ok(l) => l,
         Err(err) => panic!("lowering failed: {:?}", err),
     };
