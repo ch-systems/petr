@@ -5,7 +5,6 @@
 //!     - Satisfies
 //!     - UnifyEffects
 //!     - SatisfiesEffects
-#![allow(warnings)]
 
 mod error;
 
@@ -16,7 +15,7 @@ use std::{
 
 use error::TypeConstraintError;
 pub use petr_bind::FunctionId;
-use petr_resolve::{Expr, ExprKind, QueryableResolvedItems};
+use petr_resolve::{Expr, ExprKind, FunctionCall, QueryableResolvedItems};
 pub use petr_resolve::{Intrinsic as ResolvedIntrinsic, IntrinsicName, Literal};
 use petr_utils::{idx_map_key, Identifier, IndexMap, Span, SpannedItem, SymbolId, SymbolInterner, TypeId};
 
@@ -90,6 +89,16 @@ impl TypeConstraint {
             span,
         }
     }
+
+    fn axiom(
+        t1: TypeVariable,
+        span: Span,
+    ) -> Self {
+        Self {
+            kind: TypeConstraintKind::Axiom(t1),
+            span,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -159,6 +168,14 @@ impl TypeContext {
         span: Span,
     ) {
         self.constraints.push(TypeConstraint::satisfies(ty1, ty2, span));
+    }
+
+    fn axiom(
+        &mut self,
+        ty1: TypeVariable,
+        span: Span,
+    ) {
+        self.constraints.push(TypeConstraint::axiom(ty1, span));
     }
 
     fn new_variable(
@@ -477,6 +494,11 @@ impl TypeSolution {
                 self.update_type(t1, t1_entry, span);
                 self.update_type(t2, t2_entry, span);
             },
+            (a, b) if self.a_superset_of_b(&a, &b) => {
+                // if `a` is a superset of `b`, then `b` unifies to `a` as it is more general
+                let entry = TypeSolutionEntry::new_inferred(Ref(t1));
+                self.update_type(t2, entry, span);
+            },
             /* TODO rewrite below rules
             // literals can unify broader parent types
             // but the broader parent type gets instantiated with the literal type
@@ -690,11 +712,18 @@ impl TypeSolution {
 
     #[cfg(test)]
     fn pretty_print(&self) -> String {
-        let mut pretty = String::new();
+        let mut pretty = "__SOLVED TYPES__\n".to_string();
+
+        let mut num_entries = 0;
         for (ty, entry) in self.solution.iter().filter(|(id, _)| ![self.unit, self.error_recovery].contains(id)) {
-            pretty.push_str(&format!("{}: {}\n", ty, self.pretty_print_type(&entry.ty)));
+            pretty.push_str(&format!("{}: {}\n", Into::<usize>::into(*ty), self.pretty_print_type(&entry.ty)));
+            num_entries += 1;
         }
-        pretty
+        if num_entries == 0 {
+            Default::default()
+        } else {
+            pretty
+        }
     }
 
     pub fn get_main_function(&self) -> Option<(&FunctionId, &Function)> {
@@ -1177,6 +1206,14 @@ impl TypeChecker {
         span: Span,
     ) {
         self.ctx.satisfies(ty1, ty2, span);
+    }
+
+    fn axiom(
+        &mut self,
+        ty: TypeVariable,
+        span: Span,
+    ) {
+        self.ctx.axiom(ty, span);
     }
 
     fn get_untyped_function(
@@ -1747,9 +1784,12 @@ impl TypeCheck for petr_resolve::Function {
     ) -> Self::Output {
         ctx.with_type_scope(|ctx| {
             let params = self.params.iter().map(|(name, ty)| (*name, ctx.to_type_var(ty))).collect::<Vec<_>>();
+            // declared parameters are axiomatic, they won't be updated by any inference
 
             for (name, ty) in &params {
                 ctx.insert_variable(*name, *ty);
+                // TODO get span for type annotation instead of just the name of the parameter
+                ctx.axiom(*ty, name.span);
             }
 
             // unify types within the body with the parameter
@@ -1767,7 +1807,7 @@ impl TypeCheck for petr_resolve::Function {
     }
 }
 
-impl TypeCheck for petr_resolve::FunctionCall {
+impl TypeCheck for FunctionCall {
     type Output = TypedExprKind;
 
     fn type_check(
@@ -1951,12 +1991,6 @@ mod pretty_printing {
             s.push('\n');
         }
 
-        if !type_checker.errors.is_empty() {
-            s.push_str("\n__ERRORS__\n");
-            for error in &type_checker.errors {
-                s.push_str(&format!("{:?}\n", error));
-            }
-        }
         s
     }
 
