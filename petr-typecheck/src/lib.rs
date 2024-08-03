@@ -457,8 +457,23 @@ impl TypeSolution {
                 // represents `t1`
                 // TODO remove clone
                 if self.a_superset_of_b(&a, &b) {
+                    let entry = TypeSolutionEntry::new_inferred(Ref(t1));
+                    self.update_type(t2, entry, span);
                 } else {
-                    self.push_error(span.with_item(self.unify_err(a, b)));
+                    // the union of the two sets is the new type
+                    let a_tys = match a {
+                        Sum(tys) => tys,
+                        _ => unreachable!(),
+                    };
+                    let b_tys = match b {
+                        Sum(tys) => tys,
+                        _ => unreachable!(),
+                    };
+                    let union = a_tys.iter().chain(b_tys.iter()).cloned().collect();
+                    let entry = TypeSolutionEntry::new_inferred(Sum(union));
+                    self.update_type(t1, entry, span);
+                    let entry = TypeSolutionEntry::new_inferred(Ref(t1));
+                    self.update_type(t2, entry, span);
                 }
             },
             // If `t2` is a non-sum type, and `t1` is a sum type, then `t1` must contain either
@@ -470,7 +485,14 @@ impl TypeSolution {
                     let entry = TypeSolutionEntry::new_inferred(Ref(t1));
                     self.update_type(t2, entry, span);
                 } else {
-                    self.push_error(span.with_item(self.unify_err(t1_ty.clone(), other)));
+                    // add `other` to  `t1`
+                    let mut tys = match t1_ty {
+                        Sum(tys) => tys.clone(),
+                        _ => unreachable!(),
+                    };
+                    tys.insert(other);
+                    let entry = TypeSolutionEntry::new_inferred(Sum(tys));
+                    self.update_type(t1, entry, span);
                 }
             },
             // literals can unify to each other if they're equal
@@ -1608,7 +1630,7 @@ impl TypeCheck for Expr {
             } => {
                 let condition = condition.type_check(ctx);
                 let condition_ty = ctx.expr_ty(&condition);
-                ctx.unify(condition_ty, ctx.bool(), condition.span());
+                ctx.unify(ctx.bool(), condition_ty, condition.span());
 
                 let then_branch = then_branch.type_check(ctx);
                 let then_ty = ctx.expr_ty(&then_branch);
@@ -2155,7 +2177,9 @@ mod tests {
                 fn foo: (int → int)
                 variable x: int
 
-            "#]],
+
+                __SOLVED TYPES__
+                5: int"#]],
         );
     }
 
@@ -2169,7 +2193,9 @@ mod tests {
                 fn foo: (infer t5 → infer t5)
                 variable x: infer t5
 
-            "#]],
+
+                __SOLVED TYPES__
+                6: infer t5"#]],
         );
     }
 
@@ -2192,7 +2218,9 @@ mod tests {
                 fn foo: (MyType → MyType)
                 variable x: MyType
 
-            "#]],
+
+                __SOLVED TYPES__
+                8: MyType"#]],
         );
     }
 
@@ -2226,7 +2254,11 @@ mod tests {
 
                 __MONOMORPHIZED FUNCTIONS__
                 fn firstVariant(["MyType"]) -> MyComposedType
-            "#]],
+
+                __SOLVED TYPES__
+                14: int
+                17: infer t16
+                23: MyType"#]],
         );
     }
 
@@ -2242,9 +2274,7 @@ mod tests {
                 literal: 5
 
                 fn bar: bool
-                literal: 5
-
-            "#]],
+                literal: 5"#]],
         );
     }
 
@@ -2260,9 +2290,7 @@ mod tests {
                 literal: 5
 
                 fn bar: bool
-                literal: true
-
-            "#]],
+                literal: true"#]],
         );
     }
 
@@ -2283,8 +2311,7 @@ mod tests {
                 intrinsic: @puts(function call to functionid0 with args: )
 
                 __MONOMORPHIZED FUNCTIONS__
-                fn string_literal([]) -> string
-            "#]],
+                fn string_literal([]) -> string"#]],
         );
     }
 
@@ -2298,7 +2325,9 @@ mod tests {
                 fn my_func: unit
                 intrinsic: @puts(literal: "test")
 
-            "#]],
+
+                __SOLVED TYPES__
+                5: string"#]],
         );
     }
 
@@ -2312,10 +2341,9 @@ mod tests {
                 fn my_func: unit
                 intrinsic: @puts(literal: true)
 
-
                 __ERRORS__
-                SpannedItem UnificationFailure("string", "true") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(52), length: 4 } }]
-            "#]],
+
+                SpannedItem UnificationFailure("string", "true") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(52), length: 4 } }]"#]],
         );
     }
 
@@ -2329,7 +2357,9 @@ mod tests {
                 fn my_func: bool
                 intrinsic: @puts(literal: "test")
 
-            "#]],
+
+                __SOLVED TYPES__
+                5: string"#]],
         );
     }
 
@@ -2351,10 +2381,9 @@ mod tests {
 
                 __MONOMORPHIZED FUNCTIONS__
                 fn bool_literal([]) -> bool
-
                 __ERRORS__
-                SpannedItem UnificationFailure("string", "bool") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(110), length: 14 } }]
-            "#]],
+
+                SpannedItem UnificationFailure("string", "bool") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(110), length: 14 } }]"#]],
         );
     }
 
@@ -2385,7 +2414,10 @@ mod tests {
                 __MONOMORPHIZED FUNCTIONS__
                 fn bool_literal(["int", "int"]) -> bool
                 fn bool_literal(["bool", "bool"]) -> bool
-            "#]],
+
+                __SOLVED TYPES__
+                6: infer t5
+                8: infer t7"#]],
         );
     }
     #[test]
@@ -2398,7 +2430,10 @@ mod tests {
                 fn my_list: infer t8
                 list: [literal: 1, literal: true, ]
 
-            "#]],
+
+                __SOLVED TYPES__
+                5: (1 | true)
+                6: 1"#]],
         );
     }
 
@@ -2417,10 +2452,9 @@ mod tests {
                 fn add_five: (int → int)
                 error recovery Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(113), length: 8 } }
 
-
                 __ERRORS__
-                SpannedItem ArgumentCountMismatch { function: "add", expected: 2, got: 1 } [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(113), length: 8 } }]
-            "#]],
+
+                SpannedItem ArgumentCountMismatch { function: "add", expected: 2, got: 1 } [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(113), length: 8 } }]"#]],
         );
     }
 
@@ -2451,7 +2485,10 @@ fn main() returns 'int ~hi(1, 2)"#,
                 __MONOMORPHIZED FUNCTIONS__
                 fn hi(["int", "int"]) -> int
                 fn main([]) -> int
-            "#]],
+
+                __SOLVED TYPES__
+                5: int
+                6: int"#]],
         )
     }
 
@@ -2472,10 +2509,9 @@ fn main() returns 'int ~hi(1, 2)"#,
                 __MONOMORPHIZED FUNCTIONS__
                 fn hi(["int"]) -> int
                 fn main([]) -> int
-
                 __ERRORS__
-                SpannedItem UnificationFailure("int", "bool") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(61), length: 2 } }]
-            "#]],
+
+                SpannedItem UnificationFailure("bool", "int") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(61), length: 2 } }]"#]],
         )
     }
 
@@ -2496,10 +2532,9 @@ fn main() returns 'int ~hi(1, 2)"#,
                 __MONOMORPHIZED FUNCTIONS__
                 fn hi([]) -> int
                 fn main([]) -> int
-
                 __ERRORS__
-                SpannedItem UnificationFailure("unit", "1") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(33), length: 46 } }]
-            "#]],
+
+                SpannedItem UnificationFailure("1", "unit") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(33), length: 46 } }]"#]],
         )
     }
 
@@ -2521,7 +2556,10 @@ fn main() returns 'int ~hi(1, 2)"#,
                 __MONOMORPHIZED FUNCTIONS__
                 fn hi([]) -> unit
                 fn main([]) -> unit
-            "#]],
+
+                __SOLVED TYPES__
+                5: bool
+                6: string"#]],
         )
     }
 
@@ -2546,10 +2584,9 @@ fn main() returns 'int ~hi(1, 2)"#,
                 __MONOMORPHIZED FUNCTIONS__
                 fn OneOrTwo(["int"]) -> OneOrTwo
                 fn main([]) -> OneOrTwo
-
                 __ERRORS__
-                SpannedItem NotSubtype(["1", "2"], "10") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(104), length: 0 } }]
-            "#]],
+
+                SpannedItem NotSubtype(["1", "2"], "10") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(104), length: 0 } }]"#]],
         )
     }
 
@@ -2574,10 +2611,9 @@ fn main() returns 'int ~hi(1, 2)"#,
                 __MONOMORPHIZED FUNCTIONS__
                 fn AOrB(["string"]) -> AOrB
                 fn main([]) -> AOrB
-
                 __ERRORS__
-                SpannedItem NotSubtype(["\"A\"", "\"B\""], "\"c\"") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(97), length: 0 } }]
-            "#]],
+
+                SpannedItem NotSubtype(["\"A\"", "\"B\""], "\"c\"") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(97), length: 0 } }]"#]],
         )
     }
 
@@ -2673,7 +2709,11 @@ fn main() returns 'int ~hi(1, 2)"#,
                 fn test(["int"]) -> (1 | 2 | 3)
                 fn test_(["int"]) -> (1 | 2)
                 fn main([]) -> int
-            "#]],
+
+                __SOLVED TYPES__
+                5: (1 | 2 | 3)
+                9: (1 | 2)
+                11: (1 | 2)"#]],
         )
     }
 
@@ -2703,7 +2743,10 @@ fn main() returns 'int ~hi(1, 2)"#,
                 fn test(["string"]) -> (int | string)
                 fn test_(["int"]) -> (int | string)
                 fn main([]) -> int
-            "#]],
+
+                __SOLVED TYPES__
+                5: (int | string)
+                9: int"#]],
         )
     }
 
@@ -2732,10 +2775,9 @@ fn main() returns 'int ~hi(1, 2)"#,
                 fn test(["(int | string)"]) -> (int | string)
                 fn test_(["bool"]) -> (int | string)
                 fn main([]) -> int
-
                 __ERRORS__
-                SpannedItem NotSubtype(["int", "string"], "bool") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(129), length: 0 } }]
-            "#]],
+
+                SpannedItem NotSubtype(["int", "string"], "bool") [Span { source: SourceId(0), span: SourceSpan { offset: SourceOffset(129), length: 0 } }]"#]],
         )
     }
 
@@ -2748,7 +2790,9 @@ fn main() returns 'int ~hi(1, 2)"#,
                 fn test: ((int | string) → (int | string))
                 variable a: (int | string)
 
-            "#]],
+
+                __SOLVED TYPES__
+                5: (int | string)"#]],
         )
     }
 
@@ -2761,7 +2805,24 @@ fn main() returns 'int ~hi(1, 2)"#,
                 fn test: ((int | string) → (int | bool | string))
                 variable a: (int | string)
 
-            "#]],
+
+                __SOLVED TYPES__
+                5: (int | string)"#]],
         )
+    }
+
+    #[test]
+    fn if_exp_basic() {
+        check("fn main() returns 'int if true then 1 else 0", expect![[r#"
+            fn main: int
+            if literal: true then literal: 1 else literal: 0
+
+            __MONOMORPHIZED FUNCTIONS__
+            fn main([]) -> int
+
+            __SOLVED TYPES__
+            5: bool
+            6: (0 | 1)
+            7: 1"#]]);
     }
 }

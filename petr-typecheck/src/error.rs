@@ -7,7 +7,7 @@ pub enum TypeConstraintError {
     UnificationFailure(String, String),
     #[error("type `{0}` does not satisfy the constraints of type {1}")]
     FailedToSatisfy(String, String),
-    #[error("type `{1}` is not a subtype of sum type `{0:?}`")]
+    #[error("type `{1}` is not a subtype of sum type `{}`", .0.join(" | "))]
     NotSubtype(Vec<String>, String),
     #[error("Function {function} takes {expected:?} arguments, but got {got:?} arguments.")]
     ArgumentCountMismatch { function: String, expected: usize, got: usize },
