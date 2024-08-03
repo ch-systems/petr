@@ -72,41 +72,37 @@ enum TypeConstraintKindValue {
     Axiom,
 }
 
-pub struct TypeContext {
-    types:          IndexMap<TypeVariable, SpecificType>,
-    constraints:    Vec<TypeConstraint>,
+pub type FunctionSignature = (FunctionId, Box<[GeneralType]>);
+
+pub struct TypeConstraintContext {
+    type_map: BTreeMap<TypeOrFunctionId, TypeVariable>,
+    monomorphized_functions: BTreeMap<FunctionSignature, Function>,
+    typed_functions: BTreeMap<FunctionId, Function>,
+    errors: Vec<TypeError>,
+    resolved: QueryableResolvedItems,
+    variable_scope: Vec<BTreeMap<Identifier, TypeVariable>>,
+    types: IndexMap<TypeVariable, SpecificType>,
+    constraints: Vec<TypeConstraint>,
     // known primitive type IDs
-    unit_ty:        TypeVariable,
-    string_ty:      TypeVariable,
-    int_ty:         TypeVariable,
-    bool_ty:        TypeVariable,
+    unit_ty: TypeVariable,
+    string_ty: TypeVariable,
+    int_ty: TypeVariable,
+    bool_ty: TypeVariable,
     error_recovery: TypeVariable,
 }
 
-impl Default for TypeContext {
-    fn default() -> Self {
-        let mut types = IndexMap::default();
-        // instantiate basic primitive types
-        let unit_ty = types.insert(SpecificType::Unit);
-        let string_ty = types.insert(SpecificType::String);
-        let bool_ty = types.insert(SpecificType::Boolean);
-        let int_ty = types.insert(SpecificType::Integer);
-        let error_recovery = types.insert(SpecificType::ErrorRecovery);
-        // insert primitive types
-        TypeContext {
-            types,
-            constraints: Default::default(),
-            bool_ty,
-            unit_ty,
-            string_ty,
-            int_ty,
-            error_recovery,
-        }
-    }
+/// This trait defines the interface for AST nodes to output the type constraints that they
+/// produce by modifying the constraint context.
+pub trait GenerateTypeConstraints {
+    type Output;
+    fn type_check(
+        &self,
+        ctx: &mut TypeConstraintContext,
+    ) -> Self::Output;
 }
 
-impl TypeContext {
-    fn unify(
+impl TypeConstraintContext {
+    pub fn unify(
         &mut self,
         ty1: TypeVariable,
         ty2: TypeVariable,
@@ -115,7 +111,7 @@ impl TypeContext {
         self.constraints.push(TypeConstraint::unify(ty1, ty2, span));
     }
 
-    fn satisfies(
+    pub fn satisfies(
         &mut self,
         ty1: TypeVariable,
         ty2: TypeVariable,
@@ -124,7 +120,7 @@ impl TypeContext {
         self.constraints.push(TypeConstraint::satisfies(ty1, ty2, span));
     }
 
-    fn axiom(
+    pub fn axiom(
         &mut self,
         ty1: TypeVariable,
         span: Span,
@@ -132,7 +128,7 @@ impl TypeContext {
         self.constraints.push(TypeConstraint::axiom(ty1, span));
     }
 
-    fn new_variable(
+    pub fn new_variable(
         &mut self,
         span: Span,
     ) -> TypeVariable {
@@ -143,7 +139,7 @@ impl TypeContext {
     }
 
     /// Update a type variable with a new SpecificType
-    fn update_type(
+    pub fn update_type(
         &mut self,
         t1: TypeVariable,
         known: SpecificType,
@@ -154,43 +150,21 @@ impl TypeContext {
     pub fn types(&self) -> &IndexMap<TypeVariable, SpecificType> {
         &self.types
     }
-}
 
-pub type FunctionSignature = (FunctionId, Box<[GeneralType]>);
-
-pub struct TypeChecker {
-    ctx: TypeContext,
-    type_map: BTreeMap<TypeOrFunctionId, TypeVariable>,
-    monomorphized_functions: BTreeMap<FunctionSignature, Function>,
-    typed_functions: BTreeMap<FunctionId, Function>,
-    errors: Vec<TypeError>,
-    resolved: QueryableResolvedItems,
-    variable_scope: Vec<BTreeMap<Identifier, TypeVariable>>,
-}
-
-pub trait TypeCheck {
-    type Output;
-    fn type_check(
-        &self,
-        ctx: &mut TypeChecker,
-    ) -> Self::Output;
-}
-
-impl TypeChecker {
     pub fn insert_type<T: Type>(
         &mut self,
         ty: &T,
     ) -> TypeVariable {
         let ty = ty.as_specific_ty();
         // TODO: check if type already exists and return that ID instead
-        self.ctx.types.insert(ty)
+        self.types.insert(ty)
     }
 
     pub fn look_up_variable(
         &self,
         ty: TypeVariable,
     ) -> &SpecificType {
-        self.ctx.types.get(ty)
+        self.types.get(ty)
     }
 
     pub fn get_symbol(
@@ -228,7 +202,7 @@ impl TypeChecker {
                 self.errors.push(id.span.with_item(TypeConstraintError::Internal(
                     "attempted to insert generic type into variable scope when no variable scope existed".into(),
                 )));
-                self.ctx.update_type(fresh_ty, SpecificType::ErrorRecovery);
+                self.update_type(fresh_ty, SpecificType::ErrorRecovery);
             },
         };
         fresh_ty
@@ -261,7 +235,7 @@ impl TypeChecker {
                     })
                 })
                 .collect::<Vec<_>>();
-            self.ctx.update_type(
+            self.update_type(
                 ty,
                 SpecificType::UserDefined {
                     name: decl.name,
@@ -306,11 +280,11 @@ impl TypeChecker {
     /// - satisfaction tries to make one type satisfy the constraints of another, although type
     ///   constraints don't exist in the language yet
     pub fn into_solution(self) -> Result<TypeSolution, Vec<TypeError>> {
-        let constraints = self.ctx.constraints.clone();
+        let constraints = self.constraints.clone();
         let mut solution = TypeSolution::new(
-            self.ctx.types.clone(),
-            self.ctx.error_recovery,
-            self.ctx.unit_ty,
+            self.types.clone(),
+            self.error_recovery,
+            self.unit_ty,
             self.typed_functions,
             self.monomorphized_functions,
             self.resolved.interner,
@@ -321,7 +295,7 @@ impl TypeChecker {
                 unreachable!("above filter ensures that all constraints are axioms here")
             };
             // first, pin all axiomatic type variables in the solution
-            let ty = self.ctx.types.get(*axiomatic_variable).clone();
+            let ty = self.types.get(*axiomatic_variable).clone();
             solution.insert_solution(*axiomatic_variable, TypeSolutionEntry::new_axiomatic(ty), *span);
         }
 
@@ -342,15 +316,28 @@ impl TypeChecker {
     }
 
     pub fn new(resolved: QueryableResolvedItems) -> Self {
-        let ctx = TypeContext::default();
-        TypeChecker {
-            ctx,
+        let mut types = IndexMap::default();
+        // instantiate basic primitive types
+        let unit_ty = types.insert(SpecificType::Unit);
+        let string_ty = types.insert(SpecificType::String);
+        let bool_ty = types.insert(SpecificType::Boolean);
+        let int_ty = types.insert(SpecificType::Integer);
+        let error_recovery = types.insert(SpecificType::ErrorRecovery);
+
+        TypeConstraintContext {
             type_map: Default::default(),
             errors: Default::default(),
             typed_functions: Default::default(),
             resolved,
             variable_scope: Default::default(),
             monomorphized_functions: Default::default(),
+            types,
+            constraints: Default::default(),
+            unit_ty,
+            string_ty,
+            int_ty,
+            bool_ty,
+            error_recovery,
         }
     }
 
@@ -369,7 +356,7 @@ impl TypeChecker {
         &mut self,
         span: Span,
     ) -> TypeVariable {
-        self.ctx.new_variable(span)
+        self.new_variable(span)
     }
 
     fn arrow_type(
@@ -383,7 +370,7 @@ impl TypeChecker {
         }
 
         let ty = SpecificType::Arrow(tys);
-        self.ctx.types.insert(ty)
+        self.types.insert(ty)
     }
 
     pub fn to_petr_type(
@@ -415,7 +402,7 @@ impl TypeChecker {
         ty: &petr_resolve::Type,
     ) -> TypeVariable {
         let petr_ty = self.to_petr_type(ty);
-        self.ctx.types.insert(petr_ty)
+        self.types.insert(petr_ty)
     }
 
     pub fn get_type(
@@ -430,33 +417,7 @@ impl TypeChecker {
         literal: &petr_resolve::Literal,
     ) -> TypeVariable {
         let ty = SpecificType::Literal(literal.clone());
-        self.ctx.types.insert(ty)
-    }
-
-    pub fn unify(
-        &mut self,
-        ty1: TypeVariable,
-        ty2: TypeVariable,
-        span: Span,
-    ) {
-        self.ctx.unify(ty1, ty2, span);
-    }
-
-    pub fn satisfies(
-        &mut self,
-        ty1: TypeVariable,
-        ty2: TypeVariable,
-        span: Span,
-    ) {
-        self.ctx.satisfies(ty1, ty2, span);
-    }
-
-    pub fn axiom(
-        &mut self,
-        ty: TypeVariable,
-        span: Span,
-    ) {
-        self.ctx.axiom(ty, span);
+        self.types.insert(ty)
     }
 
     fn get_untyped_function(
@@ -505,7 +466,7 @@ impl TypeChecker {
             Unit => self.unit(),
             Variable { ty, .. } => *ty,
             Intrinsic { ty, .. } => *ty,
-            ErrorRecovery(..) => self.ctx.error_recovery,
+            ErrorRecovery(..) => self.error_recovery,
             ExprWithBindings { expression, .. } => self.expr_ty(expression),
             TypeConstructor { ty, .. } => *ty,
             If { then_branch, .. } => self.expr_ty(then_branch),
@@ -523,19 +484,19 @@ impl TypeChecker {
     }
 
     pub fn string(&self) -> TypeVariable {
-        self.ctx.string_ty
+        self.string_ty
     }
 
     pub fn unit(&self) -> TypeVariable {
-        self.ctx.unit_ty
+        self.unit_ty
     }
 
     pub fn int(&self) -> TypeVariable {
-        self.ctx.int_ty
+        self.int_ty
     }
 
     pub fn bool(&self) -> TypeVariable {
-        self.ctx.bool_ty
+        self.bool_ty
     }
 
     pub fn errors(&self) -> &[TypeError] {
@@ -549,10 +510,6 @@ impl TypeChecker {
     ) {
         let expr_ty = self.expr_ty(expr);
         self.satisfies(ty, expr_ty, expr.span());
-    }
-
-    pub fn ctx(&self) -> &TypeContext {
-        &self.ctx
     }
 
     /// terms:
@@ -584,7 +541,7 @@ impl TypeChecker {
         use TypeConstraintKindValue as Kind;
         let mut constraints = ConstraintDeduplicator::default();
         let mut errs = vec![];
-        for constraint in &self.ctx.constraints {
+        for constraint in &self.constraints {
             let (mut tys, kind) = match &constraint.kind {
                 TypeConstraintKind::Unify(t1, t2) => (vec![*t1, *t2], Kind::Unify),
                 TypeConstraintKind::Satisfies(t1, t2) => (vec![*t1, *t2], Kind::Satisfies),
@@ -596,7 +553,7 @@ impl TypeChecker {
                 // track what we have seen, in case a circular reference is present
                 let mut seen_vars = BTreeSet::new();
                 seen_vars.insert(*ty_var);
-                let mut ty = self.ctx.types.get(*ty_var);
+                let mut ty = self.types.get(*ty_var);
                 while let SpecificType::Ref(t) = ty {
                     if seen_vars.contains(t) {
                         // circular reference
@@ -604,14 +561,14 @@ impl TypeChecker {
                         continue 'outer;
                     }
                     *ty_var = *t;
-                    ty = self.ctx.types.get(*t);
+                    ty = self.types.get(*t);
                 }
             }
 
             constraints.insert((kind, tys), *constraint);
         }
 
-        self.ctx.constraints = constraints.into_values();
+        self.constraints = constraints.into_values();
     }
 
     pub fn push_error(
@@ -669,7 +626,7 @@ impl ConstraintDeduplicator {
 pub fn unify_basic_math_op(
     lhs: &Expr,
     rhs: &Expr,
-    ctx: &mut TypeChecker,
+    ctx: &mut TypeConstraintContext,
 ) -> (TypedExpr, TypedExpr) {
     let lhs = lhs.type_check(ctx);
     let rhs = rhs.type_check(ctx);
@@ -681,12 +638,12 @@ pub fn unify_basic_math_op(
     (lhs, rhs)
 }
 
-impl TypeCheck for petr_resolve::Function {
+impl GenerateTypeConstraints for petr_resolve::Function {
     type Output = Function;
 
     fn type_check(
         &self,
-        ctx: &mut TypeChecker,
+        ctx: &mut TypeConstraintContext,
     ) -> Self::Output {
         ctx.with_type_scope(|ctx| {
             let params = self.params.iter().map(|(name, ty)| (*name, ctx.to_type_var(ty))).collect::<Vec<_>>();
@@ -713,12 +670,12 @@ impl TypeCheck for petr_resolve::Function {
     }
 }
 
-impl TypeCheck for FunctionCall {
+impl GenerateTypeConstraints for FunctionCall {
     type Output = TypedExprKind;
 
     fn type_check(
         &self,
-        ctx: &mut TypeChecker,
+        ctx: &mut TypeConstraintContext,
     ) -> Self::Output {
         let func_decl = ctx.get_function(&self.function).clone();
 
@@ -744,7 +701,7 @@ impl TypeCheck for FunctionCall {
 
         let concrete_arg_types: Vec<_> = args
             .iter()
-            .map(|(_, _, ty)| ctx.look_up_variable(*ty).generalize(ctx.ctx().types()).clone())
+            .map(|(_, _, ty)| ctx.look_up_variable(*ty).generalize(&ctx.types).clone())
             .collect();
 
         let signature: FunctionSignature = (self.function, concrete_arg_types.clone().into_boxed_slice());
@@ -797,12 +754,12 @@ impl TypeCheck for FunctionCall {
     }
 }
 
-impl TypeCheck for SpannedItem<petr_resolve::Intrinsic> {
+impl GenerateTypeConstraints for SpannedItem<petr_resolve::Intrinsic> {
     type Output = TypedExpr;
 
     fn type_check(
         &self,
-        ctx: &mut TypeChecker,
+        ctx: &mut TypeConstraintContext,
     ) -> Self::Output {
         use petr_resolve::IntrinsicName::*;
         let kind = match self.item().intrinsic {

@@ -3,7 +3,7 @@ use petr_resolve::{Expr, ExprKind, Literal};
 use petr_utils::{Identifier, Span};
 
 use crate::{
-    constraint_generation::{TypeCheck, TypeChecker},
+    constraint_generation::{GenerateTypeConstraints, TypeConstraintContext},
     types::SpecificType,
     TypeVariable,
 };
@@ -137,12 +137,12 @@ impl std::fmt::Debug for TypedExpr {
     }
 }
 
-impl TypeCheck for Expr {
+impl GenerateTypeConstraints for Expr {
     type Output = TypedExpr;
 
     fn type_check(
         &self,
-        ctx: &mut TypeChecker,
+        ctx: &mut TypeConstraintContext,
     ) -> Self::Output {
         let kind = match &self.kind {
             ExprKind::Literal(lit) => {
@@ -161,7 +161,7 @@ impl TypeCheck for Expr {
                         let second_ty = ctx.expr_ty(expr);
                         ctx.unify(first_ty, second_ty, expr.span());
                     }
-                    let first_ty = ctx.ctx().types().get(first_ty).clone();
+                    let first_ty = ctx.types().get(first_ty).clone();
                     TypedExprKind::List {
                         elements: type_checked_exprs,
                         ty:       ctx.insert_type::<SpecificType>(&SpecificType::List(Box::new(first_ty))),

@@ -6,7 +6,7 @@
 
 mod error;
 
-pub use constraint_generation::{unify_basic_math_op, FunctionSignature, TypeCheck, TypeChecker};
+pub use constraint_generation::{unify_basic_math_op, FunctionSignature, GenerateTypeConstraints, TypeConstraintContext};
 pub use error::TypeConstraintError;
 pub use petr_bind::FunctionId;
 use petr_resolve::QueryableResolvedItems;
@@ -28,7 +28,7 @@ pub type TypeError = SpannedItem<TypeConstraintError>;
 pub type TResult<T> = Result<T, TypeError>;
 
 pub fn type_check(resolved: QueryableResolvedItems) -> Result<TypeSolution, Vec<SpannedItem<TypeConstraintError>>> {
-    let mut type_checker = TypeChecker::new(resolved);
+    let mut type_checker = TypeConstraintContext::new(resolved);
     type_checker.fully_type_check();
 
     type_checker.into_solution()

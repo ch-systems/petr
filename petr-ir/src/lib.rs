@@ -582,7 +582,7 @@ mod tests {
 
     use expect_test::{expect, Expect};
     use petr_resolve::resolve_symbols;
-    use petr_typecheck::TypeChecker;
+    use petr_typecheck::TypeConstraintContext;
     use petr_utils::render_error;
 
     use super::*;
@@ -607,7 +607,7 @@ mod tests {
             }
             panic!("resolving names failed");
         }
-        let mut type_checker = TypeChecker::new(resolved);
+        let mut type_checker = TypeConstraintContext::new(resolved);
 
         type_checker.fully_type_check();
 

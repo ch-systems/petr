@@ -4,7 +4,7 @@ use types::SpecificType;
 use crate::*;
 
 #[cfg(test)]
-pub fn pretty_print_type_checker(type_checker: &TypeChecker) -> String {
+pub fn pretty_print_type_checker(type_checker: &TypeConstraintContext) -> String {
     let mut s = String::new();
     for (id, ty) in type_checker.type_map() {
         let text = match id {
@@ -24,7 +24,7 @@ pub fn pretty_print_type_checker(type_checker: &TypeChecker) -> String {
         };
         s.push_str(&text);
         s.push_str(": ");
-        s.push_str(&pretty_print_ty(ty, type_checker.ctx().types(), &type_checker.resolved().interner));
+        s.push_str(&pretty_print_ty(ty, type_checker.types(), &type_checker.resolved().interner));
 
         s.push('\n');
         match id {
@@ -48,13 +48,13 @@ pub fn pretty_print_type_checker(type_checker: &TypeChecker) -> String {
         let arg_types = func
             .params
             .iter()
-            .map(|(_, ty)| pretty_print_ty(ty, type_checker.ctx().types(), &type_checker.resolved().interner))
+            .map(|(_, ty)| pretty_print_ty(ty, type_checker.types(), &type_checker.resolved().interner))
             .collect::<Vec<_>>();
         s.push_str(&format!(
             "\nfn {}({:?}) -> {}",
             func_name,
             arg_types,
-            pretty_print_ty(&func.return_ty, type_checker.ctx().types(), &type_checker.resolved().interner)
+            pretty_print_ty(&func.return_ty, type_checker.types(), &type_checker.resolved().interner)
         ));
     }
 
@@ -130,10 +130,10 @@ pub fn pretty_print_petr_type(
 #[cfg(test)]
 pub fn pretty_print_typed_expr(
     typed_expr: &TypedExpr,
-    type_checker: &TypeChecker,
+    type_checker: &TypeConstraintContext,
 ) -> String {
     let interner = &type_checker.resolved().interner;
-    let types = &type_checker.ctx().types();
+    let types = &type_checker.types();
     match &typed_expr.kind {
         TypedExprKind::ExprWithBindings { bindings, expression } => {
             let mut s = String::new();

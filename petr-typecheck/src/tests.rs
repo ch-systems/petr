@@ -2,7 +2,7 @@ use expect_test::{expect, Expect};
 use petr_resolve::resolve_symbols;
 use petr_utils::render_error;
 
-use crate::{constraint_generation::TypeChecker, pretty_printing::*};
+use crate::{constraint_generation::TypeConstraintContext, pretty_printing::*};
 
 fn check(
     input: impl Into<String>,
@@ -20,7 +20,7 @@ fn check(
         errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
         panic!("unresolved symbols in test");
     }
-    let mut type_checker = TypeChecker::new(resolved);
+    let mut type_checker = TypeConstraintContext::new(resolved);
     type_checker.fully_type_check();
     let mut res = pretty_print_type_checker(&type_checker);
 
