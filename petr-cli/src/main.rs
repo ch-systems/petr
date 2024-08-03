@@ -22,6 +22,8 @@ pub mod error {
         Pkg(#[from] petr_pkg::error::PkgError),
         #[error("Failed to lower code")]
         FailedToLower,
+        #[error("Program contained type errors")]
+        FailedToTypeCheck,
     }
 }
 
@@ -220,12 +222,20 @@ pub fn compile(
 
     timings.start("type check");
     // type check
-    let (type_errs, type_checker) = petr_typecheck::type_check(resolved);
+    let res = petr_typecheck::type_check(resolved);
 
     timings.end("type check");
+    let type_solution = match res {
+        Ok(o) => o,
+        Err(e) => {
+            render_errors(parse_errs, &source_map);
+            render_errors(e, &source_map);
+            return Err(PeteError::FailedToTypeCheck);
+        },
+    };
 
     timings.start("lowering");
-    let lowerer: Lowerer = match Lowerer::new(type_checker) {
+    let lowerer: Lowerer = match Lowerer::new(type_solution) {
         Ok(l) => l,
         Err(e) => {
             eprintln!("Failed to lower: {:?}", e);
@@ -235,7 +245,6 @@ pub fn compile(
     timings.end("lowering");
 
     render_errors(parse_errs, &source_map);
-    render_errors(type_errs, &source_map);
     render_errors(resolution_errs, &source_map);
     Ok(lowerer)
 }

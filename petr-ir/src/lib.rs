@@ -9,7 +9,7 @@
 
 use std::{collections::BTreeMap, rc::Rc};
 
-use petr_typecheck::{FunctionSignature, SpecificType, Type, TypeChecker, TypeVariable, TypedExpr, TypedExprKind};
+use petr_typecheck::{FunctionSignature, SpecificType, TypeSolution, TypeVariable, TypedExpr, TypedExprKind};
 use petr_utils::{idx_map_key, Identifier, IndexMap, SpannedItem, SymbolId};
 
 mod error;
@@ -19,8 +19,8 @@ pub use error::LoweringError;
 use opcodes::*;
 pub use opcodes::{DataLabel, Intrinsic, IrOpcode, LabelId, Reg, ReservedRegister};
 
-pub fn lower(checker: TypeChecker) -> Result<(DataSection, Vec<IrOpcode>)> {
-    let lowerer = Lowerer::new(checker)?;
+pub fn lower(solution: TypeSolution) -> Result<(DataSection, Vec<IrOpcode>)> {
+    let lowerer = Lowerer::new(solution)?;
     Ok(lowerer.finalize())
 }
 
@@ -38,7 +38,7 @@ pub struct Lowerer {
     data_section: DataSection,
     entry_point: Option<MonomorphizedFunctionId>,
     reg_assigner: usize,
-    type_checker: TypeChecker,
+    type_solution: TypeSolution,
     variables_in_scope: Vec<BTreeMap<SymbolId, Reg>>,
     monomorphized_functions: IndexMap<MonomorphizedFunctionId, (FunctionSignature, Function)>,
     errors: Vec<SpannedItem<LoweringError>>,
@@ -53,16 +53,19 @@ pub enum DataSectionEntry {
 }
 
 impl Lowerer {
-    pub fn new(type_checker: TypeChecker) -> Result<Self> {
+    pub fn new(type_solution: petr_typecheck::TypeSolution) -> Result<Self> {
         // if there is an entry point, set that
         // set entry point to func named main
-        let entry_point = type_checker.get_main_function();
+        let entry_point = match type_solution.get_main_function() {
+            Some((a, b)) => Some((a.clone(), b.clone())),
+            None => None,
+        };
 
         let mut lowerer = Self {
             data_section: IndexMap::default(),
             entry_point: None,
             reg_assigner: 0,
-            type_checker,
+            type_solution,
             variables_in_scope: Default::default(),
             monomorphized_functions: Default::default(),
             label_assigner: 0,
@@ -110,7 +113,7 @@ impl Lowerer {
             return Ok(previously_monomorphized_definition.0);
         }
 
-        let func_def = self.type_checker.get_monomorphized_function(&func).clone();
+        let func_def = self.type_solution.get_monomorphized_function(&func).clone();
 
         let mut buf = vec![];
         self.with_variable_context(|ctx| -> Result<_> {
@@ -181,8 +184,8 @@ impl Lowerer {
                 for (arg_name, arg_expr) in args {
                     let reg = self.fresh_reg();
                     let mut expr = self.lower_expr(arg_expr, ReturnDestination::Reg(reg))?;
-                    let arg_ty = self.type_checker.expr_ty(arg_expr);
-                    let petr_ty = self.type_checker.look_up_variable(arg_ty);
+                    let arg_ty = self.type_solution.expr_ty(arg_expr);
+                    let petr_ty = self.type_solution.get_latest_type(arg_ty);
                     arg_types.push((*arg_name, petr_ty.clone()));
                     let ir_ty = self.lower_type(petr_ty.clone());
                     expr.push(IrOpcode::StackPush(TypedReg { ty: ir_ty, reg }));
@@ -192,7 +195,7 @@ impl Lowerer {
                 // push current PC onto the stack
                 buf.push(IrOpcode::PushPc());
 
-                let arg_petr_types = arg_types.iter().map(|(_name, ty)| ty.generalize(self.type_checker.ctx())).collect();
+                let arg_petr_types = arg_types.iter().map(|(_name, ty)| self.type_solution.generalize(ty)).collect();
 
                 let monomorphized_func_id = self.monomorphize_function((*func, arg_petr_types))?;
 
@@ -215,7 +218,7 @@ impl Lowerer {
             List { elements, .. } => {
                 let size_of_each_elements = elements
                     .iter()
-                    .map(|el| self.to_ir_type(self.type_checker.expr_ty(el)).size().num_bytes() as u64)
+                    .map(|el| self.to_ir_type(self.type_solution.expr_ty(el)).size().num_bytes() as u64)
                     .sum::<u64>();
                 let size_of_list = size_of_each_elements * elements.len() as u64;
                 let size_of_list_reg = self.fresh_reg();
@@ -235,7 +238,7 @@ impl Lowerer {
                     buf.push(IrOpcode::LoadImmediate(current_offset_reg, current_offset));
                     buf.push(IrOpcode::Add(current_offset_reg, current_offset_reg, return_reg));
                     buf.push(IrOpcode::WriteRegisterToMemory(reg, current_offset_reg));
-                    current_offset += self.to_ir_type(self.type_checker.expr_ty(el)).size().num_bytes() as u64;
+                    current_offset += self.to_ir_type(self.type_solution.expr_ty(el)).size().num_bytes() as u64;
                 }
                 Ok(buf)
             },
@@ -291,7 +294,7 @@ impl Lowerer {
                     buf.push(IrOpcode::Add(current_size_offset_reg, current_size_offset_reg, return_destination));
                     buf.push(IrOpcode::WriteRegisterToMemory(reg, current_size_offset_reg));
 
-                    let arg_ty = self.type_checker.expr_ty(arg);
+                    let arg_ty = self.type_solution.expr_ty(arg);
 
                     current_size_offset += self.to_ir_type(arg_ty).size().num_bytes() as u64;
                 }
@@ -345,7 +348,7 @@ impl Lowerer {
         // Generalize the type. These general types are much more useful for codegen.
         // Specific types include extra information about constant literal value types,
         // data flow analysis, effects tracking, etc., that codegen does not care about.
-        let ty = ty.generalize(self.type_checker.ctx());
+        let ty = self.type_solution.generalize(&ty.as_specific_ty());
         use petr_typecheck::GeneralType::*;
         match ty {
             Unit => IrTy::Unit,
@@ -406,7 +409,7 @@ impl Lowerer {
         &mut self,
         param_ty: TypeVariable,
     ) -> IrTy {
-        let ty = self.type_checker.look_up_variable(param_ty).clone();
+        let ty = self.type_solution.get_latest_type(param_ty).clone();
         self.lower_type(ty)
     }
 
@@ -450,7 +453,7 @@ impl Lowerer {
                 Ok(buf)
             },
             SizeOf(expr) => {
-                let ty = self.type_checker.expr_ty(expr);
+                let ty = self.type_solution.expr_ty(expr);
                 let size = self.to_ir_type(ty).size();
                 match return_destination {
                     ReturnDestination::Reg(reg) => {
@@ -582,6 +585,7 @@ mod tests {
 
     use expect_test::{expect, Expect};
     use petr_resolve::resolve_symbols;
+    use petr_typecheck::TypeChecker;
     use petr_utils::render_error;
 
     use super::*;
@@ -606,15 +610,19 @@ mod tests {
             }
             panic!("resolving names failed");
         }
-        let type_checker = TypeChecker::new(resolved);
+        let mut type_checker = TypeChecker::new(resolved);
 
-        let typecheck_errors = type_checker.errors();
-        if !typecheck_errors.is_empty() {
-            typecheck_errors.iter().for_each(|err| eprintln!("{:?}", err));
-            panic!("ir gen failed: code didn't typecheck");
-        }
+        type_checker.fully_type_check();
 
-        let lowerer = match Lowerer::new(type_checker) {
+        let solution = match type_checker.into_solution() {
+            Ok(o) => o,
+            Err(errs) => {
+                errs.iter().for_each(|err| eprintln!("{:?}", err));
+                panic!("ir gen failed: code didn't typecheck");
+            },
+        };
+
+        let lowerer = match Lowerer::new(solution) {
             Ok(lowerer) => lowerer,
             Err(err) => {
                 eprintln!("{:?}", err);
