@@ -56,10 +56,7 @@ impl Lowerer {
     pub fn new(type_solution: petr_typecheck::TypeSolution) -> Result<Self> {
         // if there is an entry point, set that
         // set entry point to func named main
-        let entry_point = match type_solution.get_main_function() {
-            Some((a, b)) => Some((a.clone(), b.clone())),
-            None => None,
-        };
+        let entry_point = type_solution.get_main_function().map(|(a, b)| (*a, b.clone()));
 
         let mut lowerer = Self {
             data_section: IndexMap::default(),
