@@ -251,9 +251,12 @@ impl TypeConstraintContext {
                 },
             );
         }
+        println!("generating constraints for functions");
 
         for (id, func) in self.resolved.functions() {
+            println!("checking func {}", func.name.id);
             let typed_function = func.type_check(self);
+            println!("done");
 
             let ty = self.arrow_type([typed_function.params.iter().map(|(_, b)| *b).collect(), vec![typed_function.return_ty]].concat());
             self.type_map.insert(id.into(), ty);
@@ -262,6 +265,7 @@ impl TypeConstraintContext {
         // type check the main func with no params
         let main_func = self.get_main_function();
         // construct a function call for the main function, if one exists
+        println!("generating constraints for main function call");
         if let Some((id, func)) = main_func {
             let call = petr_resolve::FunctionCall {
                 function: id,
@@ -671,6 +675,7 @@ impl GenerateTypeConstraints for petr_resolve::Function {
             }
 
             // unify types within the body with the parameter
+            println!("checking body");
             let body = self.body.type_check(ctx);
 
             let declared_return_type = ctx.to_type_var(&self.return_type);
