@@ -165,7 +165,7 @@ impl Parse for FunctionDeclaration {
                 p.token(Token::CloseParen)?;
                 seq
             };
-            p.token(Token::ReturnsKeyword)?;
+            p.one_of([Token::ReturnsKeyword, Token::ReturnsSymbol])?;
             let return_type = p.parse()?;
             let body = p.parse()?;
             Some(Self {
@@ -315,9 +315,16 @@ impl Parse for Expression {
                 Token::True | Token::False | Token::String | Token::Integer => Some(Expression::Literal(p.parse()?)),
                 Token::Intrinsic => Some(Expression::IntrinsicCall(p.parse()?)),
                 Token::Let => Some(Expression::Binding(p.parse()?)),
+                Token::OpenParen => {
+                    let _open = p.token(Token::OpenParen)?;
+                    let expr = p.parse()?;
+                    let _close = p.token(Token::CloseParen)?;
+                    Some(expr)
+                },
                 otherwise => {
                     p.push_error(p.span().with_item(ParseErrorKind::ExpectedOneOf(
                         vec![
+                            Token::OpenParen,
                             Token::Identifier,
                             Token::OpenBracket,
                             Token::Tilde,

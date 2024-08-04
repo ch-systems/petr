@@ -501,7 +501,13 @@ impl Resolve for SpannedItem<Expression> {
                 Expr::new(ExprKind::Intrinsic(resolved), self.span())
             },
             Expression::Binding(bound_expression) => {
-                let scope_id = binder.get_expr_scope(bound_expression.expr_id).expect("invariant: scope should exist");
+                let scope_id = binder.get_expr_scope(bound_expression.expr_id).unwrap_or_else(|| {
+                    panic!(
+                        "invariant: expr {:?} should have an associated scope, but available scopes were {:?}",
+                        bound_expression.expr_id,
+                        binder.exprs()
+                    )
+                });
                 let mut bindings: Vec<Binding> = Vec::with_capacity(bound_expression.bindings.len());
                 for binding in &bound_expression.bindings {
                     let rhs = binding.val.resolve(resolver, binder, scope_id)?;

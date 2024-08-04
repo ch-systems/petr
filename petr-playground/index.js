@@ -110,10 +110,28 @@ monaco.languages.registerCompletionItemProvider("mySpecialLanguage", {
 */
 
 
+const defaultText = `
+{- Try running "format" on the right side of the screen to format this code! -}
+
+{- Calculates the nth number in the fibonacci sequence -}
+fn fibonacci_sequence(n in 'int) returns 'int
+  if = n 0 then 0
+  else if = n 1 then 1
+  else 
+    let lhs = - n 1;
+        rhs = - n 2;
+        + (~fibonacci_sequence lhs) (~fibonacci_sequence rhs)
+
+
+{- sum types can be declared inline -}
+fn cast_string_to_bool(s in 'sum "true" | "false") returns 'bool
+  if = s "true" then true
+  else false
+`
 
 
 monaco.editor.create(document.getElementById('monaco-editor'), {
-	value: "fn main() returns 'unit \n  ~std.io.print \"Hello, World!\"",
+	value: defaultText,
 	language: 'petr',
   theme: "petr-theme",
 });

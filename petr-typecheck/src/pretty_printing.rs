@@ -39,8 +39,15 @@ pub fn pretty_print_type_checker(type_checker: &TypeConstraintContext) -> String
         s.push('\n');
     }
 
+    if !type_checker.constraints().is_empty() {
+        s.push_str("__CONSTRAINTS__\n");
+        for constraint in type_checker.constraints() {
+            s.push_str(&format!("{:?}\n", constraint));
+        }
+    }
+
     if !type_checker.monomorphized_functions().is_empty() {
-        s.push_str("__MONOMORPHIZED FUNCTIONS__");
+        s.push_str("\n__MONOMORPHIZED FUNCTIONS__");
     }
 
     for func in type_checker.monomorphized_functions().values() {

@@ -221,8 +221,14 @@ impl TypeConstraintContext {
     }
 
     pub fn fully_type_check(&mut self) {
+        let mut ty_map: Vec<(TypeVariable, _, _)> = Vec::with_capacity(self.resolved.types().count());
         for (id, decl) in self.resolved.types() {
             let ty = self.fresh_ty_var(decl.name.span);
+            ty_map.push((ty, id, decl));
+            self.type_map.insert(id.into(), ty);
+        }
+
+        for (ty, _id, decl) in ty_map {
             let variants = decl
                 .variants
                 .iter()
@@ -235,6 +241,7 @@ impl TypeConstraintContext {
                     })
                 })
                 .collect::<Vec<_>>();
+
             self.update_type(
                 ty,
                 SpecificType::UserDefined {
@@ -243,7 +250,6 @@ impl TypeConstraintContext {
                     constant_literal_types: decl.constant_literal_types,
                 },
             );
-            self.type_map.insert(id.into(), ty);
         }
 
         for (id, func) in self.resolved.functions() {
@@ -386,7 +392,12 @@ impl TypeConstraintContext {
                 // unifies to anything, fresh var
                 SpecificType::ErrorRecovery
             },
-            petr_resolve::Type::Named(ty_id) => SpecificType::Ref(*self.type_map.get(&ty_id.into()).expect("type did not exist in type map")),
+            petr_resolve::Type::Named(ty_id) => SpecificType::Ref(
+                *self
+                    .type_map
+                    .get(&ty_id.into())
+                    .unwrap_or_else(|| panic!("ty {ty_id} type did not exist in type map")),
+            ),
             petr_resolve::Type::Generic(generic_name) => {
                 // TODO don't create an ID and then reference it -- this is messy
                 let id = self.generic_type(generic_name);
@@ -601,6 +612,10 @@ impl TypeConstraintContext {
     pub fn typed_functions(&self) -> &BTreeMap<FunctionId, Function> {
         &self.typed_functions
     }
+
+    pub fn constraints(&self) -> &[TypeConstraint] {
+        &self.constraints
+    }
 }
 
 /// the `key` type is what we use to deduplicate constraints
@@ -728,6 +743,7 @@ impl GenerateTypeConstraints for FunctionCall {
             return_ty: declared_return_type,
             body:      func_decl.body.clone(),
         };
+        // todo!("figure out how to re-do type check OR use replace_var_types to generate more constraints, maybe via unification?");
 
         // update the parameter types to be the concrete types
         for (param, concrete_ty) in monomorphized_func_decl.params.iter_mut().zip(concrete_arg_types.iter()) {
@@ -737,11 +753,17 @@ impl GenerateTypeConstraints for FunctionCall {
 
         // if there are any variable exprs in the body, update those ref types
         let mut num_replacements = 0;
-        replace_var_reference_types(
+        let new_constraints = replace_var_reference_types(
             &mut monomorphized_func_decl.body.kind,
             &monomorphized_func_decl.params,
             &mut num_replacements,
         );
+        for constraint in new_constraints {
+            ctx.constraints.push(constraint);
+        }
+
+        // re-do constraint generation on replaced func body
+        //        monomorphized_func_decl.body.type_check(ctx);
 
         ctx.insert_monomorphized_function(signature, monomorphized_func_decl);
         // if there are any variable exprs in the body, update those ref types
@@ -872,34 +894,38 @@ fn replace_var_reference_types(
     expr: &mut TypedExprKind,
     params: &Vec<(Identifier, TypeVariable)>,
     num_replacements: &mut usize,
-) {
+) -> Vec<TypeConstraint> {
     match expr {
         TypedExprKind::Variable { ref mut ty, name } => {
             if let Some((_param_name, ty_var)) = params.iter().find(|(param_name, _)| param_name.id == name.id) {
                 *num_replacements += 1;
-                *ty = *ty_var;
+                println!("replacing var named {} ", name.id);
+                //                *ty = *ty_var;
+                return vec![TypeConstraint::unify(*ty, *ty_var, name.span)];
             }
+            vec![]
         },
         TypedExprKind::FunctionCall { args, .. } => {
+            let mut buf = Vec::new();
             for (_, arg) in args {
-                replace_var_reference_types(&mut arg.kind, params, num_replacements);
+                buf.append(&mut replace_var_reference_types(&mut arg.kind, params, num_replacements));
             }
+            buf
         },
         TypedExprKind::Intrinsic { intrinsic, .. } => {
             use crate::Intrinsic::*;
             match intrinsic {
                 // intrinsics which take one arg, grouped for convenience
-                Puts(a) | Malloc(a) | SizeOf(a) => {
-                    replace_var_reference_types(&mut a.kind, params, num_replacements);
-                },
+                Puts(a) | Malloc(a) | SizeOf(a) => replace_var_reference_types(&mut a.kind, params, num_replacements),
                 // intrinsics which take two args, grouped for convenience
                 Add(a, b) | Subtract(a, b) | Multiply(a, b) | Divide(a, b) | Equals(a, b) => {
-                    replace_var_reference_types(&mut a.kind, params, num_replacements);
-                    replace_var_reference_types(&mut b.kind, params, num_replacements);
+                    let mut constraints = replace_var_reference_types(&mut a.kind, params, num_replacements);
+                    constraints.append(&mut replace_var_reference_types(&mut b.kind, params, num_replacements));
+                    constraints
                 },
             }
         },
         // TODO other expr kinds like bindings
-        _ => (),
+        _ => vec![],
     }
 }

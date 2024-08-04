@@ -153,11 +153,12 @@ fn imports_work() {
             __Scopes__
             0: Root (parent none):
               std: Module ModuleId(0)
-              test: Module ModuleId(7)
+              test: Module ModuleId(9)
             1: Module std (parent scopeid0):
               ops: Module ModuleId(1)
               io: Module ModuleId(3)
               mem: Module ModuleId(5)
+              list: Module ModuleId(7)
             2: Module ops (parent scopeid0):
               add: Function functionid0
               sub: Function functionid1
@@ -201,11 +202,21 @@ fn imports_work() {
             16: Expr w/ Bindings (parent scopeid15):
               allocated: Binding
             17: Function (parent scopeid10):
-              expr: FunctionParameter Named(Identifier { id: SymbolId(10), span: Span { source: SourceId(2), span: SourceSpan { offset: SourceOffset(246), length: 1 } } })
-            18: Module test (parent scopeid0):
-              main: Function functionid10
+              expr: FunctionParameter Named(Identifier { id: SymbolId(10), span: Span { source: SourceId(2), span: SourceSpan { offset: SourceOffset(253), length: 1 } } })
+            18: Module list (parent scopeid0):
+              Head: Function functionid10
+              Nil: Function functionid11
+              List: Type TypeId(1)
+            19: Type Cons (parent scopeid18):
+            20: Function (parent scopeid18):
+              element: FunctionParameter Named(Identifier { id: SymbolId(10), span: Span { source: SourceId(3), span: SourceSpan { offset: SourceOffset(35), length: 1 } } })
+              tail: FunctionParameter Named(Identifier { id: SymbolId(27), span: Span { source: SourceId(3), span: SourceSpan { offset: SourceOffset(43), length: 4 } } })
+            21: Type Cons (parent scopeid18):
+            22: Function (parent scopeid18):
+            23: Module test (parent scopeid0):
+              main: Function functionid12
               symbolid2: Import add
-            19: Function (parent scopeid18):
+            24: Function (parent scopeid23):
         "#]],
     );
 }

@@ -50,8 +50,7 @@ pub struct Binder {
     scopes:      IndexMap<ScopeId, Scope>,
     scope_chain: Vec<ScopeId>,
     /// Some expressions define their own scopes, like expressions with bindings
-    // TODO rename to expr_scopes
-    exprs: BTreeMap<ExprId, ScopeId>,
+    expr_scopes: BTreeMap<ExprId, ScopeId>,
     bindings:    IndexMap<BindingId, Binding>,
     functions:   IndexMap<FunctionId, SpannedItem<FunctionDeclaration>>,
     types:       IndexMap<petr_utils::TypeId, TypeDeclaration>,
@@ -215,7 +214,7 @@ impl Binder {
             types: IndexMap::default(),
             bindings: IndexMap::default(),
             modules: IndexMap::default(),
-            exprs: BTreeMap::new(),
+            expr_scopes: BTreeMap::new(),
         }
     }
 
@@ -857,14 +856,18 @@ impl Binder {
         id: ExprId,
         scope: ScopeId,
     ) {
-        self.exprs.insert(id, scope);
+        self.expr_scopes.insert(id, scope);
     }
 
     pub fn get_expr_scope(
         &self,
         id: ExprId,
     ) -> Option<ScopeId> {
-        self.exprs.get(&id).copied()
+        self.expr_scopes.get(&id).copied()
+    }
+
+    pub fn exprs(&self) -> &BTreeMap<ExprId, ScopeId> {
+        &self.expr_scopes
     }
 }
 

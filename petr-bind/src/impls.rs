@@ -49,7 +49,36 @@ impl Bind for Expression {
                 expression.bind(binder);
                 binder.insert_expression(*expr_id, scope_id);
             }),
-            _ => (),
+            Expression::Literal(_) => (),
+            Expression::Operator(op) => {
+                op.lhs.bind(binder);
+                op.rhs.bind(binder);
+            },
+            Expression::FunctionCall(f) => {
+                // bind all of the arguments
+                for arg in f.args.iter() {
+                    arg.bind(binder);
+                }
+            },
+            Expression::Variable(_) => (),
+            Expression::IntrinsicCall(i) => {
+                // bind all of the arguments
+                for arg in i.args.iter() {
+                    arg.bind(binder);
+                }
+            },
+            Expression::TypeConstructor(_, expr) => {
+                for arg in expr.iter() {
+                    arg.bind(binder);
+                }
+            },
+            Expression::If(i) => {
+                i.condition.bind(binder);
+                i.then_branch.bind(binder);
+                if let Some(ref else_branch) = i.else_branch {
+                    else_branch.bind(binder);
+                }
+            },
         }
     }
 }
@@ -120,7 +149,6 @@ impl Bind for ImportStatement {
     ) -> Self::Output {
         // the alias, if any, or the last path element if there is no alias
         let name = self.alias.unwrap_or_else(|| *self.path.iter().last().expect("should never be empty"));
-        println!("handling import");
 
         let import = crate::binder::ImportStatement {
             path:  self.path.clone(),

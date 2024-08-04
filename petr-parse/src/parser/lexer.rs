@@ -39,6 +39,7 @@ pub enum Token {
     Identifier,
     #[regex(r#""([^"\\]|\\["\\bnfrt]|u[a-fA-F0-9]{4})*""#)]
     String,
+    // TODO: comments can't contain `-`
     #[regex(r#"(\{\-)[^-}]*(\-\})"#)]
     Comment,
     #[token("fn")]
@@ -71,7 +72,7 @@ pub enum Token {
     ToKeyword,
     #[regex(r#"export\s+fn"#)]
     ExportFunctionKeyword,
-    #[token("Type")]
+    #[regex(r#"export\s+type"#)]
     ExportTypeKeyword,
     #[token("~")]
     Tilde,

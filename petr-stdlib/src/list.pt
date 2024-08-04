@@ -1,2 +1,3 @@
-Type List = Head element 'A tail 'list | Nil
 
+
+export type List = Head element 'A tail 'list | Nil
