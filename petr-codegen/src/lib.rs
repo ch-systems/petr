@@ -80,7 +80,7 @@ impl IrContext {
     pub fn add_function(
         &mut self,
         func_name: &str,
-        function: petr_ir::Function,
+        function: petr_ir::LoweredFunction,
     ) -> Result<(), IrError> {
         let sig = self.module.make_signature();
         let func_id = self
@@ -121,7 +121,7 @@ impl IrContext {
 
     fn lower_function_body(
         &self,
-        _function: &petr_ir::Function,
+        _function: &petr_ir::LoweredFunction,
         _builder: &mut FunctionBuilder,
     ) -> Result<(), IrError> {
         todo!()

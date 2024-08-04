@@ -24,7 +24,7 @@ pub fn lower(solution: TypeSolution) -> Result<(DataSection, Vec<IrOpcode>)> {
     Ok(lowerer.finalize())
 }
 
-pub struct Function {
+pub struct LoweredFunction {
     body: Vec<IrOpcode>,
 }
 
@@ -38,9 +38,12 @@ pub struct Lowerer {
     data_section: DataSection,
     entry_point: Option<MonomorphizedFunctionId>,
     reg_assigner: usize,
+    /// This assigns IDs to function signatures, which are then pulled from the type solution and
+    /// lowered in a later stage
+    monomorphized_functions: IndexMap<MonomorphizedFunctionId, FunctionSignature>,
+    lowered_monomorphized_functions: BTreeMap<FunctionSignature, LoweredFunction>,
     type_solution: TypeSolution,
     variables_in_scope: Vec<BTreeMap<SymbolId, Reg>>,
-    monomorphized_functions: IndexMap<MonomorphizedFunctionId, (FunctionSignature, Function)>,
     errors: Vec<SpannedItem<LoweringError>>,
     label_assigner: usize,
 }
@@ -65,9 +68,10 @@ impl Lowerer {
             reg_assigner: 0,
             type_solution,
             variables_in_scope: Default::default(),
-            monomorphized_functions: Default::default(),
             label_assigner: 0,
             errors: Default::default(),
+            monomorphized_functions: Default::default(),
+            lowered_monomorphized_functions: Default::default(),
         };
 
         let monomorphized_entry_point_id = match entry_point {
@@ -84,7 +88,7 @@ impl Lowerer {
 
     /// Consumes the [`Lowerer`], performing lowering to IR and returning the data section and
     /// program section.
-    pub fn finalize(self) -> (DataSection, Vec<IrOpcode>) {
+    pub fn finalize(mut self) -> (DataSection, Vec<IrOpcode>) {
         let mut program_section = vec![];
 
         // insert jump to entry point as first instr
@@ -96,10 +100,64 @@ impl Lowerer {
             program_section.push(IrOpcode::ReturnImmediate(0));
         }
 
+        let owned_monomorphized_functions = self.monomorphized_functions.iter().map(|(a, b)| (a, b.clone())).collect::<Vec<_>>();
+
+        for (label, sig) in owned_monomorphized_functions {
+            program_section.push(IrOpcode::FunctionLabel(dbg!(label)));
+            // lower the function body
+            let func_def = self
+                .type_solution
+                .monomorphized_functions
+                .get(&sig)
+                .expect("type checker should have this function signature")
+                .clone();
+
+            self.with_variable_context(|ctx| -> Result<_> {
+                // Pop parameters off the stack in reverse order -- the last parameter for the function
+                // will be the first thing popped off the stack
+                // When we lower a function call, we push them onto the stack from first to last. Since
+                // the stack is FILO, we reverse that order here.
+
+                for (param_ty, (param_name, _)) in sig.1.iter().zip(func_def.params).rev() {
+                    let param_ty = ctx.lower_type(param_ty.clone());
+                    // in order, assign parameters to registers
+                    if param_ty.is_copy_type() {
+                        // load from stack into register
+                        let param_reg = ctx.fresh_reg();
+                        let ty_reg = TypedReg {
+                            ty:  param_ty.clone(),
+                            reg: param_reg,
+                        };
+                        program_section.push(IrOpcode::StackPop(ty_reg));
+                        // insert param into mapping
+
+                        ctx.insert_var(&param_name, param_reg);
+                    } else {
+                        todo!("make reg a ptr to the value")
+                    }
+                }
+
+                let return_reg = ctx.fresh_reg();
+                let return_dest = ReturnDestination::Reg(return_reg);
+                let mut expr_body = ctx.lower_expr(&func_def.body, return_dest)?;
+                program_section.append(&mut expr_body);
+                // load return value into func return register
+
+                program_section.push(IrOpcode::Copy(Reg::Reserved(ReservedRegister::ReturnValueRegister), return_reg));
+
+                // jump back to caller
+                program_section.push(IrOpcode::Return());
+                Ok(())
+            })
+            .unwrap();
+        }
+
+        /*
         for (label, (_signature, mut function)) in self.monomorphized_functions.into_iter() {
             program_section.push(IrOpcode::FunctionLabel(label));
             program_section.append(&mut function.body);
         }
+        */
 
         (self.data_section.clone(), program_section)
     }
@@ -109,10 +167,19 @@ impl Lowerer {
         &mut self,
         func: FunctionSignature,
     ) -> Result<MonomorphizedFunctionId> {
-        if let Some(previously_monomorphized_definition) = self.monomorphized_functions.iter().find(|(_id, (sig, _))| *sig == func) {
-            return Ok(previously_monomorphized_definition.0);
-        }
+        println!("inserting monomorphized func");
+        return Ok(dbg!(self.monomorphized_functions.insert(func)));
+        panic!("type checker didn't type check this monomorphization");
+        /*
 
+        // otherwise, queue up this one
+        self.monomorphized_function_queue
+            .insert((func.clone(), self.type_solution.functions(&func).clone()));
+
+        todo!(
+            "The problem is that before we are able to actually insert a monomorphized recursive function, we
+        get caught up in dealing with the fn body"
+        );
         let func_def = self.type_solution.get_monomorphized_function(&func).clone();
 
         let mut buf = vec![];
@@ -143,7 +210,9 @@ impl Lowerer {
 
             let return_reg = ctx.fresh_reg();
             let return_dest = ReturnDestination::Reg(return_reg);
+            println!("before recursive call");
             let mut expr_body = ctx.lower_expr(&func_def.body, return_dest)?;
+            println!("afterrecursive call");
             buf.append(&mut expr_body);
             // load return value into func return register
 
@@ -154,6 +223,7 @@ impl Lowerer {
 
             Ok(ctx.monomorphized_functions.insert((func, Function { body: buf })))
         })
+        */
     }
 
     fn fresh_reg(&mut self) -> Reg {
@@ -279,7 +349,6 @@ impl Lowerer {
 
                 // the memory model for types is currently not finalized,
                 // but for now, it is just sequential memory that is word-aligned
-                println!("lowering type constructor for ir type {ir_ty:?}");
                 let size_of_aggregate_type = ir_ty.size();
                 let ReturnDestination::Reg(return_destination) = return_destination;
 
@@ -539,12 +608,13 @@ impl Lowerer {
         } else {
             result.push_str("\tNO ENTRY POINT\n");
         }
-        for (id, (_sig, func)) in self.monomorphized_functions.iter() {
+        for (id, sig) in self.monomorphized_functions.iter() {
             result.push_str(&format!(
                 "{}function {}:\n",
                 if Some(id) == self.entry_point { "ENTRY: " } else { "" },
                 Into::<usize>::into(id)
             ));
+            let func = self.lowered_monomorphized_functions.get(sig).unwrap();
             for opcode in &func.body {
                 result.push_str(&format!(" {pc}\t{}\n", opcode));
                 pc += 1;

@@ -76,6 +76,9 @@ pub type FunctionSignature = (FunctionId, Box<[GeneralType]>);
 
 pub struct TypeConstraintContext {
     type_map: BTreeMap<TypeOrFunctionId, TypeVariable>,
+    // functions that will be monomorphized
+    monomorphization_queue: BTreeMap<FunctionSignature, MonomorphizedFunction>,
+    // actually resolved function bodies for monomorphization
     monomorphized_functions: BTreeMap<FunctionSignature, Function>,
     typed_functions: BTreeMap<FunctionId, Function>,
     errors: Vec<TypeError>,
@@ -251,12 +254,9 @@ impl TypeConstraintContext {
                 },
             );
         }
-        println!("generating constraints for functions");
 
         for (id, func) in self.resolved.functions() {
-            println!("checking func {}", func.name.id);
             let typed_function = func.type_check(self);
-            println!("done");
 
             let ty = self.arrow_type([typed_function.params.iter().map(|(_, b)| *b).collect(), vec![typed_function.return_ty]].concat());
             self.type_map.insert(id.into(), ty);
@@ -265,7 +265,6 @@ impl TypeConstraintContext {
         // type check the main func with no params
         let main_func = self.get_main_function();
         // construct a function call for the main function, if one exists
-        println!("generating constraints for main function call");
         if let Some((id, func)) = main_func {
             let call = petr_resolve::FunctionCall {
                 function: id,
@@ -278,6 +277,28 @@ impl TypeConstraintContext {
         // before applying existing constraints, it is likely that many duplicate constraints
         // exist. We can safely remove any duplicate constraints to avoid excessive error
         // reporting.
+
+        // add constraints from all monomorphizations
+
+        // TODO figure out how to drain a btreemap instead here to avoid the clone
+        for (sig, monomorphic_func) in self.monomorphization_queue.clone() {
+            let monomorphized_func_decl = self.get_untyped_function(monomorphic_func.func_id).clone();
+            let mut monomorphized_func_decl = monomorphized_func_decl.type_check(self);
+            // instantiate the param types with the args from the monomorphized func
+            let mut num_replacements = 0;
+            let new_constraints = replace_var_reference_types(
+                &mut monomorphized_func_decl.body.kind,
+                &monomorphized_func_decl.params,
+                &mut num_replacements,
+            );
+
+            self.monomorphized_functions.insert(sig, monomorphized_func_decl);
+
+            for constraint in new_constraints {
+                self.constraints.push(constraint);
+            }
+        }
+
         self.deduplicate_constraints();
     }
 
@@ -340,6 +361,7 @@ impl TypeConstraintContext {
             typed_functions: Default::default(),
             resolved,
             variable_scope: Default::default(),
+            monomorphization_queue: Default::default(),
             monomorphized_functions: Default::default(),
             types,
             constraints: Default::default(),
@@ -442,6 +464,7 @@ impl TypeConstraintContext {
         self.resolved.get_function(function)
     }
 
+    // TODO deprecate this
     pub fn get_function(
         &mut self,
         id: &FunctionId,
@@ -460,8 +483,8 @@ impl TypeConstraintContext {
     pub fn get_monomorphized_function(
         &self,
         id: &FunctionSignature,
-    ) -> &Function {
-        self.monomorphized_functions.get(id).expect("invariant: should exist")
+    ) -> &MonomorphizedFunction {
+        self.monomorphization_queue.get(id).expect("invariant: should exist")
     }
 
     // TODO unideal clone
@@ -593,16 +616,16 @@ impl TypeConstraintContext {
         self.errors.push(e);
     }
 
-    pub fn monomorphized_functions(&self) -> &BTreeMap<FunctionSignature, Function> {
-        &self.monomorphized_functions
+    pub fn monomorphized_functions(&self) -> &BTreeMap<FunctionSignature, MonomorphizedFunction> {
+        &self.monomorphization_queue
     }
 
     pub(crate) fn insert_monomorphized_function(
         &mut self,
         signature: (FunctionId, Box<[GeneralType]>),
-        monomorphized_func_decl: Function,
+        monomorphized_func_decl: MonomorphizedFunction,
     ) {
-        self.monomorphized_functions.insert(signature, monomorphized_func_decl);
+        self.monomorphization_queue.insert(signature, monomorphized_func_decl);
     }
 
     pub fn type_map(&self) -> &BTreeMap<TypeOrFunctionId, TypeVariable> {
@@ -620,6 +643,14 @@ impl TypeConstraintContext {
     pub fn constraints(&self) -> &[TypeConstraint] {
         &self.constraints
     }
+}
+
+#[derive(Clone)]
+pub struct MonomorphizedFunction {
+    pub name:        Identifier,
+    pub params:      Vec<(Identifier, TypeVariable)>,
+    pub return_type: TypeVariable,
+    pub func_id:     FunctionId,
 }
 
 /// the `key` type is what we use to deduplicate constraints
@@ -675,7 +706,6 @@ impl GenerateTypeConstraints for petr_resolve::Function {
             }
 
             // unify types within the body with the parameter
-            println!("checking body");
             let body = self.body.type_check(ctx);
 
             let declared_return_type = ctx.to_type_var(&self.return_type);
@@ -697,7 +727,7 @@ impl GenerateTypeConstraints for FunctionCall {
         &self,
         ctx: &mut TypeConstraintContext,
     ) -> Self::Output {
-        let func_decl = ctx.get_function(&self.function).clone();
+        let func_decl = ctx.get_untyped_function(self.function).clone();
 
         if self.args.len() != func_decl.params.len() {
             // TODO: support partial application
@@ -711,8 +741,13 @@ impl GenerateTypeConstraints for FunctionCall {
 
         let mut args: Vec<(Identifier, TypedExpr, TypeVariable)> = Vec::with_capacity(self.args.len());
 
+        let params = func_decl
+            .params
+            .iter()
+            .map(|(ident, ty)| (*ident, ctx.to_type_var(ty)))
+            .collect::<Vec<_>>();
         // unify all of the arg types with the param types
-        for (arg, (name, param_ty)) in self.args.iter().zip(func_decl.params.iter()) {
+        for (arg, (name, param_ty)) in self.args.iter().zip(params.iter()) {
             let arg = arg.type_check(ctx);
             let arg_ty = ctx.expr_ty(&arg);
             ctx.satisfies(*param_ty, arg_ty, arg.span());
@@ -727,28 +762,29 @@ impl GenerateTypeConstraints for FunctionCall {
         let signature: FunctionSignature = (self.function, concrete_arg_types.clone().into_boxed_slice());
         // now that we know the argument types, check if this signature has been monomorphized
         // already
+        let declared_return_type = ctx.to_type_var(&func_decl.return_type);
+        // insert axiom for return type
+        ctx.axiom(declared_return_type, self.span());
+
         if ctx.monomorphized_functions().contains_key(&signature) {
             return TypedExprKind::FunctionCall {
                 func: self.function,
                 args: args.into_iter().map(|(name, expr, _)| (name, expr)).collect(),
-                ty:   func_decl.return_ty,
+                ty:   declared_return_type,
             };
         }
 
         // unify declared return type with body return type
-        let declared_return_type = func_decl.return_ty;
-
-        ctx.satisfy_expr_return(declared_return_type, &func_decl.body);
+        //        ctx.satisfy_expr_return(declared_return_type, &func_decl.body);
 
         // to create a monomorphized func decl, we don't actually have to update all of the types
         // throughout the entire definition. We only need to update the parameter types.
-        let mut monomorphized_func_decl = Function {
-            name:      func_decl.name,
-            params:    func_decl.params.clone(),
-            return_ty: declared_return_type,
-            body:      func_decl.body.clone(),
+        let mut monomorphized_func_decl = MonomorphizedFunction {
+            name:        func_decl.name,
+            params:      params.clone(),
+            return_type: declared_return_type,
+            func_id:     self.function,
         };
-        // todo!("figure out how to re-do type check OR use replace_var_types to generate more constraints, maybe via unification?");
 
         // update the parameter types to be the concrete types
         for (param, concrete_ty) in monomorphized_func_decl.params.iter_mut().zip(concrete_arg_types.iter()) {
@@ -758,14 +794,6 @@ impl GenerateTypeConstraints for FunctionCall {
 
         // if there are any variable exprs in the body, update those ref types
         let mut num_replacements = 0;
-        let new_constraints = replace_var_reference_types(
-            &mut monomorphized_func_decl.body.kind,
-            &monomorphized_func_decl.params,
-            &mut num_replacements,
-        );
-        for constraint in new_constraints {
-            ctx.constraints.push(constraint);
-        }
 
         // re-do constraint generation on replaced func body
         //        monomorphized_func_decl.body.type_check(ctx);
@@ -904,7 +932,6 @@ fn replace_var_reference_types(
         TypedExprKind::Variable { ref mut ty, name } => {
             if let Some((_param_name, ty_var)) = params.iter().find(|(param_name, _)| param_name.id == name.id) {
                 *num_replacements += 1;
-                println!("replacing var named {} ", name.id);
                 //                *ty = *ty_var;
                 return vec![TypeConstraint::unify(*ty, *ty_var, name.span)];
             }

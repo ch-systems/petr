@@ -61,7 +61,7 @@ pub fn pretty_print_type_checker(type_checker: &TypeConstraintContext) -> String
             "\nfn {}({:?}) -> {}",
             func_name,
             arg_types,
-            pretty_print_ty(&func.return_ty, type_checker.types(), &type_checker.resolved().interner)
+            pretty_print_ty(&func.return_type, type_checker.types(), &type_checker.resolved().interner)
         ));
     }
 

@@ -225,7 +225,7 @@ impl GenerateTypeConstraints for Expr {
                 let else_branch = else_branch.type_check(ctx);
                 let else_ty = ctx.expr_ty(&else_branch);
 
-                ctx.unify(then_ty, else_ty, else_branch.span());
+                ctx.unify(else_ty, then_ty, else_branch.span());
 
                 TypedExprKind::If {
                     condition:   Box::new(condition),

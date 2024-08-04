@@ -61,7 +61,7 @@ pub struct TypeSolution {
     error_recovery: TypeVariable,
     unit: TypeVariable,
     functions: BTreeMap<FunctionId, Function>,
-    monomorphized_functions: BTreeMap<FunctionSignature, Function>,
+    pub monomorphized_functions: BTreeMap<FunctionSignature, Function>,
 }
 
 impl TypeSolution {
