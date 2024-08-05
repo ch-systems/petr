@@ -120,6 +120,9 @@ impl Vm {
         }
         let opcode = self.instructions.get(self.state.program_counter).clone();
         self.state.program_counter = (self.state.program_counter.0 + 1).into();
+        for (ix,ins) in self.instructions.iter() {
+           // println!("{ins}");
+        }
         match opcode {
             IrOpcode::JumpImmediateFunction(label) => {
                 let Some(offset) = self

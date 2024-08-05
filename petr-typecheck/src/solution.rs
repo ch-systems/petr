@@ -112,7 +112,7 @@ impl TypeSolution {
         self.solution.insert(ty, entry);
     }
 
-    fn pretty_print_type(
+    pub fn pretty_print_type(
         &self,
         ty: &SpecificType,
     ) -> String {
@@ -533,5 +533,9 @@ impl TypeSolution {
             TypeConstructor { ty, .. } => *ty,
             If { then_branch, .. } => self.expr_ty(then_branch),
         }
+    }
+
+    pub fn interner(&self) -> &SymbolInterner {
+        &self.interner
     }
 }

@@ -280,12 +280,13 @@ impl TypeConstraintContext {
 
         // add constraints from all monomorphizations
 
+
+        let mut num_replacements = 0;
         // TODO figure out how to drain a btreemap instead here to avoid the clone
         for (sig, monomorphic_func) in self.monomorphization_queue.clone() {
             let monomorphized_func_decl = self.get_untyped_function(monomorphic_func.func_id).clone();
             let mut monomorphized_func_decl = monomorphized_func_decl.type_check(self);
             // instantiate the param types with the args from the monomorphized func
-            let mut num_replacements = 0;
             let new_constraints = replace_var_reference_types(
                 &mut monomorphized_func_decl.body.kind,
                 &monomorphized_func_decl.params,
@@ -763,6 +764,7 @@ impl GenerateTypeConstraints for FunctionCall {
         // now that we know the argument types, check if this signature has been monomorphized
         // already
         let declared_return_type = ctx.to_type_var(&func_decl.return_type);
+
         // insert axiom for return type
         ctx.axiom(declared_return_type, self.span());
 
@@ -774,11 +776,7 @@ impl GenerateTypeConstraints for FunctionCall {
             };
         }
 
-        // unify declared return type with body return type
-        //        ctx.satisfy_expr_return(declared_return_type, &func_decl.body);
 
-        // to create a monomorphized func decl, we don't actually have to update all of the types
-        // throughout the entire definition. We only need to update the parameter types.
         let mut monomorphized_func_decl = MonomorphizedFunction {
             name:        func_decl.name,
             params:      params.clone(),
@@ -791,12 +789,6 @@ impl GenerateTypeConstraints for FunctionCall {
             let param_ty = ctx.insert_type(concrete_ty);
             param.1 = param_ty;
         }
-
-        // if there are any variable exprs in the body, update those ref types
-        let mut num_replacements = 0;
-
-        // re-do constraint generation on replaced func body
-        //        monomorphized_func_decl.body.type_check(ctx);
 
         ctx.insert_monomorphized_function(signature, monomorphized_func_decl);
         // if there are any variable exprs in the body, update those ref types

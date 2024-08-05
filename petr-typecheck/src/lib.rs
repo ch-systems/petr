@@ -29,10 +29,8 @@ pub type TResult<T> = Result<T, TypeError>;
 
 pub fn type_check(resolved: QueryableResolvedItems) -> Result<TypeSolution, Vec<SpannedItem<TypeConstraintError>>> {
     let mut type_checker = TypeConstraintContext::new(resolved);
-    println!("generating constraints");
     type_checker.fully_type_check();
 
-    println!("solving");
     type_checker.into_solution()
 }
 
