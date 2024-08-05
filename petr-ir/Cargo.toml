@@ -21,6 +21,8 @@ thiserror = "1.0.61"
 petr-parse = { path = "../petr-parse", version = "0.1.0" }
 expect-test = "1.5.0"
 petr-resolve = { path = "../petr-resolve", version = "0.1.0" }
+petr-stdlib = { path = "../petr-stdlib", version = "0.1.0" }
+
 
 [features]
 debug = ["petr-utils/debug"]

@@ -6,7 +6,7 @@
 
 use std::collections::BTreeMap;
 
-use petr_ir::{DataLabel, DataSectionEntry, Intrinsic, IrOpcode, LabelId, Reg, ReservedRegister};
+use petr_ir::{DataLabel, DataSectionEntry, Intrinsic, IrOpcode, LabelId, Reg};
 use petr_utils::{idx_map_key, IndexMap};
 use thiserror::Error;
 
@@ -120,8 +120,8 @@ impl Vm {
         }
         let opcode = self.instructions.get(self.state.program_counter).clone();
         self.state.program_counter = (self.state.program_counter.0 + 1).into();
-        for (ix,ins) in self.instructions.iter() {
-           // println!("{ins}");
+        for (ix, ins) in self.instructions.iter() {
+            // println!("{ins}");
         }
         match opcode {
             IrOpcode::JumpImmediateFunction(label) => {
@@ -136,8 +136,11 @@ impl Vm {
                 Ok(Continue)
             },
             IrOpcode::Add(dest, lhs, rhs) => {
+                println!("Adding {} and {}", lhs, rhs);
                 let lhs = self.get_register(lhs)?;
                 let rhs = self.get_register(rhs)?;
+                let result = lhs.0.wrapping_add(rhs.0);
+                println!("Result is {}", result);
                 self.set_register(dest, Value(lhs.0.wrapping_add(rhs.0)));
                 Ok(Continue)
             },
@@ -169,11 +172,12 @@ impl Vm {
                 let Some(data) = self.state.stack.pop() else {
                     return Err(VmError::PoppedEmptyStack(opcode));
                 };
-                self.set_register(dest.reg, data);
+                self.set_register(*dest, data);
+                println!("set register {} to {}", dest, data.0);
                 Ok(Continue)
             },
             IrOpcode::StackPush(val) => {
-                let data = self.get_register(val.reg)?;
+                let data = self.get_register(val)?;
                 self.state.stack.push(data);
                 Ok(Continue)
             },
@@ -209,8 +213,8 @@ impl Vm {
             },
             IrOpcode::Jump(_) => todo!(),
             IrOpcode::Label(_) => Ok(Continue),
-            IrOpcode::Return() => {
-                let val = self.get_register(Reg::Reserved(ReservedRegister::ReturnValueRegister))?;
+            IrOpcode::Return(reg) => {
+                let val = self.get_register(reg)?;
                 // pop the fn stack, return there
                 let Some(offset) = self.state.call_stack.pop() else {
                     return Ok(Terminate(val));

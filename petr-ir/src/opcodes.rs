@@ -48,14 +48,14 @@ ir_ops! {
     Subtract "sub" Reg: dest, Reg: lhs, Reg: rhs;
     Divide "div" Reg: dest, Reg: lhs, Reg: rhs;
     LoadData "ld" Reg: dest, DataLabel: data;
-    StackPop "pop" TypedReg: dest;
-    StackPush "push" TypedReg: src;
+    StackPop "pop" Reg: dest;
+    StackPush "push" Reg: src;
     Intrinsic "intrinsic" Intrinsic: intr;
     FunctionLabel "func" MonomorphizedFunctionId: label;
     LoadImmediate "imm" Reg: dest, u64: imm;
     Copy "cp" Reg: dest, Reg: src;
     Label "label" LabelId: label;
-    Return "ret";
+    Return "ret" Reg: return_value;
     ReturnImmediate "reti" u64: imm;
     PushPc "ppc";
     StackPushImmediate "pushi" u64: imm;
@@ -90,12 +90,6 @@ impl std::fmt::Display for Intrinsic {
             }
         )
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct TypedReg {
-    pub ty:  IrTy,
-    pub reg: Reg,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -211,7 +205,6 @@ impl From<usize> for Size<Bytes> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Reg {
     Virtual(usize),
-    Reserved(ReservedRegister),
 }
 
 impl std::fmt::Display for Reg {
@@ -221,32 +214,6 @@ impl std::fmt::Display for Reg {
     ) -> std::fmt::Result {
         match self {
             Reg::Virtual(a) => write!(f, "v{a}"),
-            Reg::Reserved(reg) => write!(
-                f,
-                "rr({})",
-                match reg {
-                    ReservedRegister::ReturnValueRegister => "func return value",
-                }
-            ),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ReservedRegister {
-    /// where functions put their return values
-    ReturnValueRegister,
-}
-
-impl std::fmt::Display for TypedReg {
-    fn fmt(
-        &self,
-        f: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
-        // TODO do we care about typed registers in IR?
-        match self.reg {
-            Reg::Virtual(a) => write!(f, "v{a}"),
-            Reg::Reserved(_) => todo!(),
         }
     }
 }

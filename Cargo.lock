@@ -1045,6 +1045,7 @@ dependencies = [
  "miette",
  "petr-parse",
  "petr-resolve",
+ "petr-stdlib",
  "petr-typecheck",
  "petr-utils",
  "thiserror",
