@@ -46,6 +46,14 @@ impl Value {
     pub fn inner(&self) -> u64 {
         self.0
     }
+
+    pub fn is_false(&self) -> bool {
+        self.0 == 0
+    }
+
+    pub fn is_true(&self) -> bool {
+        !self.is_false()
+    }
 }
 
 #[derive(Debug, Error)]
@@ -151,9 +159,11 @@ impl Vm {
                 Ok(Continue)
             },
             IrOpcode::Subtract(dest, lhs, rhs) => {
+                println!("Subtracting {} and {}", lhs, rhs);
                 let lhs = self.get_register(lhs)?;
                 let rhs = self.get_register(rhs)?;
                 self.set_register(dest, Value(lhs.0.wrapping_sub(rhs.0)));
+                println!("Result is {}", lhs.0.wrapping_sub(rhs.0));
                 Ok(Continue)
             },
             IrOpcode::Divide(dest, lhs, rhs) => {
@@ -173,7 +183,6 @@ impl Vm {
                     return Err(VmError::PoppedEmptyStack(opcode));
                 };
                 self.set_register(*dest, data);
-                println!("set register {} to {}", dest, data.0);
                 Ok(Continue)
             },
             IrOpcode::StackPush(val) => {
@@ -263,7 +272,11 @@ impl Vm {
             IrOpcode::Comment(_) => Ok(Continue),
             IrOpcode::JumpIfFalseImmediate(condition, dest) => {
                 let condition = self.get_register(condition)?;
-                if condition.0 == 0 {
+                if condition.is_true() {
+                    println!("Not jumping");
+                }
+                if condition.is_false() {
+                    println!("Jumping to label {}", dest);
                     self.jump_to_label(dest)?
                 }
                 Ok(Continue)
@@ -308,6 +321,7 @@ impl Vm {
         dest: petr_ir::Reg,
         val: Value,
     ) {
+        println!("Setting register {} to {}", dest, val.0);
         self.state.registers.insert(dest, val);
     }
 
