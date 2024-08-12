@@ -199,6 +199,12 @@ impl Lowerer {
             program_section.append(&mut function.body);
         }
 
+        // pretty print the program section
+        println!("\nPROGRAM SECTION\n");
+        for (ix, opcode) in program_section.iter().enumerate() {
+            println!("{}: {}", ix, opcode);
+        }
+
         (self.data_section.clone(), program_section)
     }
 
@@ -1079,6 +1085,79 @@ fn fibonacci_sequence(n in 'int) returns 'int
 fn main() returns 'int ~fibonacci_sequence(10)
 "#,
             expect![[r#""#]],
+        )
+    }
+
+    #[test]
+    fn basic_recursion_with_else_if_and_add_result() {
+        check(
+            r#"
+fn repro(n in 'int) returns 'int
+  if @equals(n, 0) then 0
+  else if @equals( n,0) then 0
+  else 
+    let a = ~repro(@subtract(n ,1));
+        b = ~repro(2);
+    5
+fn main() returns 'int ~repro(5)
+            "#,
+            expect![[r#"
+                ; DATA_SECTION
+                0: Int64(0)
+                1: Int64(0)
+                2: Int64(0)
+                3: Int64(0)
+                4: Int64(1)
+                5: Int64(2)
+                6: Int64(5)
+                7: Int64(5)
+
+                ; PROGRAM_SECTION
+                	ENTRY: 0
+                function 1:
+                 0	comment fn 1: repro (int)
+                 1	pop v0
+                 2	cp v3 v0
+                 3	ld v4 datalabel0
+                 4	eq v2 v3 v4
+                 5	cjump v2 labelid0
+                 6	ld v1 datalabel1
+                 7	jumpi labelid1
+                 8	label labelid0
+                 9	cp v6 v0
+                 10	ld v7 datalabel2
+                 11	eq v5 v6 v7
+                 12	cjump v5 labelid2
+                 13	ld v1 datalabel3
+                 14	jumpi labelid3
+                 15	label labelid2
+                 16	cp v10 v0
+                 17	ld v11 datalabel4
+                 18	sub v9 v10 v11
+                 19	push v9
+                 20	ppc
+                 21	fjumpi monomorphizedfunctionid1
+                 22	pop v8
+                 23	ld v13 datalabel5
+                 24	push v13
+                 25	ppc
+                 26	fjumpi monomorphizedfunctionid1
+                 27	pop v12
+                 28	ld v1 datalabel6
+                 29	label labelid3
+                 30	label labelid1
+                 31	push v1
+                 32	ret v1
+                ENTRY: function 0:
+                 33	comment fn 0: main ()
+                 34	ld v15 datalabel7
+                 35	push v15
+                 36	ppc
+                 37	fjumpi monomorphizedfunctionid1
+                 38	pop v14
+                 39	push v14
+                 40	ret v14
+            "#]],
         )
     }
 }

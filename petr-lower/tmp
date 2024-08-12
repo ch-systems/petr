@@ -1,0 +1,237 @@
+
+running 1 test
+
+
+[1m[91merror[97m: expect test failed[0m
+   [1m[34m-->[0m petr-ir/src/lib.rs:1098:13
+
+You can update all `expect!` tests by running:
+
+    env UPDATE_EXPECT=1 cargo test
+
+To update a single test, place the cursor on `expect` token and use `run` feature of rust-analyzer.
+
+[1mExpect[0m:
+----
+Value(6)
+----
+
+[1mActual[0m:
+----
+; DATA_SECTION
+0: Int64(0)
+1: Int64(0)
+2: Int64(0)
+3: Int64(0)
+4: Int64(1)
+5: Int64(2)
+6: Int64(5)
+7: Int64(5)
+
+; PROGRAM_SECTION
+	ENTRY: 0
+function 1:
+ 0	comment fn 1: sub (int, int)
+ 1	pop v0
+ 2	pop v1
+ 3	cp v3 v1
+ 4	cp v4 v0
+ 5	sub v2 v3 v4
+ 6	push v2
+ 7	ret v2
+function 2:
+ 8	comment fn 2: eq (int, int)
+ 9	pop v5
+ 10	pop v6
+ 11	cp v8 v6
+ 12	cp v9 v5
+ 13	eq v7 v8 v9
+ 14	push v7
+ 15	ret v7
+function 3:
+ 16	comment fn 3: Sized (int, int)
+ 17	pop v10
+ 18	pop v11
+ 19	malloci v12 16 bytes
+ 20	cp v14 v11
+ 21	imm v13 0
+ 22	add v13 v13 v12
+ 23	sri v14 v13
+ 24	cp v15 v10
+ 25	imm v13 8
+ 26	add v13 v13 v12
+ 27	sri v15 v13
+ 28	push v12
+ 29	ret v12
+function 4:
+ 30	comment fn 4: repro (int)
+ 31	pop v16
+ 32	cp v19 v16
+ 33	push v19
+ 34	ld v20 datalabel0
+ 35	push v20
+ 36	ppc
+ 37	fjumpi monomorphizedfunctionid2
+ 38	pop v18
+ 39	cjump v18 labelid0
+ 40	ld v17 datalabel1
+ 41	jumpi labelid1
+ 42	label labelid0
+ 43	cp v22 v16
+ 44	push v22
+ 45	ld v23 datalabel2
+ 46	push v23
+ 47	ppc
+ 48	fjumpi monomorphizedfunctionid2
+ 49	pop v21
+ 50	cjump v21 labelid2
+ 51	ld v17 datalabel3
+ 52	jumpi labelid3
+ 53	label labelid2
+ 54	cp v26 v16
+ 55	push v26
+ 56	ld v27 datalabel4
+ 57	push v27
+ 58	ppc
+ 59	fjumpi monomorphizedfunctionid1
+ 60	pop v25
+ 61	push v25
+ 62	ppc
+ 63	fjumpi monomorphizedfunctionid4
+ 64	pop v24
+ 65	ld v29 datalabel5
+ 66	push v29
+ 67	ppc
+ 68	fjumpi monomorphizedfunctionid4
+ 69	pop v28
+ 70	ld v17 datalabel6
+ 71	label labelid3
+ 72	label labelid1
+ 73	push v17
+ 74	ret v17
+ENTRY: function 0:
+ 75	comment fn 0: main ()
+ 76	ld v31 datalabel7
+ 77	push v31
+ 78	ppc
+ 79	fjumpi monomorphizedfunctionid4
+ 80	pop v30
+ 81	push v30
+ 82	ret v30
+
+----
+
+[1mDiff[0m:
+----
+[4m[31mValue(6)[0m[4m[32m; DATA_SECTION
+0: Int64(0)
+1: Int64(0)
+2: Int64(0)
+3: Int64(0)
+4: Int64(1)
+5: Int64(2)
+6: Int64(5)
+7: Int64(5)
+
+; PROGRAM_SECTION
+	ENTRY: 0
+function 1:
+ 0	comment fn 1: sub (int, int)
+ 1	pop v0
+ 2	pop v1
+ 3	cp v3 v1
+ 4	cp v4 v0
+ 5	sub v2 v3 v4
+ 6	push v2
+ 7	ret v2
+function 2:
+ 8	comment fn 2: eq (int, int)
+ 9	pop v5
+ 10	pop v6
+ 11	cp v8 v6
+ 12	cp v9 v5
+ 13	eq v7 v8 v9
+ 14	push v7
+ 15	ret v7
+function 3:
+ 16	comment fn 3: Sized (int, int)
+ 17	pop v10
+ 18	pop v11
+ 19	malloci v12 16 bytes
+ 20	cp v14 v11
+ 21	imm v13 0
+ 22	add v13 v13 v12
+ 23	sri v14 v13
+ 24	cp v15 v10
+ 25	imm v13 8
+ 26	add v13 v13 v12
+ 27	sri v15 v13
+ 28	push v12
+ 29	ret v12
+function 4:
+ 30	comment fn 4: repro (int)
+ 31	pop v16
+ 32	cp v19 v16
+ 33	push v19
+ 34	ld v20 datalabel0
+ 35	push v20
+ 36	ppc
+ 37	fjumpi monomorphizedfunctionid2
+ 38	pop v18
+ 39	cjump v18 labelid0
+ 40	ld v17 datalabel1
+ 41	jumpi labelid1
+ 42	label labelid0
+ 43	cp v22 v16
+ 44	push v22
+ 45	ld v23 datalabel2
+ 46	push v23
+ 47	ppc
+ 48	fjumpi monomorphizedfunctionid2
+ 49	pop v21
+ 50	cjump v21 labelid2
+ 51	ld v17 datalabel3
+ 52	jumpi labelid3
+ 53	label labelid2
+ 54	cp v26 v16
+ 55	push v26
+ 56	ld v27 datalabel4
+ 57	push v27
+ 58	ppc
+ 59	fjumpi monomorphizedfunctionid1
+ 60	pop v25
+ 61	push v25
+ 62	ppc
+ 63	fjumpi monomorphizedfunctionid4
+ 64	pop v24
+ 65	ld v29 datalabel5
+ 66	push v29
+ 67	ppc
+ 68	fjumpi monomorphizedfunctionid4
+ 69	pop v28
+ 70	ld v17 datalabel6
+ 71	label labelid3
+ 72	label labelid1
+ 73	push v17
+ 74	ret v17
+ENTRY: function 0:
+ 75	comment fn 0: main ()
+ 76	ld v31 datalabel7
+ 77	push v31
+ 78	ppc
+ 79	fjumpi monomorphizedfunctionid4
+ 80	pop v30
+ 81	push v30
+ 82	ret v30
+[0m
+----
+
+test tests::basic_recursion_with_else_if_and_add_result ... FAILED
+
+failures:
+
+failures:
+    tests::basic_recursion_with_else_if_and_add_result
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8 filtered out; finished in 0.01s
+

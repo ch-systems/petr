@@ -1052,6 +1052,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "petr-lower"
+version = "0.1.0"
+dependencies = [
+ "expect-test",
+ "miette",
+ "petr-parse",
+ "petr-resolve",
+ "petr-stdlib",
+ "petr-typecheck",
+ "petr-utils",
+ "thiserror",
+]
+
+[[package]]
 name = "petr-parse"
 version = "0.1.0"
 dependencies = [

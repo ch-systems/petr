@@ -119,6 +119,7 @@ impl Vm {
     }
 
     fn execute(&mut self) -> Result<VmControlFlow> {
+        println!("PC is {}", self.state.program_counter.0);
         use VmControlFlow::*;
         if self.state.program_counter.0 >= self.instructions.len() {
             return Err(VmError::ProgramCounterOutOfBounds(
@@ -131,6 +132,7 @@ impl Vm {
         for (ix, ins) in self.instructions.iter() {
             // println!("{ins}");
         }
+        println!("Opcode is: {opcode}");
         match opcode {
             IrOpcode::JumpImmediateFunction(label) => {
                 let Some(offset) = self
@@ -228,10 +230,12 @@ impl Vm {
                 let Some(offset) = self.state.call_stack.pop() else {
                     return Ok(Terminate(val));
                 };
+                println!("Returning to PC: {}", offset.0);
                 self.state.program_counter = offset;
                 Ok(Continue)
             },
             IrOpcode::PushPc() => {
+                println!("Pushing PC: {}", self.state.program_counter.0 + 1);
                 self.state.call_stack.push((self.state.program_counter.0 + 1).into());
                 Ok(Continue)
             },

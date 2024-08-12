@@ -1,0 +1,29 @@
+[package]
+name = "petr-lower"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+description = "lowering petr to different targets"
+license.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+petr-utils = { path = "../petr-utils", version = "0.1.0", optional = true }
+petr-typecheck = { path = "../petr-typecheck", version = "0.1.0" }
+miette = { version = "5.10", features = ["fancy"] }
+thiserror = "1.0.61"
+
+[dev-dependencies]
+petr-parse = { path = "../petr-parse", version = "0.1.0" }
+expect-test = "1.5.0"
+petr-resolve = { path = "../petr-resolve", version = "0.1.0" }
+petr-stdlib = { path = "../petr-stdlib", version = "0.1.0" }
+
+
+[features]
+debug = ["petr-utils/debug"]
+default = ["dep:petr-utils"]

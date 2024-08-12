@@ -17,6 +17,7 @@ members = [
     "petr-api",
     "petr-playground",
     "petr-stdlib",
+    "petr-lower"
 ]
  
 [workspace.package]
