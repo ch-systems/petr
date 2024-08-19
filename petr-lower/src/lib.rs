@@ -14,7 +14,6 @@ trait LoweredFunction {
         returns: Option<Self::LoweredExpr>,
     ) -> Self;
 }
-
 trait Lowerer {
     type LoweredExpr;
     type Error;
@@ -58,14 +57,33 @@ struct LoweredFunction {
     body:    Vec<JsStatement>,
     returns: Option<JsExpr>,
 }
+||||||| 05bc7b9
+=======
+    fn lower_expr(
+        &mut self,
+        expr: &TypedExpr,
+    ) -> Result<Self::Target, Self::Error>;
+}
+>>>>>>> 4826e6a8fd5b0098b726e187b7400d8a799e4856
 
 struct JsFunction {
+<<<<<<< HEAD
     name:    String,
     args:    Vec<String>,
     body:    Vec<JsStatement>,
     returns: Option<JsExpr>,
+||||||| 05bc7b9
+    name: String,
+    args: Vec<String>,
+    body: Vec<JsStatement>,
+=======
+    name: String,
+    args: Vec<String>,
+    body: Vec<Js>,
+>>>>>>> 4826e6a8fd5b0098b726e187b7400d8a799e4856
 }
 
+<<<<<<< HEAD
 enum JsExpr {
     Literal(JsLiteral),
     List(Vec<JsExpr>),
@@ -96,13 +114,40 @@ enum JsLiteral {
     Integer(i64),
     Boolean(bool),
     String(String),
+||||||| 05bc7b9
+enum Js{
+    Return(Box<Js>),
+    Assign(String, JsExpr),
+    Call(String, Vec<String>),
+=======
+enum Js {
+    Return(Box<Js>),
+    Assign(String, Box<Js>),
+    Call(String, Vec<String>),
+    Literal(JsLiteral),
+}
+
+enum JsLiteral {
+    String(String),
+    Int(i64),
+    Float(f64),
+>>>>>>> 4826e6a8fd5b0098b726e187b7400d8a799e4856
 }
 
 /// Lowers Petr into Javascript.
+<<<<<<< HEAD
 struct JsLowerer {
     functions: BTreeMap<String, JsFunction>,
+||||||| 05bc7b9
+struct JSLowerer  {
+    functions: BTreeMap<String, JsFunction>;
+=======
+struct JSLowerer {
+    functions: BTreeMap<String, JsFunction>,
+>>>>>>> 4826e6a8fd5b0098b726e187b7400d8a799e4856
 }
 
+<<<<<<< HEAD
 impl Lowerer for JsLowerer {
     type Error = ();
     type LoweredExpr = JsExpr;
@@ -178,3 +223,39 @@ impl JsLowerer {
         }
     }
 }
+||||||| 05bc7b9
+=======
+struct JsLoweringError {
+    kind: JsLoweringErrorKind,
+}
+
+enum JsLoweringErrorKind {}
+
+impl Lowerer for JSLowerer {
+    type Error = JsLoweringError;
+    type Target = Js;
+
+    fn lower_expr(
+        &mut self,
+        expr: &TypedExpr,
+    ) -> Result<Self::Target, Self::Error> {
+        use petr_typecheck::TypedExprKind::*;
+        match &expr.kind {
+            FunctionCall { func, args, ty } => todo!(),
+            Literal { value, ty } => todo!(),
+            List { elements, ty } => todo!(),
+            Unit => todo!(),
+            Variable { ty, name } => todo!(),
+            Intrinsic { ty, intrinsic } => todo!(),
+            ErrorRecovery(_) => todo!(),
+            ExprWithBindings { bindings, expression } => todo!(),
+            TypeConstructor { ty, args } => todo!(),
+            If {
+                condition,
+                then_branch,
+                else_branch,
+            } => todo!(),
+        }
+    }
+}
+>>>>>>> 4826e6a8fd5b0098b726e187b7400d8a799e4856
