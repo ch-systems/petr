@@ -1,23 +1,87 @@
 #![allow(warnings)]
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt::Display, rc::Rc};
 
 use petr_typecheck::TypedExpr;
-use petr_utils::Identifier;
+use petr_utils::{Identifier, SymbolId, SymbolInterner};
+
+#[cfg(test)]
+mod tests {
+    use expect_test::{expect, Expect};
+    use petr_api::{render_error, resolve_symbols, type_check};
+
+    use crate::{JsLowerer, Lowerer as _};
+
+    fn check(
+        sources: Vec<(&str, String)>,
+        expect: Expect,
+    ) {
+        let parser = petr_parse::Parser::new(sources);
+        let (ast, errs, interner, source_map) = parser.into_result();
+        if !errs.is_empty() {
+            errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
+            panic!("build failed: code didn't parse");
+        }
+        let (errs, resolved) = resolve_symbols(ast, interner, Default::default());
+        if !errs.is_empty() {
+            dbg!(&errs);
+            panic!("build failed: resolution");
+        }
+        let solution = match type_check(resolved) {
+            Ok(s) => s,
+            Err(type_errs) => {
+                type_errs.into_iter().for_each(|err| eprintln!("{:?}", render_error(&source_map, err)));
+                panic!("build failed: code didn't type check");
+            },
+        };
+
+        // unideal clone, but this is a test
+        // TODO: improve typesolution -> Lowerer API
+        let mut lowerer = JsLowerer::from_interner(solution.interner.clone());
+        for (id, function) in solution.functions() {
+            lowerer.lower_function(function).unwrap();
+        }
+
+        let js_source = lowerer.produce_target();
+        expect.assert_eq(&js_source.to_string());
+
+        // TODO: execute JS and assert on the result in this test harness
+    }
+
+    #[test]
+    fn returns_42() {
+        check(
+            vec![("test", "fn main() returns 'int 42".to_string())],
+            expect![[r#"
+                fn main() {
+                    return 42;
+                }
+            "#]],
+        );
+    }
+}
 
 trait LoweredFunction {
     type LoweredExpr;
     fn new(
-        name: String,
-        args: Vec<String>,
-        body: Vec<Self::LoweredExpr>,
-        returns: Option<Self::LoweredExpr>,
+        name: Rc<str>,
+        args: Vec<Rc<str>>,
+        body: Self::LoweredExpr,
     ) -> Self;
 }
-trait Lowerer {
+
+trait SymbolRealizer {
+    fn realize_symbol_id(
+        &self,
+        id: SymbolId,
+    ) -> Rc<str>;
+}
+
+trait Lowerer: SymbolRealizer {
     type LoweredExpr;
     type Error;
     type LoweredFunction: LoweredFunction<LoweredExpr = Self::LoweredExpr>;
+    type Target: Display;
 
     fn lower_expr(
         &mut self,
@@ -29,61 +93,50 @@ trait Lowerer {
         lowered_function: Self::LoweredFunction,
     ) -> Result<(), Self::Error>;
 
+    /// Produce the target language source code.
+    fn produce_target(self) -> Self::Target;
+
     /// Mutates `self` to push a new function declaration.
     fn lower_function(
         &mut self,
         function: &petr_typecheck::Function,
     ) -> Result<(), Self::Error> {
         let name = function.name.clone();
-        let args = function.params.iter().map(|arg| arg.0.clone()).collect();
-        let body = function.body.iter().map(|stmt| self.lower_expr(stmt)).collect::<Result<Vec<_>, _>>()?;
+        let args = function.params.iter().map(|arg| self.realize_symbol_id(arg.0.id)).collect();
+        let body = self.lower_expr(&function.body)?;
+        let realized_name = self.realize_symbol_id(function.name.id);
 
-        let returns = if let Some(expr) = &function.returns {
-            Some(self.lower_expr(expr)?)
-        } else {
-            None
-        };
-
-        let lowered_function = Self::LoweredFunction::new(name, args, body, returns);
-        self.commit_lowered_function(lowered_function)
+        let lowered_function = Self::LoweredFunction::new(realized_name, args, body);
+        self.commit_lowered_function(lowered_function);
 
         Ok(())
     }
 }
 
-struct LoweredFunction {
-    name:    String,
-    args:    Vec<String>,
-    body:    Vec<JsStatement>,
-    returns: Option<JsExpr>,
+impl LoweredFunction for LoweredJsFunction {
+    type LoweredExpr = JsExpr;
+
+    fn new(
+        name: Rc<str>,
+        args: Vec<Rc<str>>,
+        body: Self::LoweredExpr,
+    ) -> Self {
+        Self { name, args, body }
+    }
 }
-||||||| 05bc7b9
-=======
-    fn lower_expr(
-        &mut self,
-        expr: &TypedExpr,
-    ) -> Result<Self::Target, Self::Error>;
+
+struct LoweredJsFunction {
+    name: Rc<str>,
+    args: Vec<Rc<str>>,
+    body: JsExpr,
 }
->>>>>>> 4826e6a8fd5b0098b726e187b7400d8a799e4856
 
 struct JsFunction {
-<<<<<<< HEAD
-    name:    String,
-    args:    Vec<String>,
-    body:    Vec<JsStatement>,
-    returns: Option<JsExpr>,
-||||||| 05bc7b9
     name: String,
     args: Vec<String>,
-    body: Vec<JsStatement>,
-=======
-    name: String,
-    args: Vec<String>,
-    body: Vec<Js>,
->>>>>>> 4826e6a8fd5b0098b726e187b7400d8a799e4856
+    body: JsExpr,
 }
 
-<<<<<<< HEAD
 enum JsExpr {
     Literal(JsLiteral),
     List(Vec<JsExpr>),
@@ -110,16 +163,6 @@ enum JsStatement {
     Expression(JsExpr),
 }
 
-enum JsLiteral {
-    Integer(i64),
-    Boolean(bool),
-    String(String),
-||||||| 05bc7b9
-enum Js{
-    Return(Box<Js>),
-    Assign(String, JsExpr),
-    Call(String, Vec<String>),
-=======
 enum Js {
     Return(Box<Js>),
     Assign(String, Box<Js>),
@@ -129,29 +172,52 @@ enum Js {
 
 enum JsLiteral {
     String(String),
-    Int(i64),
+    Integer(i64),
+    Boolean(bool),
     Float(f64),
->>>>>>> 4826e6a8fd5b0098b726e187b7400d8a799e4856
 }
 
 /// Lowers Petr into Javascript.
-<<<<<<< HEAD
 struct JsLowerer {
-    functions: BTreeMap<String, JsFunction>,
-||||||| 05bc7b9
-struct JSLowerer  {
-    functions: BTreeMap<String, JsFunction>;
-=======
-struct JSLowerer {
-    functions: BTreeMap<String, JsFunction>,
->>>>>>> 4826e6a8fd5b0098b726e187b7400d8a799e4856
+    functions:       BTreeMap<String, JsFunction>,
+    symbol_interner: SymbolInterner,
 }
 
-<<<<<<< HEAD
+impl JsLowerer {
+    fn from_interner(interner: SymbolInterner) -> Self {
+        Self {
+            functions:       Default::default(),
+            symbol_interner: interner,
+        }
+    }
+}
+
+impl SymbolRealizer for JsLowerer {
+    fn realize_symbol_id(
+        &self,
+        id: SymbolId,
+    ) -> Rc<str> {
+        self.symbol_interner.get(id)
+    }
+}
+
+/// Simple wrapper type to denote that a string is JS source
+struct JsSource(String);
+
+impl Display for JsSource {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 impl Lowerer for JsLowerer {
     type Error = ();
     type LoweredExpr = JsExpr;
-    type LoweredFunction;
+    type LoweredFunction = LoweredJsFunction;
+    type Target = JsSource;
 
     fn lower_expr(
         &mut self,
@@ -206,6 +272,10 @@ impl Lowerer for JsLowerer {
     ) -> Result<(), Self::Error> {
         todo!()
     }
+
+    fn produce_target(self) -> Self::Target {
+        todo!()
+    }
 }
 
 impl JsLowerer {
@@ -223,39 +293,8 @@ impl JsLowerer {
         }
     }
 }
-||||||| 05bc7b9
-=======
 struct JsLoweringError {
     kind: JsLoweringErrorKind,
 }
 
 enum JsLoweringErrorKind {}
-
-impl Lowerer for JSLowerer {
-    type Error = JsLoweringError;
-    type Target = Js;
-
-    fn lower_expr(
-        &mut self,
-        expr: &TypedExpr,
-    ) -> Result<Self::Target, Self::Error> {
-        use petr_typecheck::TypedExprKind::*;
-        match &expr.kind {
-            FunctionCall { func, args, ty } => todo!(),
-            Literal { value, ty } => todo!(),
-            List { elements, ty } => todo!(),
-            Unit => todo!(),
-            Variable { ty, name } => todo!(),
-            Intrinsic { ty, intrinsic } => todo!(),
-            ErrorRecovery(_) => todo!(),
-            ExprWithBindings { bindings, expression } => todo!(),
-            TypeConstructor { ty, args } => todo!(),
-            If {
-                condition,
-                then_branch,
-                else_branch,
-            } => todo!(),
-        }
-    }
-}
->>>>>>> 4826e6a8fd5b0098b726e187b7400d8a799e4856

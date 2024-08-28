@@ -57,7 +57,7 @@ pub struct TypeSolution {
     solution: BTreeMap<TypeVariable, TypeSolutionEntry>,
     unsolved_types: IndexMap<TypeVariable, SpecificType>,
     errors: Vec<TypeError>,
-    interner: SymbolInterner,
+    pub interner: SymbolInterner,
     error_recovery: TypeVariable,
     unit: TypeVariable,
     functions: BTreeMap<FunctionId, Function>,
@@ -537,5 +537,9 @@ impl TypeSolution {
 
     pub fn interner(&self) -> &SymbolInterner {
         &self.interner
+    }
+
+    pub fn functions(&self) -> &BTreeMap<FunctionId, Function> {
+        &self.functions
     }
 }
