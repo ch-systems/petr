@@ -165,7 +165,7 @@ impl Parse for FunctionDeclaration {
                 p.token(Token::CloseParen)?;
                 seq
             };
-            p.token(Token::ReturnsKeyword)?;
+            p.one_of([Token::ReturnsKeyword, Token::ReturnsSymbol])?;
             let return_type = p.parse()?;
             let body = p.parse()?;
             Some(Self {
