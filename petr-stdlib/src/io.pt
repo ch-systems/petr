@@ -1,3 +1,0 @@
-
-export fn print(content in 'string) returns 'unit
-  @puts content

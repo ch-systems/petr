@@ -1,0 +1,29 @@
+cabal-version:   3.0
+name:            petr
+version:         0.1.0.0
+license:         MIT
+license-file:    LICENSE
+maintainer:      alex@alex-hansen.com
+author:          Alex Hansen
+homepage:        petr.sh
+synopsis:        Programmable Effects TRacking
+category:        Language
+build-type:      Simple
+extra-doc-files: CHANGELOG.md
+
+library
+    exposed-modules:  Compiler
+    hs-source-dirs:   src
+    default-language: Haskell2010
+    ghc-options:      -Wall
+    build-depends:    base ^>=4.17.2.1
+
+test-suite petr-test
+    type:             exitcode-stdio-1.0
+    main-is:          Main.hs
+    hs-source-dirs:   test
+    default-language: Haskell2010
+    ghc-options:      -Wall
+    build-depends:
+        base ^>=4.17.2.1,
+        petr

@@ -1,8 +1,0 @@
-author = "Alex Hansen <alex@alex-hansen.com>"
-license.workspace = true
-name = "test_project"
-
-[formatter]
-
-[dependencies.std]
-git = "https://github.com/sezna/petr-std"

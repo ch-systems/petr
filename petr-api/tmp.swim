@@ -1,5 +1,0 @@
-
-function other_function() returns 'unit @puts("hello from other_function")
-
-function main() returns 'unit ~other_function()
-

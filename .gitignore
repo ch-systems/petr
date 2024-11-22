@@ -2,6 +2,7 @@ target
 .DS_Store
 .vscode/*
 .idea/
+dist-newstyle
 
 
 # Added by cargo
