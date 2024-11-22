@@ -26,4 +26,6 @@ test-suite petr-test
     ghc-options:      -Wall
     build-depends:
         base ^>=4.17.2.1,
-        petr
+        petr,
+        HUnit ^>=1.6.2.0
+

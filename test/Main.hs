@@ -1,7 +1,12 @@
 module Main (main) where
 
-import MyLib (parseSources)
+import Compiler (compile)
+import Test.HUnit
 
--- TODO: hunit, hspec, and quickcheck tests
 main :: IO ()
 main = undefined
+
+testSource = "fn something (a in 'int, b in 'int) returns 'nothing ()"
+test1 =
+  let result = compile [testSource]
+   in assertEqual "for the length of the result," 1 (length result)

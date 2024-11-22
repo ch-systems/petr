@@ -1,4 +1,4 @@
-module Compiler.Sources (SourceId, SourceMap (..), Source (..), Span (..), mkSource) where
+module Compiler.Sources (SourceId, SourceMap (..), Source (..), Span (..), mkSource, mkSourceMap) where
 
 newtype SourceId = SourceId Int deriving (Show)
 
