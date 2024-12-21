@@ -49,7 +49,36 @@ impl Bind for Expression {
                 expression.bind(binder);
                 binder.insert_expression(*expr_id, scope_id);
             }),
-            _ => (),
+            Expression::Literal(_) => (),
+            Expression::Operator(op) => {
+                op.lhs.bind(binder);
+                op.rhs.bind(binder);
+            },
+            Expression::FunctionCall(f) => {
+                // bind all of the arguments
+                for arg in f.args.iter() {
+                    arg.bind(binder);
+                }
+            },
+            Expression::Variable(_) => (),
+            Expression::IntrinsicCall(i) => {
+                // bind all of the arguments
+                for arg in i.args.iter() {
+                    arg.bind(binder);
+                }
+            },
+            Expression::TypeConstructor(_, expr) => {
+                for arg in expr.iter() {
+                    arg.bind(binder);
+                }
+            },
+            Expression::If(i) => {
+                i.condition.bind(binder);
+                i.then_branch.bind(binder);
+                if let Some(ref else_branch) = i.else_branch {
+                    else_branch.bind(binder);
+                }
+            },
         }
     }
 }
