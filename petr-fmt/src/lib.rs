@@ -141,7 +141,7 @@ impl Formattable for FunctionDeclaration {
             buf.push_str("returns ");
         }
 
-        buf.push_str(&self.return_type.pretty_print(&ctx.interner, ctx.indentation()));
+        buf.push_str(&self.return_type.format(ctx).into_single_line().content);
 
         lines.push(ctx.new_line(buf));
 
@@ -170,8 +170,7 @@ impl Formattable for FunctionParameter {
         let ty_in = if ctx.config.use_set_notation_for_types() { "∈" } else { "in" };
 
         buf.push_str(&format!(" {ty_in} "));
-        let ty = self.ty.format(ctx).into_single_line().content;
-        buf.push_str(&ty);
+        buf.push_str(&self.ty.format(ctx).into_single_line().content);
 
         FormattedLines::new(vec![ctx.new_line(buf)])
     }
@@ -513,7 +512,7 @@ impl Formattable for TypeField {
         let name = ctx.interner.get(self.name.id);
         let mut buf = name.to_string();
         buf.push(' ');
-        buf.push_str(&self.ty.pretty_print(&ctx.interner, ctx.indentation()));
+        buf.push_str(&self.ty.format(ctx).into_single_line().content);
         FormattedLines::new(vec![ctx.new_line(buf)])
     }
 }
@@ -527,7 +526,13 @@ impl Formattable for Ty {
             Ty::Bool => "'bool".to_string(),
             Ty::Int => "'int".to_string(),
             Ty::String => "'string".to_string(),
-            Ty::Unit => "'unit".to_string(),
+            Ty::Unit => {
+                if ctx.config.use_symbol_for_unit_type() {
+                    "ε".to_string()
+                } else {
+                    "'unit".to_string()
+                }
+            },
             Ty::Named(name) => format!("'{}", ctx.interner.get(name.id)),
             Ty::Literal(lit) => lit.to_string(),
             Ty::Sum(tys) => format!(

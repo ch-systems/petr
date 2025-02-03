@@ -563,7 +563,7 @@ fn intrinsic() {
             fn string_literals() → 'string
               "This is a string literal."
 
-            fn my_func() → 'unit
+            fn my_func() → ε
               @puts(~string_literal)
         "#]],
     );
@@ -576,7 +576,7 @@ fn intrinsic_2() {
         r#"
                   fn my_func() returns 'unit @puts("hello, world!")"#,
         expect![[r#"
-            fn my_func() → 'unit
+            fn my_func() → ε
               @puts("hello, world!")
         "#]],
     );
@@ -645,5 +645,28 @@ fn sum_ty_formatting() {
         ) → 'int
           5
     "#]],
+    )
+}
+
+#[test]
+fn unit_ty_formatting() {
+    check(
+        Default::default(),
+        r#"
+        type bar = a f1 'unit f2 'unit
+
+        fn my_func(x in 'unit, y in 'unit, z in 'sum 'unit | 'unit) returns 'unit foo
+        "#,
+        expect![[r#"
+            type bar = a f1 ε f2 ε
+
+
+            fn my_func(
+              x ∈ ε,
+              y ∈ ε,
+              z ∈ 'Σ ε | ε,
+            ) → ε
+              foo
+        "#]],
     )
 }
