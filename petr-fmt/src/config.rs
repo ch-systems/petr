@@ -14,6 +14,7 @@ pub struct FormatterConfig {
     put_trailing_semis_on_let_bindings: bool,
     backup: bool,
     use_symbol_for_fn_return_type: bool,
+    use_symbol_for_unit_type: bool,
 }
 
 impl FormatterConfig {
@@ -85,11 +86,16 @@ impl FormatterConfig {
             put_trailing_semis_on_let_bindings: self.put_trailing_semis_on_let_bindings,
             backup: self.backup,
             use_symbol_for_fn_return_type: self.use_symbol_for_fn_return_type,
+            use_symbol_for_unit_type: self.use_symbol_for_unit_type,
         }
     }
 
     pub(crate) fn use_symbol_for_fn_return_type(&self) -> bool {
         self.use_symbol_for_fn_return_type
+    }
+
+    pub(crate) fn use_symbol_for_unit_type(&self) -> bool {
+        self.use_symbol_for_unit_type
     }
 }
 
@@ -114,6 +120,7 @@ pub struct FormatterConfigBuilder {
     put_trailing_semis_on_let_bindings: bool,
     backup: bool,
     use_symbol_for_fn_return_type: bool,
+    use_symbol_for_unit_type: bool,
 }
 
 impl FormatterConfigBuilder {
@@ -251,6 +258,7 @@ impl FormatterConfigBuilder {
             put_trailing_semis_on_let_bindings: self.put_trailing_semis_on_let_bindings,
             backup: self.backup,
             use_symbol_for_fn_return_type: self.use_symbol_for_fn_return_type,
+            use_symbol_for_unit_type: self.use_symbol_for_unit_type,
         }
     }
 
@@ -260,6 +268,16 @@ impl FormatterConfigBuilder {
     ) -> Self {
         Self {
             use_symbol_for_fn_return_type,
+            ..self
+        }
+    }
+
+    pub fn use_symbol_for_unit_type(
+        self,
+        use_symbol_for_unit_type: bool,
+    ) -> Self {
+        Self {
+            use_symbol_for_unit_type,
             ..self
         }
     }
@@ -282,6 +300,7 @@ impl Default for FormatterConfigBuilder {
             put_trailing_semis_on_let_bindings: false,
             backup: false,
             use_symbol_for_fn_return_type: true,
+            use_symbol_for_unit_type: true,
         }
     }
 }
