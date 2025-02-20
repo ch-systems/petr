@@ -670,3 +670,53 @@ fn unit_ty_formatting() {
         "#]],
     )
 }
+
+#[test]
+fn format_if() {
+    check(
+        Default::default(),
+        r#"
+fn main() → 'uint if true then if false then 1 else 0 else 0
+        "#,
+        expect![[r#"
+            fn main() → 'uint
+              if true then
+                if false then
+                  1
+                else
+                  0
+              else
+                0
+        "#]],
+    );
+
+    check(
+        Default::default(),
+        r#"
+fn foo(x in 'int, y in 'int) returns 'int  if = 5 5 then + x 1 else - y 1
+
+        "#,
+        expect![[r#"
+            fn foo(
+              x ∈ 'int,
+              y ∈ 'int,
+            ) → 'int
+              if = 5 5 then
+                + x 1
+              else
+                - y 1
+        "#]],
+    );
+
+    check(
+        Default::default(),
+        r#"
+fn main() returns 'unit if true then ~std.io.print "Hello, World!"
+        "#,
+        expect![[r#"
+            fn main() → ε
+              if true then
+                ~std.io.print "Hello, World!"
+        "#]],
+    );
+}
