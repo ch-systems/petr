@@ -333,6 +333,31 @@ fn constant_literal_types() {
 }
 
 #[test]
+fn unit_type() {
+    check(
+        vec![
+            r#"
+            type bar = a f1 'unit f2 ε 
+
+            fn foo(x in ε, y in 'unit) returns 'unit 
+              ~std.io.print "Hello, World!"
+            "#,
+        ],
+        expect![[r#"
+            AST
+            ____
+            module test =
+            type bar =
+              a(f1: 'unit f2: 'unit)Func foo(
+              x ∈ 'unit,
+              y ∈ 'unit
+            ) -> 'unit call std.io.print("Hello, World!")
+
+        "#]],
+    )
+}
+
+#[test]
 fn sum_types() {
     check(
         vec![r#"fn myFunc(x in 'sum 1 | 2 | 3) returns 'int 5"#],

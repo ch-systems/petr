@@ -215,6 +215,8 @@ impl Parse for Ty {
                     let tys = p.sequence_one_or_more(Token::Pipe)?;
                     Some(Ty::Sum(tys.into_boxed_slice()))
                 })
+            } else if let Some(_tok) = p.try_token(Token::EpsilonSymbol) {
+                Some(Ty::Unit)
             } else if let Some(_tok) = p.try_token(Token::TyMarker) {
                 let next: Identifier = p.parse()?;
                 let ty = match p.slice() {
