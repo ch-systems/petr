@@ -214,7 +214,7 @@ impl Formattable for Expression {
             Expression::FunctionCall(f) => f.format(ctx),
             Expression::IntrinsicCall(i) => i.format(ctx),
             Expression::Binding(binding) => binding.format(ctx),
-            Expression::If(_) => todo!(),
+            Expression::If(r#if) => r#if.format(ctx),
         }
     }
 }
@@ -364,6 +364,28 @@ impl Formattable for FunctionCall {
 
         lines.push(ctx.new_line(buf));
         FormattedLines::new(lines)
+    }
+}
+
+impl Formattable for If {
+    fn format(
+        &self,
+        ctx: &mut FormatterContext,
+    ) -> FormattedLines {
+        let condition_str = self.condition.format(ctx).into_single_line().content.to_string();
+
+        FormattedLines::new(
+            vec![ctx.new_line(format!("if {} then", condition_str))] // `if <condition> then`
+                .into_iter()
+                .chain(ctx.indented(|ctx| self.then_branch.format(ctx).lines)) // `then` branch body
+                .chain(self.else_branch.as_ref().map_or_else(Vec::new, |else_branch| {
+                    vec![ctx.new_line("else")]
+                        .into_iter()
+                        .chain(ctx.indented(|ctx| else_branch.format(ctx).lines))
+                        .collect()
+                })) // `else` branch body, if available
+                .collect(),
+        )
     }
 }
 
