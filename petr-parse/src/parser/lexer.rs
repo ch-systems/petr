@@ -59,6 +59,8 @@ pub enum Token {
     ReturnsSymbol,
     #[token("'Σ")]
     SumSymbol,
+    #[token("ε")]
+    EpsilonSymbol,
     #[token("type")]
     TypeKeyword,
     #[token("\n")]
@@ -151,6 +153,7 @@ impl std::fmt::Display for Token {
             SumKeyword => write!(f, "'sum"),
             SumSymbol => write!(f, "Σ"),
             ReturnsSymbol => write!(f, "→"),
+            EpsilonSymbol => write!(f, "ε"),
         }
     }
 }
