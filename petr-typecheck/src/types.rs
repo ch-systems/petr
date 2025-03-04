@@ -235,4 +235,3 @@ impl Type for GeneralType {
         }
     }
 }
-
